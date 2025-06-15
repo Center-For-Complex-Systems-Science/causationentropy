@@ -4,59 +4,17 @@ import numpy as np
 import pandas as pd
 from typing import Union, Optional, Dict, List, Tuple
 
-from information.conditional_mutual_information import conditional_mutual_information
+from causalentropy.core.information.conditional_mutual_information import conditional_mutual_information
 
-# def conditional_mutual_information(X, Y, Z=None, method='gaussian', metric='euclidean', k=1, bandwidth='silverman', kernel='gaussian'):
-#     """Compute the CMI based upon whichever method"""
-#     if method == 'gaussian':
-#         return gaussian_conditional_mutual_information(X, Y, Z)
-#
-# def gaussian_mutual_information(X, Y):
-#     """
-#     I(X;Y) for (multivariate) Gaussian vectors X, Y.
-#     X, Y must each be 2-D with the **same number of rows** (samples).
-#     """
-#     def _detcorr(A):
-#         # If A is one-column, corrcoef returns a scalar → wrap as 1×1
-#         C = np.corrcoef(A.T)
-#         return float(C) if np.ndim(C) == 0 else la.det(C)
-#
-#     SX   = _detcorr(X)
-#     SY   = _detcorr(Y)
-#     SXY  = _detcorr(np.hstack((X, Y)))
-#     return 0.5 * np.log((SX * SY) / SXY)
-#
-#
-# def gaussian_conditional_mutual_information(X, Y, Z=None):
-#     """
-#     I(X;Y | Z) under a Gaussian assumption.
-#
-#     Parameters
-#     ----------
-#     X : (N, kx) array
-#     Y : (N, ky) array
-#     Z : (N, kz) array or None
-#     """
-#     if Z is None:
-#         return gaussian_mutual_information(X, Y)
-#
-#     def _detcorr(A):
-#         C = np.corrcoef(A.T)
-#         return float(C) if np.ndim(C) == 0 else la.det(C)
-#
-#     SZ    = _detcorr(Z)
-#     SXZ   = _detcorr(np.hstack((X, Z)))
-#     SYZ   = _detcorr(np.hstack((Y, Z)))
-#     SXYZ  = _detcorr(np.hstack((X, Y, Z)))
-#
-#     return 0.5 * np.log((SXZ * SYZ) / (SZ * SXYZ))
 
 
 def discover_network(
     data: Union[np.ndarray, pd.DataFrame],
     method: str = "gaussian",
     max_lag: int = 5,
-    significance_level: float = 0.05,
+    significance_forward: float = 0.05,
+    backwards_significance: float = 0.5,
+    metric: str = "euclidean",
     n_permutations: int = 200,
 ) -> nx.DiGraph:
     """
@@ -215,13 +173,12 @@ def backward(X_full, Y, S_init, alpha=0.05):
         # conditioning set Z = S \ {j}
         Z = X_full[:, [k for k in S if k != j]] if len(S) > 1 else None
 
-        Xj      = X_full[:, [j]]
-        cmij    = conditional_mutual_information(Xj, Y, Z)
+        Xj = X_full[:, [j]]
+        cmij = conditional_mutual_information(Xj, Y, Z)
 
-        passed  = shuffle_test(
-            Xj, Y, Z, cmij, alpha=alpha)['Pass']
+        passed  = shuffle_test(Xj, Y, Z, cmij, alpha=alpha)['Pass']
         if not passed:
-            S.remove(j)                             # prune j
+            S.remove(j)  # prune j
 
     return S
 
@@ -266,7 +223,7 @@ def shuffle_test(X, Y, Z, observed_cmi,
 
 if __name__ == '__main__':
     from causalentropy.datasets.synthetic import logisic_dynamics
-    data = logisic_dynamics()
+    data, A = logisic_dynamics()
     G = discover_network(data)
     print(data.shape)
     print(G)

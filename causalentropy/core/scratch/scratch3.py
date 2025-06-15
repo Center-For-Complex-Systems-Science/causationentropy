@@ -10,7 +10,7 @@ def correlation_log_determinant(A, epsilon=1e-10):
     if A.shape[1] == 0:
         return 0.0
     C = np.corrcoef(A.T)
-    C = C + epsilon * np.eye(C.shape[0])
+    #C = C + epsilon * np.eye(C.shape[0])
     if C.ndim == 0:
         return 0.0
     return np.linalg.slogdet(C)[1]

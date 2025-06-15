@@ -1,34 +1,21 @@
 import numpy as np
-from scipy.spatial import distance
 from scipy.spatial.distance import cdist
-from sklearn.neighbors import KernelDensity
-from sklearn.linear_model import LinearRegression
 from scipy.special import digamma
-import scipy
-import scipy.linalg as la
 from causalentropy.core.information.entropy import kde_entropy, geometric_knn_entropy
+from causalentropy.core.linalg import correlation_log_determinant
 
-
-def _gaussian_mutual_information(X, Y):
-    SX = np.linalg.det(X)
-    SY = np.linalg.det(Y)
-    SXY = np.linalg.det(np.corrcoef(X.T, Y.T))
-    return 0.5 * np.log((SX * SY) / SXY)
 
 def gaussian_mutual_information(X, Y):
     """
-    I(X;Y) for (multivariate) Gaussian vectors X, Y.
+    I(X;Y) for (multivariate) Gaussian vectors X, Y using log-determinants.
     X, Y must each be 2-D with the **same number of rows** (samples).
     """
-    def _detcorr(A):
-        # If A is one-column, corrcoef returns a scalar → wrap as 1×1
-        C = np.corrcoef(A.T)
-        return float(C) if np.ndim(C) == 0 else la.det(C)
 
-    SX   = _detcorr(X)
-    SY   = _detcorr(Y)
-    SXY  = _detcorr(np.hstack((X, Y)))
-    return 0.5 * np.log((SX * SY) / SXY)
+    SX = correlation_log_determinant(X)
+    SY = correlation_log_determinant(Y)
+    SXY = correlation_log_determinant(np.hstack((X, Y)))
+
+    return 0.5 * (SX + SY - SXY)
 
 def kde_mutual_information(X, Y, bandwidth='silverman', kernel='gaussian'):
 

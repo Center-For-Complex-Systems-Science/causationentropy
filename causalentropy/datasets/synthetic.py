@@ -6,14 +6,11 @@ def logistic_map(X, r):
     return r * X * (1 - X)
 
 
-def logisic_dynamics(r=3.99, sigma=0.1, seed=42):
+def logisic_dynamics(n=20, p=0.1, t=100, r=3.99, sigma=0.1, seed=42):
     """Network coupled logistic map, r is the logistic map parameter
        and sigma is the coupling strength between oscillators"""
 
     rng = np.random.default_rng(seed)
-    p = 0.1
-    n = 20
-    T = 100 # n and T are self attributes
     G = nx.erdos_renyi_graph(n, p, seed=seed)
     A = nx.adjacency_matrix(G)
     # Must adjust the adjacency matrix so that dynamics stay in [0,1]
@@ -24,35 +21,31 @@ def logisic_dynamics(r=3.99, sigma=0.1, seed=42):
     L = np.eye(n) - A
     L = np.array(L)
 
-    XY = np.zeros((T, n))
+    XY = np.zeros((t, n))
     XY[0, :] = rng.random(n)
-    for i in range(1, T):
+    for i in range(1, t):
         XY[i, :] = logistic_map(XY[i - 1, :], r) - sigma * np.dot(L, logistic_map(XY[i - 1, :], r)).T
 
-    return XY
+    return XY, A
 
 
-def Gen_Stochastic_Gaussian(self, Epsilon=1e-1):
+def linear_stochastic_gaussian_process(rho, n=20, T=100, p=0.1, epsilon=1e-1, seed=42):
     """Linear stochastic Gaussian process"""
 
-    if self.NetworkAdjacency is None:
-        raise ValueError("Missing adjacency matrix, please add this using set_NetworkAdjacency")
 
-    if self.Rho is None:
-        raise ValueError("Missing Rho, please set it using set_Rho")
-
-    self.Gaussian_Epsilon = Epsilon
-    R = 2 * (np.random.rand(self.n, self.n) - 0.5)
-    A = np.array(self.NetworkAdjacency) * R
+    rng = np.random.default_rng(seed)
+    G = nx.erdos_renyi_graph(n, p, seed=seed)
+    A = nx.adjacency_matrix(G)
+    R = 2 * (np.random.rand(n, n) - 0.5)
+    A = A * R
     A = A / np.max(np.abs(np.linalg.eigvals(A)))
-    A = A * self.Rho
-    self.Lin_Stoch_Gaussian_Adjacency = A
-    XY = np.zeros((self.T, self.n))
-    XY[0, :] = Epsilon * np.random.randn(1, self.n)
-    for i in range(1, self.T):
-        Xi = np.dot(A, np.matrix(XY[i - 1, :]).T) + Epsilon * np.random.randn(self.n, 1)
+    A = A * rho
+    XY = np.zeros((T, n))
+    XY[0, :] = epsilon * np.random.randn(1, n)
+    for i in range(1, T):
+        Xi = np.dot(A, np.matrix(XY[i - 1, :]).T) + epsilon * np.random.randn(n, 1)
         XY[i, :] = Xi.T
-    self.XY = XY
+    return XY
 
 
 def Gen_Poisson_Data(self, Epsilon=1, noiseLevel=1):

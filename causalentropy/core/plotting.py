@@ -1,6 +1,5 @@
-import numpy as np
 import matplotlib.pyplot as plt
-from stats import auc
+from causalentropy.core.stats import auc
 
 
 def roc_curve(self, TPRs, FPRs):

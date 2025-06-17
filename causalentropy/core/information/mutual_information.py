@@ -63,3 +63,23 @@ def geometric_knn_mutual_information(X, Y, metric='euclidean', k=1):
     HXY = geometric_knn_entropy(np.hstack((X, Y)), k, XYdist)
 
     return HX + HY - HXY
+
+
+def negative_binomial_mutual_information(X, Y, Z):
+    raise NotImplemented()
+
+
+def hawkes_mutual_information(X, Y, Z):
+    raise NotImplemented()
+
+
+def von_mises_mutual_information(X, Y, Z):
+    raise NotImplemented()
+
+
+def laplace_mutual_information(X, Y, Z):
+    raise NotImplemented()
+
+
+def histogram_mutual_information(X, Y, Z):
+    raise NotImplemented()

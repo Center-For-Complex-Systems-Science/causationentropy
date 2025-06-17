@@ -261,7 +261,7 @@ def shuffle_test(X, Y, Z, observed_cmi,
 
 if __name__ == '__main__':
     from causalentropy.datasets.synthetic import logisic_dynamics
-    data = logisic_dynamics()
+    data, A = logisic_dynamics()
     G = discover_network(data)
     print(data.shape)
     print(G)

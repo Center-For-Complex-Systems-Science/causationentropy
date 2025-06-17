@@ -179,7 +179,7 @@ def poisson_conditional_mutual_information(X, Y, Z):
         return H_XYZ - H_YZ
 
 
-def negative_binomial_mutual_information(X, Y, Z):
+def negative_binomial_considtional_mutual_information(X, Y, Z):
     raise NotImplemented()
 
 

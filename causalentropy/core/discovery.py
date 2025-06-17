@@ -10,8 +10,10 @@ from causalentropy.core.information.conditional_mutual_information import condit
 
 def discover_network(
     data: Union[np.ndarray, pd.DataFrame],
-    method: str = "gaussian",
+    method: str = 'standard',
+    information: str = "gaussian",
     max_lag: int = 5,
+    k_means: int = 5,
     significance_forward: float = 0.05,
     backwards_significance: float = 0.5,
     metric: str = "euclidean",
@@ -40,9 +42,10 @@ def discover_network(
             lag   : int     (delay τ)
             cmi   : float   (conditional MI value at selection)
     """
+    rng = np.random.default_rng(42)
 
-    if method != "gaussian":
-        raise NotImplementedError("discover_network: only method='gaussian' supported.")
+    if information not in ["gaussian", "knn", "kde", "poisson"]:
+        raise NotImplementedError(f"discover_network: method={information} not supported.")
 
     # Convert DataFrame → ndarray while keeping column labels
     if isinstance(data, pd.DataFrame):
@@ -66,41 +69,49 @@ def discover_network(
     G = nx.DiGraph()
     G.add_nodes_from(var_names)
 
+    # Step 1: Create lagged predictors and corresponding labels
+    X_lagged = []
+    feature_names = []  # stores (var_idx, lag)
+    for j in range(n):  # variable index
+        for tau in range(1, max_lag + 1):  # lag from 1 to max_lag
+            col = series[max_lag - tau : T - tau, j]
+            X_lagged.append(col)
+            feature_names.append((j, tau))
 
+    X_lagged = np.column_stack(X_lagged)      # shape: (T - max_lag, n * max_lag)
+    Y_all = series[max_lag:, :]               # aligned target matrix
 
-    tau = 1 # Figure it out later
-    #XY = data.to_numpy() # Figure it out typing later
-    XY = data
-    XY_1 = XY[0:T - tau, :]
-    XY_2 = XY[tau:, :]
-    B = np.zeros((n, n))
+    # Step 2: Initialize causal graph
+    G = nx.DiGraph()
+    G.add_nodes_from(var_names)
+
+    # Step 3: Loop over each variable and infer parents from lagged predictors
     for i in range(n):
-        print("Estimating edges for node number: ", i)
-        Y = XY_2[:, [i]]
-        X = XY_1
-        S = standard_optimal_causation_entropy(X, Y)
-        B[i, S] = 1
+        print(f"Estimating edges for node {i} ({var_names[i]})")
 
-    for i in range(n):
-        for j in range(n):
-            if B[i, j] == 1:
-                G.add_edge(var_names[j], var_names[i], lag=tau)
+        Y = Y_all[:, [i]]  # shape: (T - max_lag, 1)
+        S = standard_optimal_causation_entropy(X_lagged, Y, rng)
+
+        for s in S:
+            src_var, src_lag = feature_names[s]
+            G.add_edge(var_names[src_var], var_names[i], lag=src_lag)
+
     return G
 
 
-def standard_optimal_causation_entropy(X, Y):
+def standard_optimal_causation_entropy(X, Y, rng):
 
     """Run the standard version of the oCSE algorithm. Note defaults to the
            KernelDensity plugin estimator if the method is not specified"""
 
 
-    forward_pass = forward(X, Y)
+    forward_pass = forward(X, Y, rng)
 
-    S = backward(X, Y, forward_pass)
+    S = backward(X, Y, forward_pass, rng)
 
     return S
 
-def forward(X_full, Y, alpha=0.05):
+def forward(X_full, Y, rng, alpha=0.05):
     """
     Forward step of oCSE *without* hidden state.
 
@@ -128,12 +139,12 @@ def forward(X_full, Y, alpha=0.05):
                                 Xj, Y, Z)
 
         # 2. pick best
-        j_best   = remaining[ent_values.argmax()]
-        X_best   = X_full[:, [j_best]]
-        mi_best  = ent_values.max()
+        j_best = remaining[ent_values.argmax()]
+        X_best = X_full[:, [j_best]]
+        mi_best = ent_values.max()
 
         # 3. permutation (shuffle) test
-        passed = shuffle_test(X_best, Y, Z, mi_best, alpha)['Pass']
+        passed = shuffle_test(X_best, Y, Z, mi_best, alpha, rng=rng)['Pass']
         if not passed:
             break
 
@@ -144,7 +155,7 @@ def forward(X_full, Y, alpha=0.05):
     return S
 
 
-def backward(X_full, Y, S_init, alpha=0.05):
+def backward(X_full, Y, S_init, rng, alpha=0.05):
     """
     Backward pruning step of oCSE.
 
@@ -165,9 +176,8 @@ def backward(X_full, Y, S_init, alpha=0.05):
     -------
     S_final : list[int]
         Subset of S_init that passed the backward significance test.
-    """
-    rng = np.random.default_rng()                   # for permutation order
-    S   = copy.deepcopy(S_init)                     # working copy
+    """  # for permutation order
+    S = copy.deepcopy(S_init)                     # working copy
 
     for j in rng.permutation(S_init):
         # conditioning set Z = S \ {j}
@@ -176,9 +186,10 @@ def backward(X_full, Y, S_init, alpha=0.05):
         Xj = X_full[:, [j]]
         cmij = conditional_mutual_information(Xj, Y, Z)
 
-        passed  = shuffle_test(Xj, Y, Z, cmij, alpha=alpha)['Pass']
+        passed = shuffle_test(
+            Xj, Y, Z, cmij, alpha=alpha, rng=rng)['Pass']
         if not passed:
-            S.remove(j)  # prune j
+            S.remove(j)                             # prune j
 
     return S
 
@@ -219,7 +230,6 @@ def shuffle_test(X, Y, Z, observed_cmi,
         "Value": observed_cmi,
         "Pass": observed_cmi >= threshold,
     }
-
 
 if __name__ == '__main__':
     from causalentropy.datasets.synthetic import logisic_dynamics

@@ -1,11 +1,12 @@
 causalentropy.utils package
 ===========================
 
-Submodules
-----------
+Utility functions for data processing and I/O operations.
 
 causalentropy.utils.data module
 -------------------------------
+
+Data preprocessing and manipulation utilities.
 
 .. automodule:: causalentropy.utils.data
    :members:
@@ -14,6 +15,8 @@ causalentropy.utils.data module
 
 causalentropy.utils.io module
 -----------------------------
+
+Input/output operations for data handling.
 
 .. automodule:: causalentropy.utils.io
    :members:

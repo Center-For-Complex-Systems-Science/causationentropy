@@ -1,6 +1,8 @@
 causalentropy package
 =====================
 
+CausationEntropy: A Python library for causal network discovery from time series data using Optimal Causation Entropy (oCSE).
+
 Subpackages
 -----------
 

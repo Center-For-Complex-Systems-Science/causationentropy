@@ -1,7 +1,5 @@
 import numpy as np
 import networkx as nx
-from scipy.stats import nbinom, laplace, vonmises
-
 
 def logistic_map(X, r):
     return r * X * (1 - X)
@@ -36,7 +34,7 @@ def linear_stochastic_gaussian_process(rho, n=20, T=100, p=0.1, epsilon=1e-1, se
     rng = np.random.default_rng(seed)
     if G is None:
         G = nx.erdos_renyi_graph(n, p, seed=seed, directed=True)
-    A = nx.to_numpy_array(G)
+    A = nx.to_numpy_array(G).T
     R = 2 * (np.random.rand(n, n) - 0.5)
     A = A * R
     A = A / np.max(np.abs(np.linalg.eigvals(A)))

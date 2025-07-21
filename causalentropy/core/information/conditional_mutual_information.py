@@ -1,60 +1,11 @@
-import scipy as sp
 from scipy.spatial.distance import cdist
 import numpy as np
-import scipy.linalg as la
 
 from causalentropy.core.information.entropy import kde_entropy, geometric_knn_entropy, poisson_entropy, \
     poisson_joint_entropy
 from causalentropy.core.information.mutual_information import geometric_knn_mutual_information, kde_mutual_information, \
     knn_mutual_information, \
     gaussian_mutual_information
-
-
-def _gaussian_conditional_mutual_information(X, Y, Z=None):
-    """An implementation of the Gaussian conditional mutual information from
-    the paper by Sun, Taylor and Bollt entitled:
-        Causal network inference by optimal causation entropy"""
-    if Z is None:
-        return gaussian_mutual_information(X, Y)
-
-    SZ = np.corrcoef(Z.T)
-    SZ = sp.linalg.det(SZ)
-    XZ = np.concatenate((X, Z), axis=1)
-    YZ = np.concatenate((Y, Z), axis=1)
-    XYZ = np.concatenate((X, Y, Z), axis=1)
-
-    SXZ = sp.linalg.det(np.corrcoef(XZ.T))
-    SYZ = sp.linalg.det(np.corrcoef(YZ.T))
-    SXYZ = sp.linalg.det(np.corrcoef(XYZ.T))
-
-    Value = 0.5 * np.log((SXZ * SYZ) / (SZ * SXYZ))
-
-    return Value
-
-
-def _gaussian_conditional_mutual_information(X, Y, Z=None):
-    """
-    I(X;Y | Z) under a Gaussian assumption.
-
-    Parameters
-    ----------
-    X : (N, kx) array
-    Y : (N, ky) array
-    Z : (N, kz) array or None
-    """
-    if Z is None:
-        return gaussian_mutual_information(X, Y)
-
-    def _detcorr(A):
-        C = np.corrcoef(A.T)
-        return float(C) if np.ndim(C) == 0 else la.det(C)
-
-    SZ = _detcorr(Z)
-    SXZ = _detcorr(np.hstack((X, Z)))
-    SYZ = _detcorr(np.hstack((Y, Z)))
-    SXYZ = _detcorr(np.hstack((X, Y, Z)))
-
-    return 0.5 * np.log((SXZ * SYZ) / (SZ * SXYZ))
 
 
 def gaussian_conditional_mutual_information(X, Y, Z=None):
@@ -581,7 +532,7 @@ def histogram_conditional_mutual_information(X, Y, Z, bins='auto'):
     return max(0, h_xz + h_yz - h_z - h_xyz)
 
 
-def conditional_mutual_information(X, Y, Z=None, method='gaussian', metric='euclidean', k=1, bandwidth='silverman',
+def conditional_mutual_information(X, Y, Z=None, method='gaussian', metric='euclidean', k=6, bandwidth='silverman',
                                    kernel='gaussian'):
     """
     Compute conditional mutual information using specified estimation method.

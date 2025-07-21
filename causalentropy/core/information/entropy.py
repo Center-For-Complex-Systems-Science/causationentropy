@@ -51,9 +51,13 @@ def hyperellipsoid_check(svd_Yi, Z_i):
     This is used in the geometric k-NN entropy estimation to assess
     the local geometric configuration of nearest neighbors.
     """
+    # U, S, Vt = svd_Yi
+    # transformed = np.dot(Z_i, Vt.T) / S
+    # return np.sum(transformed ** 2) <= 1
     U, S, Vt = svd_Yi
-    transformed = np.dot(Z_i, Vt.T) / S
-    return np.sum(transformed ** 2) <= 1
+    r = len(S)                 # local rank
+    transformed = (Z_i @ Vt.T[:, :r]) / S
+    return (transformed**2).sum() <= 1
 
 
 def kde_entropy(X, bandwidth='silverman', kernel='gaussian'):
@@ -418,7 +422,7 @@ def hawkes_entropy(events, mu, alpha, beta, T=None, base=np.e):
     
     For stability, typically α < β to ensure stationarity.
     """
-    events = np.asfarray(events)
+    events = np.asarray(events)
     if events.ndim != 1 or events.size == 0:
         raise ValueError("events must be a non-empty 1-D array.")
     if np.any(np.diff(events) <= 0):

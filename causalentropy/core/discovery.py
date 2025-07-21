@@ -14,10 +14,11 @@ def discover_network(
         method: str = 'standard',
         information: str = "gaussian",
         max_lag: int = 5,
-        k_means: int = 5,
         alpha_forward: float = 0.05,
         alpha_backward: float = 0.05,
         metric: str = "euclidean",
+        bandwidth='silverman',
+        k_means: int = 5,
         n_shuffles: int = 200,
         n_jobs=-1,
 ) -> nx.DiGraph:
@@ -204,10 +205,10 @@ def discover_network(
                 Z_init.append(series[max_lag - tau:T - tau, i])  # lagged Y_i
             Z_init = np.column_stack(Z_init)  # shape: (T - max_lag, max_lag)
             S = standard_optimal_causation_entropy(X_lagged, Y, Z_init, rng, alpha_forward, alpha_backward, n_shuffles,
-                                                   information)
+                                                   information, metric, k_means, bandwidth)
         if method == 'alternative':
             S = alternative_optimal_causation_entropy(X_lagged, Y, rng, alpha_forward, alpha_backward, n_shuffles,
-                                                      information)
+                                                      information, metric, k_means, bandwidth)
         if method == 'information_lasso':
             S = information_lasso_optimal_causation_entropy(X_lagged, Y, rng)
         if method == 'lasso':
@@ -218,9 +219,8 @@ def discover_network(
 
     return G
 
-
 def standard_optimal_causation_entropy(X, Y, Z_init, rng, alpha1=0.05, alpha2=0.05, n_shuffles=200,
-                                       information='gaussian'):
+                                       information='gaussian', metric='euclidean', k_means=5, bandwidth='silverman'):
     r"""
     Execute the standard optimal Causation Entropy algorithm with initial conditioning set.
     
@@ -260,14 +260,14 @@ def standard_optimal_causation_entropy(X, Y, Z_init, rng, alpha1=0.05, alpha2=0.
         Indices of selected predictor variables that passed both forward and backward phases.
     """
 
-    forward_pass = standard_forward(X, Y, Z_init, rng, alpha1, n_shuffles, information)
+    forward_pass = standard_forward(X, Y, Z_init, rng, alpha1, n_shuffles, information, metric, k_means, bandwidth)
 
-    S = backward(X, Y, forward_pass, rng, alpha2, n_shuffles, information)
+    S = backward(X, Y, forward_pass, rng, alpha2, n_shuffles, information, metric, k_means, bandwidth)
 
     return S
 
 
-def alternative_optimal_causation_entropy(X, Y, rng, alpha1=0.05, alpha2=0.05, n_shuffles=200, information='gaussian'):
+def alternative_optimal_causation_entropy(X, Y, rng, alpha1=0.05, alpha2=0.05, n_shuffles=200, information='gaussian', metric='euclidean', k_means=5, bandwidth='silverman'):
     """
     Execute the alternative optimal Causation Entropy algorithm without initial conditioning.
     
@@ -298,9 +298,9 @@ def alternative_optimal_causation_entropy(X, Y, rng, alpha1=0.05, alpha2=0.05, n
         Indices of selected predictor variables.
     """
 
-    forward_pass = alternative_forward(X, Y, rng, alpha1, n_shuffles, information)
+    forward_pass = alternative_forward(X, Y, rng, alpha1, n_shuffles, information, metric, k_means, bandwidth)
 
-    S = backward(X, Y, forward_pass, rng, alpha2, n_shuffles, information)
+    S = backward(X, Y, forward_pass, rng, alpha2, n_shuffles, information, metric, k_means, bandwidth)
 
     return S
 
@@ -394,7 +394,7 @@ def lasso_optimal_causation_entropy(X, Y, rng, criterion='bic', max_lambda=100, 
     return S
 
 
-def alternative_forward(X_full, Y, rng, alpha=0.05, n_shuffles=200, information='gaussian'):
+def alternative_forward(X_full, Y, rng, alpha=0.05, n_shuffles=200, information='gaussian', metric='euclidean', k_means=5, bandwidth='silverman'):
     r"""
     Forward selection phase of oCSE without initial conditioning set.
     
@@ -451,7 +451,7 @@ def alternative_forward(X_full, Y, rng, alpha=0.05, n_shuffles=200, information=
         ent_values = np.zeros(remaining.size)
         for k, j in enumerate(remaining):
             Xj = X_full[:, [j]]  # keep 2-D shape
-            ent_values[k] = conditional_mutual_information(Xj, Y, Z, information)
+            ent_values[k] = conditional_mutual_information(Xj, Y, Z, method=information, metric=metric, k=k_means, bandwidth=bandwidth)
 
         # 2. pick best
         j_best = remaining[ent_values.argmax()]
@@ -459,7 +459,7 @@ def alternative_forward(X_full, Y, rng, alpha=0.05, n_shuffles=200, information=
         mi_best = ent_values.max()
 
         # 3. permutation (shuffle) test
-        passed = shuffle_test(X_best, Y, Z, mi_best, alpha, rng=rng, n_shuffles=n_shuffles, information=information)[
+        passed = shuffle_test(X_best, Y, Z, mi_best, alpha, rng=rng, n_shuffles=n_shuffles, information=information, metric=metric, k_means=k_means, bandwidth=bandwidth)[
             'Pass']
         if not passed:
             break
@@ -471,7 +471,7 @@ def alternative_forward(X_full, Y, rng, alpha=0.05, n_shuffles=200, information=
     return S
 
 def standard_forward(X_full, Y, Z_init, rng,
-                     alpha=0.05, n_shuffles=200, information="gaussian"):
+                     alpha=0.05, n_shuffles=200, information="gaussian", metric='euclidean', k_means=5, bandwidth='silverman'):
     r"""
     Standard forward selection phase of oCSE with initial conditioning set.
 
@@ -528,7 +528,7 @@ def standard_forward(X_full, Y, Z_init, rng,
         for k, j in enumerate(candidates):
             Xj = X_full[:, [j]]                 # (T,1)  keep 2‑D
             ent_values[k] = conditional_mutual_information(
-                Xj, Y, Z, information
+                Xj, Y, Z, method=information, metric=metric, k=k_means, bandwidth=bandwidth
             )
 
         # 2. take the arg‑max
@@ -543,10 +543,10 @@ def standard_forward(X_full, Y, Z_init, rng,
             alpha=alpha, rng=rng,
             n_shuffles=n_shuffles,
             information=information,
+            metric=metric, k_means=k_means, bandwidth=bandwidth
         )["Pass"]
 
         if not passed:
-            # ⚠️ Just discard this predictor and continue searching
             candidates.pop(k_best)
             continue
 
@@ -557,7 +557,7 @@ def standard_forward(X_full, Y, Z_init, rng,
 
     return S
 
-def backward(X_full, Y, S_init, rng, alpha=0.05, n_shuffles=200, information='gaussian'):
+def backward(X_full, Y, S_init, rng, alpha=0.05, n_shuffles=200, information='gaussian', metric='euclidean', k_means=5, bandwidth='silverman'):
     r"""
     Backward elimination phase of optimal Causation Entropy.
     
@@ -614,9 +614,9 @@ def backward(X_full, Y, S_init, rng, alpha=0.05, n_shuffles=200, information='ga
         Z = X_full[:, [k for k in S if k != j]] if len(S) > 1 else None
 
         Xj = X_full[:, [j]]
-        cmij = conditional_mutual_information(Xj, Y, Z, information)
+        cmij = conditional_mutual_information(Xj, Y, Z, method=information, metric=metric, k=k_means, bandwidth=bandwidth)
 
-        passed = shuffle_test(Xj, Y, Z, cmij, alpha=alpha, rng=rng, n_shuffles=n_shuffles, information=information)[
+        passed = shuffle_test(Xj, Y, Z, cmij, alpha=alpha, rng=rng, n_shuffles=n_shuffles, information=information, metric=metric, k_means=k_means, bandwidth=bandwidth)[
             'Pass']
         if not passed:
             S.remove(j)  # prune j
@@ -624,7 +624,7 @@ def backward(X_full, Y, S_init, rng, alpha=0.05, n_shuffles=200, information='ga
     return S
 
 
-def shuffle_test(X, Y, Z, observed_cmi, alpha=0.05, n_shuffles=500, rng=None, information='gaussian'):
+def shuffle_test(X, Y, Z, observed_cmi, alpha=0.05, n_shuffles=500, rng=None, information='gaussian', metric='euclidean', k_means=5, bandwidth='silverman'):
     r"""
     Permutation test for conditional mutual information significance.
     
@@ -706,7 +706,7 @@ def shuffle_test(X, Y, Z, observed_cmi, alpha=0.05, n_shuffles=500, rng=None, in
 
     for i in range(n_shuffles):
         X_perm = X[rng.permutation(len(X)), :]  # shuffle rows
-        null_cmi[i] = conditional_mutual_information(X_perm, Y, Z, information)
+        null_cmi[i] = conditional_mutual_information(X_perm, Y, Z, method=information, metric=metric, k=k_means, bandwidth=bandwidth)
 
     threshold = np.percentile(null_cmi, 100 * (1 - alpha))
     return {

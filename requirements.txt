@@ -3,7 +3,8 @@ numpy~=2.2.6
 scikit-learn~=1.7.0
 networkx~=3.4.2
 scipy~=1.15.3
-pandas~=2.3.0alabaster==1.0.0
+pandas~=2.3.0
+alabaster==1.0.0
 anyio==4.9.0
 appnope==0.1.4
 argon2-cffi==25.1.0

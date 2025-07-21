@@ -7,7 +7,7 @@ from scipy.special import i0, i1
 
 
 def l2dist(a, b):
-    """
+    r"""
     Compute the Euclidean (L2) distance between two points.
     
     .. math::
@@ -57,7 +57,7 @@ def hyperellipsoid_check(svd_Yi, Z_i):
 
 
 def kde_entropy(X, bandwidth='silverman', kernel='gaussian'):
-    """
+    r"""
     Estimate entropy using Kernel Density Estimation (KDE).
     
     This function computes the differential entropy of a continuous random variable
@@ -108,7 +108,7 @@ def kde_entropy(X, bandwidth='silverman', kernel='gaussian'):
 
 
 def geometric_knn_entropy(X, Xdist, k=1):
-    """
+    r"""
     Estimate entropy using geometric k-nearest neighbor method.
     
     This function implements the geometric k-NN entropy estimator from Lord, Sun, and Bollt.
@@ -175,7 +175,7 @@ def geometric_knn_entropy(X, Xdist, k=1):
 
 
 def poisson_entropy(lambdas):
-    """
+    r"""
     Estimate entropy for Poisson-distributed random variables.
     
     This function computes the entropy of Poisson random variables with given rate
@@ -247,7 +247,7 @@ def poisson_entropy(lambdas):
 
 
 def poisson_joint_entropy(Cov):
-    """
+    r"""
     Estimate joint entropy for multivariate Poisson distributions.
     
     This function computes the joint entropy of a multivariate Poisson distribution
@@ -293,7 +293,7 @@ def poisson_joint_entropy(Cov):
 
 
 def negative_binomial_entropy(r, p, max_k=None, tol=1e-12, base=np.e):
-    """
+    r"""
     Compute entropy of a negative binomial distribution.
     
     The negative binomial distribution models the number of failures before the
@@ -365,7 +365,7 @@ def negative_binomial_entropy(r, p, max_k=None, tol=1e-12, base=np.e):
 
 
 def hawkes_entropy(events, mu, alpha, beta, T=None, base=np.e):
-    """
+    r"""
     Compute entropy of a univariate Hawkes point process.
     
     The Hawkes process is a self-exciting point process where the intensity function
@@ -453,7 +453,7 @@ def hawkes_entropy(events, mu, alpha, beta, T=None, base=np.e):
 
 
 def von_mises_entropy(kappa, base=np.e):
-    """
+    r"""
     Compute entropy of the von Mises (circular normal) distribution.
     
     The von Mises distribution is the circular analogue of the normal distribution,
@@ -515,7 +515,7 @@ def von_mises_entropy(kappa, base=np.e):
 
 
 def laplace_entropy(b, base=np.e):
-    """
+    r"""
     Compute entropy of the Laplace (double exponential) distribution.
     
     The Laplace distribution has probability density function:
@@ -568,7 +568,7 @@ def laplace_entropy(b, base=np.e):
 
 
 def histogram_entropy(x, bins='auto', base=np.e):
-    """
+    r"""
     Estimate entropy using histogram-based probability estimation.
     
     This function computes entropy by constructing a histogram of the data

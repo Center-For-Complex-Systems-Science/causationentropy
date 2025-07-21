@@ -6,7 +6,7 @@ from causalentropy.core.linalg import correlation_log_determinant
 
 
 def gaussian_mutual_information(X, Y):
-    """
+    r"""
     Compute mutual information for multivariate Gaussian variables using log-determinants.
     
     For multivariate Gaussian random variables, the mutual information has a closed-form
@@ -102,7 +102,7 @@ def kde_mutual_information(X, Y, bandwidth='silverman', kernel='gaussian'):
 
 
 def knn_mutual_information(X, Y, metric='euclidean', k=1):
-    """
+    r"""
     Estimate mutual information using k-nearest neighbor (KSG) method.
     
     This function implements the Kraskov-Stögbauer-Grassberger estimator,
@@ -289,7 +289,7 @@ def negative_binomial_mutual_information(X, Y, r_x, p_x, r_y, p_y):
 
 
 def hawkes_mutual_information(events_x, events_y, mu_x, alpha_x, beta_x, mu_y, alpha_y, beta_y, T=None):
-    """
+    r"""
     Compute mutual information between two Hawkes point processes.
     
     This function estimates mutual information between two self-exciting point processes
@@ -465,7 +465,7 @@ def laplace_mutual_information(X, Y, b_x, b_y):
 
 
 def histogram_mutual_information(X, Y, bins='auto'):
-    """
+    r"""
     Estimate mutual information using histogram-based entropy calculation.
     
     This function computes mutual information by constructing histograms for

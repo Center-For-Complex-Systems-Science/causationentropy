@@ -58,7 +58,7 @@ def _gaussian_conditional_mutual_information(X, Y, Z=None):
 
 
 def gaussian_conditional_mutual_information(X, Y, Z=None):
-    """
+    r"""
     Compute conditional mutual information for multivariate Gaussian variables.
     
     For multivariate Gaussian variables, the conditional mutual information has

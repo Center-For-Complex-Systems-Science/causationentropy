@@ -2,7 +2,7 @@ import numpy as np
 
 
 def auc(TPRs, FPRs):
-    """
+    r"""
     Compute Area Under the ROC Curve (AUC) using trapezoidal integration.
     
     The Area Under the Curve provides a single scalar measure of classifier performance

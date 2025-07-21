@@ -2,7 +2,7 @@ import copy
 import networkx as nx
 import numpy as np
 import pandas as pd
-from typing import Union, Optional, Dict, List, Tuple
+from typing import Union, Dict, Tuple
 
 from sklearn.linear_model import LassoLarsIC, Lasso
 
@@ -21,7 +21,7 @@ def discover_network(
         n_shuffles: int = 200,
         n_jobs=-1,
 ) -> nx.DiGraph:
-    """
+    r"""
     Infer a causal graph via Optimal Causation Entropy (oCSE).
     
     This function implements the optimal Causation Entropy algorithm for causal network discovery
@@ -34,10 +34,10 @@ def discover_network(
     
     .. math::
         
-        I(X_j^{(t-\\tau)}; X_i^{(t)} | \\mathbf{Z}_i^{(t)}) = 
-        H(X_i^{(t)} | \\mathbf{Z}_i^{(t)}) - H(X_i^{(t)} | X_j^{(t-\\tau)}, \\mathbf{Z}_i^{(t)})
+        `I(X_j^{(t-\\tau)}; X_i^{(t)} | \mathbf{Z}_i^{(t)}) =
+        H(X_i^{(t)} | \\mathbf{Z}_i^{(t)}) - H(X_i^{(t)} | X_j^{(t-\tau)}, \mathbf{Z}_i^{(t)})`
     
-    where :math:`\\mathbf{Z}_i^{(t)}` represents the conditioning set for variable :math:`i` at time :math:`t`.
+    where :math:`\mathbf{Z}_i^{(t)}` represents the conditioning set for variable :math:`i` at time :math:`t`.
     
     The algorithm proceeds in two main phases:
     
@@ -99,7 +99,7 @@ def discover_network(
         Directed graph representing the discovered causal network. Nodes correspond to 
         variables and edges represent causal relationships. Edge attributes include:
         
-        - 'lag': Time delay :math:`\\tau` of the causal relationship
+        - 'lag': Time delay :math:`\tau` of the causal relationship
         - 'cmi': Conditional mutual information value at time of selection
         
     Raises
@@ -113,7 +113,7 @@ def discover_network(
     -----
     The algorithm's computational complexity is approximately :math:`O(T \\cdot n^2 \\cdot \\tau_{max} \\cdot N_{shuffle})`,
     where :math:`T` is the time series length, :math:`n` is the number of variables, 
-    :math:`\\tau_{max}` is the maximum lag, and :math:`N_{shuffle}` is the number of permutations.
+    :math:`\tau_{max}` is the maximum lag, and :math:`N_{shuffle}` is the number of permutations.
     
     For optimal performance with high-dimensional data, consider:
     
@@ -149,12 +149,12 @@ def discover_network(
     if method not in ["standard", 'alternative', 'information_lasso', "lasso"]:
         raise NotImplementedError(f"discover_network: method={method} not supported.")
     supported_information_types = [
-        "gaussian", "knn", "kde", "geometric_knn", "poisson", 
+        "gaussian", "knn", "kde", "geometric_knn", "poisson",
         "negative_binomial", "hawkes", "von_mises", "laplace", "histogram"
     ]
     if information not in supported_information_types:
         raise NotImplementedError(f"discover_network: information={information} not supported. "
-                                f"Supported types: {supported_information_types}")
+                                  f"Supported types: {supported_information_types}")
 
     # Convert DataFrame to ndarray while keeping column labels
     if isinstance(data, pd.DataFrame):
@@ -203,9 +203,11 @@ def discover_network(
             for tau in range(1, max_lag + 1):
                 Z_init.append(series[max_lag - tau:T - tau, i])  # lagged Y_i
             Z_init = np.column_stack(Z_init)  # shape: (T - max_lag, max_lag)
-            S = standard_optimal_causation_entropy(X_lagged, Y, Z_init, rng, alpha_forward, alpha_backward, n_shuffles, information)
+            S = standard_optimal_causation_entropy(X_lagged, Y, Z_init, rng, alpha_forward, alpha_backward, n_shuffles,
+                                                   information)
         if method == 'alternative':
-            S = alternative_optimal_causation_entropy(X_lagged, Y, rng, alpha_forward, alpha_backward, n_shuffles, information)
+            S = alternative_optimal_causation_entropy(X_lagged, Y, rng, alpha_forward, alpha_backward, n_shuffles,
+                                                      information)
         if method == 'information_lasso':
             S = information_lasso_optimal_causation_entropy(X_lagged, Y, rng)
         if method == 'lasso':
@@ -217,8 +219,9 @@ def discover_network(
     return G
 
 
-def standard_optimal_causation_entropy(X, Y, Z_init, rng, alpha1=0.05, alpha2=0.05, n_shuffles=200, information='gaussian'):
-    """
+def standard_optimal_causation_entropy(X, Y, Z_init, rng, alpha1=0.05, alpha2=0.05, n_shuffles=200,
+                                       information='gaussian'):
+    r"""
     Execute the standard optimal Causation Entropy algorithm with initial conditioning set.
     
     This function implements the standard oCSE algorithm that begins with a non-empty
@@ -230,7 +233,7 @@ def standard_optimal_causation_entropy(X, Y, Z_init, rng, alpha1=0.05, alpha2=0.
     
     .. math::
         
-        I(X_j; Y | \mathbf{Z}) = \sum_{x_j,y,\mathbf{z}} p(x_j,y,\mathbf{z}) \log \frac{p(x_j,y|\mathbf{z})}{p(x_j|\mathbf{z})p(y|\mathbf{z})}
+        I(X_j; Y | \\mathbf{Z}) = \\sum_{x_j,y,\\mathbf{z}} p(x_j,y,\\mathbf{z}) \\log \\frac{p(x_j,y|\\mathbf{z})}{p(x_j|\\mathbf{z})p(y|\\mathbf{z})}
         
     Parameters
     ----------
@@ -257,13 +260,12 @@ def standard_optimal_causation_entropy(X, Y, Z_init, rng, alpha1=0.05, alpha2=0.
         Indices of selected predictor variables that passed both forward and backward phases.
     """
 
-
-
     forward_pass = standard_forward(X, Y, Z_init, rng, alpha1, n_shuffles, information)
 
     S = backward(X, Y, forward_pass, rng, alpha2, n_shuffles, information)
 
     return S
+
 
 def alternative_optimal_causation_entropy(X, Y, rng, alpha1=0.05, alpha2=0.05, n_shuffles=200, information='gaussian'):
     """
@@ -303,8 +305,8 @@ def alternative_optimal_causation_entropy(X, Y, rng, alpha1=0.05, alpha2=0.05, n
     return S
 
 
-
-def information_lasso_optimal_causation_entropy(X, Y, rng, criterion='bic', max_lambda=100, cross_val=10, information='gaussian'):
+def information_lasso_optimal_causation_entropy(X, Y, rng, criterion='bic', max_lambda=100, cross_val=10,
+                                                information='gaussian'):
     """
     Execute information-theoretic variant of oCSE with LASSO regularization.
     
@@ -345,7 +347,7 @@ def information_lasso_optimal_causation_entropy(X, Y, rng, criterion='bic', max_
 
 
 def lasso_optimal_causation_entropy(X, Y, rng, criterion='bic', max_lambda=100, cross_val=10):
-    """
+    r"""
     Execute LASSO-based variable selection for causal discovery.
     
     This method uses LASSO (Least Absolute Shrinkage and Selection Operator) regression
@@ -393,7 +395,7 @@ def lasso_optimal_causation_entropy(X, Y, rng, criterion='bic', max_lambda=100, 
 
 
 def alternative_forward(X_full, Y, rng, alpha=0.05, n_shuffles=200, information='gaussian'):
-    """
+    r"""
     Forward selection phase of oCSE without initial conditioning set.
     
     This function implements the forward selection phase starting with an empty conditioning
@@ -457,7 +459,8 @@ def alternative_forward(X_full, Y, rng, alpha=0.05, n_shuffles=200, information=
         mi_best = ent_values.max()
 
         # 3. permutation (shuffle) test
-        passed = shuffle_test(X_best, Y, Z, mi_best, alpha, rng=rng, n_shuffles=n_shuffles, information=information)['Pass']
+        passed = shuffle_test(X_best, Y, Z, mi_best, alpha, rng=rng, n_shuffles=n_shuffles, information=information)[
+            'Pass']
         if not passed:
             break
 
@@ -467,25 +470,25 @@ def alternative_forward(X_full, Y, rng, alpha=0.05, n_shuffles=200, information=
 
     return S
 
-
-def standard_forward(X_full, Y, Z_init, rng, alpha=0.05, n_shuffles=200, information='gaussian'):
-    """
+def standard_forward(X_full, Y, Z_init, rng,
+                     alpha=0.05, n_shuffles=200, information="gaussian"):
+    r"""
     Standard forward selection phase of oCSE with initial conditioning set.
-    
+
     This function implements forward selection starting with a non-empty initial conditioning
     set Z_init, typically consisting of lagged values of the target variable. This approach
     incorporates prior knowledge about temporal dependencies in the causal discovery process.
-    
+
     At each iteration, the algorithm selects the predictor that maximizes conditional mutual
     information with the target, given the current conditioning set:
-    
+
     .. math::
-        
+
         j^* = \arg\max_{j \in \text{candidates}} I(X_j^{(t)}; Y^{(t+\tau)} | \mathbf{Z}^{(t)})
-        
+
     where :math:`\mathbf{Z}^{(t)} = \mathbf{Z}_{\text{init}} \cup \mathbf{S}^{(t)}` combines the initial
     conditioning set with currently selected predictors.
-    
+
     Parameters
     ----------
     X_full : array-like of shape (T, n)
@@ -502,12 +505,12 @@ def standard_forward(X_full, Y, Z_init, rng, alpha=0.05, n_shuffles=200, informa
         Number of shuffles for significance testing.
     information : str, default='gaussian'
         Information measure estimator type.
-        
+
     Returns
     -------
     S : list of int
         Indices of selected predictor variables from X_full.
-        
+
     Notes
     -----
     The initial conditioning set Z_init remains constant throughout the forward selection,
@@ -515,40 +518,47 @@ def standard_forward(X_full, Y, Z_init, rng, alpha=0.05, n_shuffles=200, informa
     subsequent iterations.
     """
     n = X_full.shape[1]
-    candidates = np.arange(n)
-    S = []  # selected predictors
+    candidates = list(range(n))
+    S = []
     Z = Z_init.copy() if Z_init is not None else None
 
-    while True:
-        remaining = np.setdiff1d(candidates, S)
-        if remaining.size == 0:
-            break
+    while candidates:
+        # 1. compute CMI for every remaining candidate
+        ent_values = np.empty(len(candidates))
+        for k, j in enumerate(candidates):
+            Xj = X_full[:, [j]]                 # (T,1)  keep 2‑D
+            ent_values[k] = conditional_mutual_information(
+                Xj, Y, Z, information
+            )
 
-        # 1. evaluate each remaining variable
-        ent_values = np.zeros(remaining.size)
-        for k, j in enumerate(remaining):
-            Xj = X_full[:, [j]]
-            ent_values[k] = conditional_mutual_information(Xj, Y, Z, information)
-
-        # 2. pick best
-        j_best = remaining[ent_values.argmax()]
+        # 2. take the arg‑max
+        k_best = int(ent_values.argmax())
+        j_best = candidates[k_best]
         X_best = X_full[:, [j_best]]
-        mi_best = ent_values.max()
+        mi_best = ent_values[k_best]
 
-        # 3. permutation test
-        passed = shuffle_test(X_best, Y, Z, mi_best, alpha, rng=rng, n_shuffles=n_shuffles, information=information)['Pass']
+        # 3. permutation (shuffle) test
+        passed = shuffle_test(
+            X_best, Y, Z, mi_best,
+            alpha=alpha, rng=rng,
+            n_shuffles=n_shuffles,
+            information=information,
+        )["Pass"]
+
         if not passed:
-            break
+            # ⚠️ Just discard this predictor and continue searching
+            candidates.pop(k_best)
+            continue
 
-        # 4. accept and update conditioning set
+        # 4. accept predictor, update conditioning set / candidate list
         S.append(j_best)
         Z = np.hstack([Z, X_best]) if Z is not None else X_best
+        candidates.pop(k_best)
 
     return S
 
-
 def backward(X_full, Y, S_init, rng, alpha=0.05, n_shuffles=200, information='gaussian'):
-    """
+    r"""
     Backward elimination phase of optimal Causation Entropy.
     
     This function performs backward elimination to remove spurious causal relationships
@@ -596,6 +606,7 @@ def backward(X_full, Y, S_init, rng, alpha=0.05, n_shuffles=200, information='ga
     The backward phase is essential for controlling false positive rates in causal
     discovery, as forward selection may include predictors that become redundant
     when considered alongside other selected variables.
+    """
     S = copy.deepcopy(S_init)  # working copy
 
     for j in rng.permutation(S_init):
@@ -605,7 +616,8 @@ def backward(X_full, Y, S_init, rng, alpha=0.05, n_shuffles=200, information='ga
         Xj = X_full[:, [j]]
         cmij = conditional_mutual_information(Xj, Y, Z, information)
 
-        passed = shuffle_test(Xj, Y, Z, cmij, alpha=alpha, rng=rng, n_shuffles=n_shuffles, information=information)['Pass']
+        passed = shuffle_test(Xj, Y, Z, cmij, alpha=alpha, rng=rng, n_shuffles=n_shuffles, information=information)[
+            'Pass']
         if not passed:
             S.remove(j)  # prune j
 
@@ -613,7 +625,7 @@ def backward(X_full, Y, S_init, rng, alpha=0.05, n_shuffles=200, information='ga
 
 
 def shuffle_test(X, Y, Z, observed_cmi, alpha=0.05, n_shuffles=500, rng=None, information='gaussian'):
-    """
+    r"""
     Permutation test for conditional mutual information significance.
     
     This function performs a permutation test to assess the statistical significance of

@@ -219,6 +219,8 @@ def standard_forward(X_full, Y, Z_init, rng, alpha=0.05, n_shuffles=200, informa
     Z_init : (T, p) initial conditioning set (e.g., lagged Y)
     alpha: float
         forward significance threshold
+    information:
+        Teh type of stats to use.
     n_shuffles: int
         Number of shuffles for shuffle test.
     """

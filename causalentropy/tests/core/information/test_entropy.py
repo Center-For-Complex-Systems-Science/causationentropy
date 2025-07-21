@@ -497,7 +497,8 @@ class TestIntegrationAndEdgeCases:
         # Very large von Mises concentration
         result = von_mises_entropy(100.0)
         assert np.isfinite(result)
-        assert result > 0
+        # For very large kappa, von Mises entropy can be negative (high concentration)
+        # This is mathematically correct behavior
 
         # Very small negative binomial p
         result = negative_binomial_entropy(1, 0.001)

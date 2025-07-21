@@ -17,14 +17,15 @@ def gaussian_mutual_information(X, Y):
 
     return 0.5 * (SX + SY - SXY)
 
-def kde_mutual_information(X, Y, bandwidth='silverman', kernel='gaussian'):
 
+def kde_mutual_information(X, Y, bandwidth='silverman', kernel='gaussian'):
     XY = np.hstack((X, Y))
     Hx = kde_entropy(X, bandwidth=bandwidth, kernel=kernel)
     Hy = kde_entropy(Y, bandwidth=bandwidth, kernel=kernel)
     Hxy = kde_entropy(XY, bandwidth=bandwidth, kernel=kernel)
 
     return Hx + Hy - Hxy
+
 
 def knn_mutual_information(X, Y, metric='euclidean', k=1):
     # construct the joint space
@@ -47,6 +48,7 @@ def knn_mutual_information(X, Y, metric='euclidean', k=1):
     I1 = I1a + I1b
     I2 = - np.mean(digamma(nx + 1) + digamma(ny + 1))
     return I1 + I2
+
 
 def geometric_knn_mutual_information(X, Y, metric='euclidean', k=1):
     """A method for estimating Mutual information (which will be

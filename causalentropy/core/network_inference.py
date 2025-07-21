@@ -249,7 +249,6 @@ class NetworkInference:
 
         return S
 
-
     def remove_linearly_dependent_variables(self, matrix):
         q, r = np.linalg.qr(matrix)
         independent_cols = np.where(np.abs(np.diag(r)) > 1e-11)[0]  # Use a tolerance

@@ -1,18 +1,12 @@
-import scipy
-from sklearn.neighbors import KernelDensity
-from sklearn.linear_model import LinearRegression
 import scipy as sp
-from scipy.spatial import distance
 from scipy.spatial.distance import cdist
-from scipy.special import gamma as Gamma
-from scipy.special import digamma as Digamma
-from sklearn.linear_model import LassoLarsIC
-from sklearn.linear_model import LassoCV
 import numpy as np
 import scipy.linalg as la
 
-from causalentropy.core.information.entropy import kde_entropy, geometric_knn_entropy, poisson_entropy, poisson_joint_entropy
-from causalentropy.core.information.mutual_information import geometric_knn_mutual_information, kde_mutual_information, knn_mutual_information, \
+from causalentropy.core.information.entropy import kde_entropy, geometric_knn_entropy, poisson_entropy, \
+    poisson_joint_entropy
+from causalentropy.core.information.mutual_information import geometric_knn_mutual_information, kde_mutual_information, \
+    knn_mutual_information, \
     gaussian_mutual_information
 
 
@@ -36,6 +30,7 @@ def _gaussian_conditional_mutual_information(X, Y, Z=None):
     Value = 0.5 * np.log((SXZ * SYZ) / (SZ * SXYZ))
 
     return Value
+
 
 def _gaussian_conditional_mutual_information(X, Y, Z=None):
     """
@@ -61,6 +56,7 @@ def _gaussian_conditional_mutual_information(X, Y, Z=None):
 
     return 0.5 * np.log((SXZ * SYZ) / (SZ * SXYZ))
 
+
 def gaussian_conditional_mutual_information(X, Y, Z=None):
     """
     I(X;Y | Z) under a Gaussian assumption.
@@ -84,6 +80,7 @@ def gaussian_conditional_mutual_information(X, Y, Z=None):
     SXYZ = _detcorr(np.hstack((X, Y, Z)))
 
     return 0.5 * (SXZ + SYZ - SZ - SXYZ)
+
 
 def kde_conditional_mutual_information(X, Y, Z, bandwidth='silverman', kernel='gaussian'):
     if Z is None:
@@ -118,6 +115,7 @@ def knn_conditional_mutual_information(X, Y, Z, metric='euclidean', k=1):
 
         return MIXY - MIXYZ
 
+
 def geometric_knn_conditional_mutual_information(X, Y, Z, metric='euclidean', k=1):
     """A method for estimating CMI (which will be
     needed in Causation entropy) which comes from the paper
@@ -136,6 +134,7 @@ def geometric_knn_conditional_mutual_information(X, Y, Z, metric='euclidean', k=
     HYZ = geometric_knn_entropy(np.hstack((Y, Z)), k, YZdist)
     HXYZ = geometric_knn_entropy(np.hstack((X, Y, Z)), k, XYZdist)
     return HXZ + HYZ - HXYZ - HZ
+
 
 def poisson_conditional_mutual_information(X, Y, Z):
     """Estimate of conditional mutual information from Poisson marginals,
@@ -179,7 +178,7 @@ def poisson_conditional_mutual_information(X, Y, Z):
         return H_XYZ - H_YZ
 
 
-def negative_binomial_considtional_mutual_information(X, Y, Z):
+def negative_binomial_conditional_mutual_information(X, Y, Z):
     raise NotImplemented()
 
 
@@ -198,7 +197,9 @@ def laplace_conditional_mutual_information(X, Y, Z):
 def histogram_conditional_mutual_information(X, Y, Z):
     raise NotImplemented()
 
-def conditional_mutual_information(X, Y, Z=None, method='gaussian', metric='euclidean', k=1, bandwidth='silverman', kernel='gaussian'):
+
+def conditional_mutual_information(X, Y, Z=None, method='gaussian', metric='euclidean', k=1, bandwidth='silverman',
+                                   kernel='gaussian'):
     """Compute the CMI based upon whichever method"""
     if method == 'gaussian':
         return gaussian_conditional_mutual_information(X, Y, Z)
@@ -221,8 +222,8 @@ def conditional_mutual_information(X, Y, Z=None, method='gaussian', metric='eucl
     elif method == 'laplace':
         return laplace_conditional_mutual_information(X, Y, Z)
 
-    elif method == 'negative_inomial':
-        return negative_binomial_mutual_information(X, Y, Z)
+    elif method == 'negative_binomial':
+        return negative_binomial_conditional_mutual_information(X, Y, Z)
 
     elif method == 'von_mises':
         return von_mises_conditional_mutual_information(X, Y, Z)

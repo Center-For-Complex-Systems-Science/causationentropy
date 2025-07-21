@@ -16,6 +16,7 @@ def hyperellipsoid_check(svd_Yi, Z_i):
     transformed = np.dot(Z_i, Vt.T) / S
     return np.sum(transformed ** 2) <= 1
 
+
 def kde_entropy(X, bandwidth='silverman', kernel='gaussian'):
     """
     Parameters
@@ -32,6 +33,7 @@ def kde_entropy(X, bandwidth='silverman', kernel='gaussian'):
     log_density = np.exp(kde.score_samples(X))
     Hx = -np.sum(np.log(log_density)) / len(log_density)
     return Hx
+
 
 def geometric_knn_entropy(X, Xdist, k=1):
     """A method for estimating entropy (which will be used for estimating mutual
@@ -110,7 +112,7 @@ def poisson_joint_entropy(Cov):
     return Ent1 + Ent2
 
 
-def negative_binomial_entropy(r, p, max_k=None, tol = 1e-12, base = np.e):
+def negative_binomial_entropy(r, p, max_k=None, tol=1e-12, base=np.e):
     # basic checks
     if not (0 < p < 1):
         raise ValueError("p must satisfy 0 < p < 1.")
@@ -123,7 +125,7 @@ def negative_binomial_entropy(r, p, max_k=None, tol = 1e-12, base = np.e):
         q = nbinom.ppf(1 - tol, r, p)
         max_k = int(q if np.isfinite(q) else np.ceil(r * (1 - p) / p * 10))
 
-    ks = np.arange(max_k + 1)          # 0 … max_k
+    ks = np.arange(max_k + 1)  # 0 … max_k
     pmf = nbinom.pmf(ks, r, p)
 
     # numerical entropy (ignore zero-mass terms to avoid log(0))
@@ -134,6 +136,7 @@ def negative_binomial_entropy(r, p, max_k=None, tol = 1e-12, base = np.e):
     if base != np.e:
         H /= np.log(base)
     return H
+
 
 def hawkes_entropy(events, mu, alpha, beta, T=None, base=np.e):
     events = np.asfarray(events)
@@ -169,6 +172,7 @@ def hawkes_entropy(events, mu, alpha, beta, T=None, base=np.e):
         H /= np.log(base)
     return H
 
+
 def von_mises_entropy(kappa, base=np.e):
     kappa = np.asfarray(kappa)
     if np.any(kappa < 0):
@@ -196,6 +200,7 @@ def laplace_entropy(b, base=np.e):
         H /= np.log(base)
     return H.item() if H.size == 1 else H
 
+
 def histogram_entropy(x, bins='auto', base=np.e):
     x = np.asarray(x).ravel()
     if x.size == 0:
@@ -205,7 +210,7 @@ def histogram_entropy(x, bins='auto', base=np.e):
     probs = counts.astype(float)
     probs /= probs.sum()
 
-    probs = probs[probs > 0]          # drop empty bins
+    probs = probs[probs > 0]  # drop empty bins
     H = -np.sum(probs * np.log(probs))
 
     if base != np.e:
@@ -213,55 +218,5 @@ def histogram_entropy(x, bins='auto', base=np.e):
     return H
 
 
-def kolmogorov_sinai_entropy(orbit, system):
-    raise NotImplemented()
-
-def topological_entropy(system):
-    raise NotImplemented()
-
-def permutation_entropy(ts, m, delay):
-    raise NotImplemented()
-
-def approximate_entropy(ts, m, r):
-    raise NotImplemented()
-
-def sample_entropy(ts, m, r):
-    raise NotImplemented()
-
-def multiscale_entropy(ts, m, r, scales):
-    raise NotImplemented()
-
-def fuzzy_entropy(ts, m, r):
-    raise NotImplemented()
-
-def dispersion_entropy(ts, m, classes):
-    raise NotImplemented()
-
-def wavelet_entropy(ts, wavelet):
-    raise NotImplemented()
-
 def transfer_entropy(source, target, k, l):
-    raise NotImplemented()
-
-def entropy_rate_time_series(ts, order):
-    raise NotImplemented()
-
-def algorithmic_entropy(obj):
-    raise NotImplemented()
-
-# Graph Based Entropies
-
-def shannon_graph_entropy(G):
-    raise NotImplemented()
-
-def von_neumann_graph_entropy(G):
-    raise NotImplemented()
-
-def laplacian_spectrum_entropy(G):
-    raise NotImplemented()
-
-def entropy_rate_random_walk(G):
-    raise NotImplemented()
-
-def communicability_entropy(G):
     raise NotImplemented()

@@ -310,31 +310,61 @@ class TestEdgeCases:
             pass  # Expected for constant data
 
 
-class TestNotImplementedFunctions:
-    """Test functions that are not yet implemented."""
+class TestSpecializedMutualInformationFunctions:
+    """Test specialized mutual information functions."""
 
-    def test_not_implemented_functions_exist(self):
-        """Test that not-implemented functions exist and raise appropriate errors."""
-        from causalentropy.core.information.mutual_information import (
-            negative_binomial_mutual_information,
-            hawkes_mutual_information,
-            von_mises_mutual_information,
-            laplace_mutual_information,
-            histogram_mutual_information
-        )
+    def test_negative_binomial_mutual_information(self):
+        """Test negative binomial mutual information."""
+        from causalentropy.core.information.mutual_information import negative_binomial_mutual_information
         
-        X = np.random.normal(0, 1, (10, 1))
-        Y = np.random.normal(0, 1, (10, 1))
-        Z = np.random.normal(0, 1, (10, 1))
+        X = np.random.negative_binomial(5, 0.3, 20).reshape(-1, 1)
+        Y = np.random.negative_binomial(3, 0.4, 20).reshape(-1, 1)
         
-        not_implemented_funcs = [
-            negative_binomial_mutual_information,
-            hawkes_mutual_information,
-            von_mises_mutual_information,
-            laplace_mutual_information,
-            histogram_mutual_information
-        ]
+        # Test with known parameters
+        mi = negative_binomial_mutual_information(X, Y, 5, 0.3, 3, 0.4)
+        assert isinstance(mi, float)
+        assert not np.isnan(mi)
+
+    def test_hawkes_mutual_information(self):
+        """Test Hawkes mutual information."""
+        from causalentropy.core.information.mutual_information import hawkes_mutual_information
         
-        for func in not_implemented_funcs:
-            with pytest.raises((NotImplemented, NotImplementedError)):
-                func(X, Y, Z)
+        events_x = np.array([1.0, 2.0, 3.5])
+        events_y = np.array([1.5, 2.5, 4.0])
+        
+        mi = hawkes_mutual_information(events_x, events_y, 1.0, 0.1, 0.8, 1.2, 0.2, 0.9)
+        assert isinstance(mi, float)
+        assert not np.isnan(mi)
+
+    def test_von_mises_mutual_information(self):
+        """Test von Mises mutual information."""
+        from causalentropy.core.information.mutual_information import von_mises_mutual_information
+        
+        X = np.random.vonmises(0, 2, 20).reshape(-1, 1)
+        Y = np.random.vonmises(np.pi, 1.5, 20).reshape(-1, 1)
+        
+        mi = von_mises_mutual_information(X, Y, 2.0, 1.5)
+        assert isinstance(mi, float)
+        assert not np.isnan(mi)
+
+    def test_laplace_mutual_information(self):
+        """Test Laplace mutual information."""
+        from causalentropy.core.information.mutual_information import laplace_mutual_information
+        
+        X = np.random.laplace(0, 1, 20).reshape(-1, 1)
+        Y = np.random.laplace(0, 1.5, 20).reshape(-1, 1)
+        
+        mi = laplace_mutual_information(X, Y, 1.0, 1.5)
+        assert isinstance(mi, float)
+        assert not np.isnan(mi)
+
+    def test_histogram_mutual_information(self):
+        """Test histogram-based mutual information."""
+        from causalentropy.core.information.mutual_information import histogram_mutual_information
+        
+        X = np.random.normal(0, 1, 50).reshape(-1, 1)
+        Y = np.random.normal(0, 1, 50).reshape(-1, 1)
+        
+        mi = histogram_mutual_information(X, Y, bins=5)
+        assert isinstance(mi, float)
+        assert not np.isnan(mi)

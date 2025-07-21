@@ -218,5 +218,3 @@ def histogram_entropy(x, bins='auto', base=np.e):
     return H
 
 
-def transfer_entropy(source, target, k, l):
-    raise NotImplemented()

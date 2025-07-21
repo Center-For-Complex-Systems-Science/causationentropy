@@ -29,9 +29,10 @@ def discover_network(
     data : (T, n) ndarray or DataFrame
         Multivariate time series (variables = columns).
     method : str
-        Entropy estimator.  Currently only 'gaussian' is implemented.
+        Causal discovery method. Options: 'standard', 'alternative', 'information_lasso', 'lasso'.
     information: str
-        The information metric used.
+        The information metric used. Options: 'gaussian', 'knn', 'kde', 'geometric_knn', 
+        'poisson', 'negative_binomial', 'hawkes', 'von_mises', 'laplace', 'histogram'.
     max_lag : int
         Consider lags 0 … max_lag (inclusive).
     alpha_forward : float
@@ -52,8 +53,13 @@ def discover_network(
 
     if method not in ["standard", 'alternative', 'information_lasso', "lasso"]:
         raise NotImplementedError(f"discover_network: method={method} not supported.")
-    if information not in ["gaussian", "knn", "kde", "poisson"]:
-        raise NotImplementedError(f"discover_network: information={information} not supported.")
+    supported_information_types = [
+        "gaussian", "knn", "kde", "geometric_knn", "poisson", 
+        "negative_binomial", "hawkes", "von_mises", "laplace", "histogram"
+    ]
+    if information not in supported_information_types:
+        raise NotImplementedError(f"discover_network: information={information} not supported. "
+                                f"Supported types: {supported_information_types}")
 
     # Convert DataFrame to ndarray while keeping column labels
     if isinstance(data, pd.DataFrame):

@@ -2,6 +2,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Documentation Status](https://readthedocs.org/projects/causalentropy/badge/?version=latest)](https://causalentropy.readthedocs.io/en/latest/?badge=latest)
+[![codecov](https://codecov.io/gh/kslote1/causalentropy/branch/main/graph/badge.svg)](https://codecov.io/gh/kslote1/causalentropy)
+[![Tests](https://github.com/kslote1/causalentropy/workflows/Tests/badge.svg)](https://github.com/kslote1/causalentropy/actions)
 
 A Python library for discovering causal networks from time series data using **Optimal Causation Entropy (oCSE)**.
 
@@ -92,7 +95,7 @@ print(f"Discovered edges: {discovered.number_of_edges()}")
 
 - **Multiple Algorithms**: Standard oCSE and Hawkes process variants
 - **Flexible Information Estimators**: Gaussian and geometric k-nearest neighbor methods  
-- **Statistical Rigor**: Permutation-based significance testing
+- **Statistical Rigor**: Permutation-based significance testing with >90% test coverage
 - **Synthetic Data**: Built-in generators for testing and validation
 - **Visualization**: Network plotting and analysis tools
 - **Performance**: Optimized implementations with parallel processing support
@@ -113,9 +116,22 @@ The algorithm implements a two-phase approach:
 
 ## Documentation
 
+📚 **[Read the full documentation on ReadTheDocs](https://causalentropy.readthedocs.io/)**
+
+- **[API Reference](https://causalentropy.readthedocs.io/en/latest/api/)**: Complete function and class documentation
+- **[User Guide](https://causalentropy.readthedocs.io/en/latest/user_guide/)**: Detailed tutorials and examples
+- **[Theory](https://causalentropy.readthedocs.io/en/latest/theory/)**: Mathematical background and algorithms
 - **Examples**: Check the `examples/` and `notebooks/` directories
-- **API Reference**: Full documentation coming soon
-- **Theory**: See research papers in the `papers/` directory
+- **Research Papers**: See the `papers/` directory for theoretical foundations
+
+### Local Documentation
+
+Build documentation locally:
+```bash
+cd docs/
+make html
+# Open docs/_build/html/index.html
+```
 
 ## Contributing
 

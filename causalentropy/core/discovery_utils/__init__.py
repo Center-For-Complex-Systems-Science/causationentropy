@@ -1,1 +1,1 @@
-from hawkes import discover_network_hawkes
+from .hawkes import discover_network_hawkes

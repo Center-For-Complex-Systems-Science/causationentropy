@@ -1,8 +1,9 @@
+from unittest.mock import MagicMock, patch
+
+import networkx as nx
 import numpy as np
 import pandas as pd
-import networkx as nx
 import pytest
-from unittest.mock import patch, MagicMock
 
 from causalentropy.core.discovery import discover_network
 

@@ -2,12 +2,12 @@ import numpy as np
 import pytest
 
 from causalentropy.core.discovery import (
-    standard_forward,
-    backward,
-    standard_optimal_causation_entropy,
-    alternative_optimal_causation_entropy,
     alternative_forward,
+    alternative_optimal_causation_entropy,
+    backward,
     lasso_optimal_causation_entropy,
+    standard_forward,
+    standard_optimal_causation_entropy,
 )
 
 

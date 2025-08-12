@@ -1,7 +1,8 @@
 import numpy as np
 from scipy.spatial.distance import cdist
 from scipy.special import digamma
-from causalentropy.core.information.entropy import kde_entropy, geometric_knn_entropy
+
+from causalentropy.core.information.entropy import geometric_knn_entropy, kde_entropy
 from causalentropy.core.linalg import correlation_log_determinant
 
 

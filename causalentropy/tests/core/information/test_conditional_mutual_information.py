@@ -1,6 +1,7 @@
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
-from unittest.mock import patch, MagicMock
 
 from causalentropy.core.information.conditional_mutual_information import (
     conditional_mutual_information,

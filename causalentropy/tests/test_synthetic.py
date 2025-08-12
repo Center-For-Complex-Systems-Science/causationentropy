@@ -1,11 +1,11 @@
+import networkx as nx
 import numpy as np
 import pytest
-import networkx as nx
 
 from causalentropy.datasets.synthetic import (
-    logistic_map,
-    logisic_dynamics,
     linear_stochastic_gaussian_process,
+    logisic_dynamics,
+    logistic_map,
 )
 
 

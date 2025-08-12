@@ -1,10 +1,11 @@
 import copy
+from typing import Dict, Tuple, Union
+
 import networkx as nx
 import numpy as np
 import pandas as pd
-from typing import Union, Dict, Tuple
+from sklearn.linear_model import Lasso, LassoLarsIC
 
-from sklearn.linear_model import LassoLarsIC, Lasso
 from causalentropy.core.information.conditional_mutual_information import (
     conditional_mutual_information,
 )
@@ -72,11 +73,6 @@ def discover_network(
         - 'kde': Kernel density estimation
         - 'geometric_knn': Geometric mean k-NN estimator
         - 'poisson': Poisson distribution assumption
-        - 'negative_binomial': Negative binomial distribution
-        - 'hawkes': Hawkes process estimator
-        - 'von_mises': Von Mises distribution
-        - 'laplace': Laplace distribution
-        - 'histogram': Histogram-based estimation
     max_lag : int, default=5
         Maximum time lag to consider in causal relationships. The algorithm examines
         lags from 1 to max_lag (inclusive).

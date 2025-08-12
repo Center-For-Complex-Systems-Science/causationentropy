@@ -1,13 +1,14 @@
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 from scipy.spatial.distance import cdist
-from unittest.mock import patch, MagicMock
 
 from causalentropy.core.information.mutual_information import (
     gaussian_mutual_information,
+    geometric_knn_mutual_information,
     kde_mutual_information,
     knn_mutual_information,
-    geometric_knn_mutual_information,
 )
 
 

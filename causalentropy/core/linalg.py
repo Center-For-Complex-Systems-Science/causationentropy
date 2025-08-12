@@ -1,6 +1,7 @@
-import numpy as np
+from typing import List, Optional, Tuple
+
 import networkx as nx
-from typing import Tuple, List, Optional
+import numpy as np
 
 
 def correlation_log_determinant(A, epsilon=1e-10):

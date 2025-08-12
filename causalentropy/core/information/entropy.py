@@ -1,9 +1,8 @@
 import numpy as np
-from scipy.special import gamma
-from sklearn.neighbors import KernelDensity
 import scipy
+from scipy.special import gamma, i0, i1
 from scipy.stats import nbinom
-from scipy.special import i0, i1
+from sklearn.neighbors import KernelDensity
 
 
 def l2dist(a, b):

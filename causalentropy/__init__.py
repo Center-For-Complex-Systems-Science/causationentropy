@@ -1,7 +1,4 @@
-from . import core
-from . import datasets
-from . import utils
-from . import tests
+from . import core, datasets, tests, utils
 
 # Optionally, expose commonly used functions directly
 from .core import discovery, estimators

@@ -1,15 +1,16 @@
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 from scipy import stats
 from scipy.special import i0, i1
-from unittest.mock import patch, MagicMock
 
 # Import your entropy functions - adjust the import path based on your structure
 from causalentropy.core.information.entropy import (
-    l2dist,
+    geometric_knn_entropy,
     hyperellipsoid_check,
     kde_entropy,
-    geometric_knn_entropy,
+    l2dist,
     poisson_entropy,
     poisson_joint_entropy,
 )

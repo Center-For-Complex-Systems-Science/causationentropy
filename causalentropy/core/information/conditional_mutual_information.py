@@ -1,17 +1,17 @@
-from scipy.spatial.distance import cdist
 import numpy as np
+from scipy.spatial.distance import cdist
 
 from causalentropy.core.information.entropy import (
-    kde_entropy,
     geometric_knn_entropy,
+    kde_entropy,
     poisson_entropy,
     poisson_joint_entropy,
 )
 from causalentropy.core.information.mutual_information import (
+    gaussian_mutual_information,
     geometric_knn_mutual_information,
     kde_mutual_information,
     knn_mutual_information,
-    gaussian_mutual_information,
 )
 
 

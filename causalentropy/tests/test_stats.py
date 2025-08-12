@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from causalentropy.core.stats import auc, Compute_TPR_FPR
+from causalentropy.core.stats import Compute_TPR_FPR, auc
 
 
 class TestAUC:

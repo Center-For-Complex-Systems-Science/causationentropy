@@ -132,7 +132,12 @@ def test_alternative_forward_recovers_parents(alpha, n_shuffles):
     rng = np.random.default_rng(2024)
 
     selected = alternative_forward(
-        X_full, Y, rng=rng, alpha=alpha, n_shuffles=n_shuffles, information="gaussian",
+        X_full,
+        Y,
+        rng=rng,
+        alpha=alpha,
+        n_shuffles=n_shuffles,
+        information="gaussian",
     )
 
     assert set(selected) == {

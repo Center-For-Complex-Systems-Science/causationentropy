@@ -6,8 +6,12 @@ from unittest.mock import patch, MagicMock
 
 # Import your entropy functions - adjust the import path based on your structure
 from causalentropy.core.information.entropy import (
-    l2dist, hyperellipsoid_check, kde_entropy, geometric_knn_entropy,
-    poisson_entropy, poisson_joint_entropy
+    l2dist,
+    hyperellipsoid_check,
+    kde_entropy,
+    geometric_knn_entropy,
+    poisson_entropy,
+    poisson_joint_entropy,
 )
 
 
@@ -52,7 +56,7 @@ class TestUtilityFunctions:
 class TestKDEEntropy:
     """Test KDE-based entropy estimation."""
 
-    @patch('causalentropy.core.information.entropy.KernelDensity')
+    @patch("causalentropy.core.information.entropy.KernelDensity")
     def test_kde_entropy_basic(self, mock_kde_class):
         """Test basic KDE entropy calculation."""
         # Mock the KDE behavior
@@ -64,7 +68,7 @@ class TestKDEEntropy:
         result = kde_entropy(X)
 
         # Verify KDE was called correctly
-        mock_kde_class.assert_called_once_with(bandwidth='silverman', kernel='gaussian')
+        mock_kde_class.assert_called_once_with(bandwidth="silverman", kernel="gaussian")
         mock_kde.score_samples.assert_called_once()
 
         assert isinstance(result, float)
@@ -167,8 +171,6 @@ class TestPoissonEntropy:
         assert not np.isnan(result)
 
 
-
-
 class TestIntegrationAndEdgeCases:
     """Integration tests and edge cases."""
 
@@ -178,7 +180,7 @@ class TestIntegrationAndEdgeCases:
         result = poisson_entropy(1e-6)
         assert np.isfinite(result)
         assert result > 0
-        
+
         # Large lambda
         result = poisson_entropy(50.0)
         assert np.isfinite(result)

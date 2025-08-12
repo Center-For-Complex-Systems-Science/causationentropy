@@ -1,32 +1,39 @@
 from scipy.spatial.distance import cdist
 import numpy as np
 
-from causalentropy.core.information.entropy import kde_entropy, geometric_knn_entropy, poisson_entropy, \
-    poisson_joint_entropy
-from causalentropy.core.information.mutual_information import geometric_knn_mutual_information, kde_mutual_information, \
-    knn_mutual_information, \
-    gaussian_mutual_information
+from causalentropy.core.information.entropy import (
+    kde_entropy,
+    geometric_knn_entropy,
+    poisson_entropy,
+    poisson_joint_entropy,
+)
+from causalentropy.core.information.mutual_information import (
+    geometric_knn_mutual_information,
+    kde_mutual_information,
+    knn_mutual_information,
+    gaussian_mutual_information,
+)
 
 
 def gaussian_conditional_mutual_information(X, Y, Z=None):
     r"""
     Compute conditional mutual information for multivariate Gaussian variables.
-    
+
     For multivariate Gaussian variables, the conditional mutual information has
     a closed-form expression using covariance matrix determinants:
-    
+
     .. math::
-        
+
         I(X; Y | Z) = \frac{1}{2} \log \frac{|\Sigma_{XZ}| |\Sigma_{YZ}|}{|\Sigma_Z| |\Sigma_{XYZ}|}
-        
+
     This can also be expressed as:
-    
+
     .. math::
-        
+
         I(X; Y | Z) = \frac{1}{2} [\log |\Sigma_{XZ}| + \log |\Sigma_{YZ}| - \log |\Sigma_Z| - \log |\Sigma_{XYZ}|]
-        
+
     where :math:`\Sigma_{\cdot}` denotes the covariance matrix of the subscripted variables.
-    
+
     Parameters
     ----------
     X : array-like of shape (N, k_x)
@@ -36,23 +43,23 @@ def gaussian_conditional_mutual_information(X, Y, Z=None):
     Z : array-like of shape (N, k_z) or None
         Conditioning variable with N samples and k_z features.
         If None, computes marginal mutual information I(X;Y).
-        
+
     Returns
     -------
     I : float
         Conditional mutual information in nats.
-        
+
     Notes
     -----
     This implementation uses log-determinants of correlation matrices for
     numerical stability, employing the signed log-determinant function
     to handle potential numerical issues.
-    
+
     The Gaussian assumption implies that:
     - All conditional dependencies are captured by linear relationships
     - Higher-order moments beyond covariance carry no information
     - The estimator is exact under Gaussianity
-    
+
     For non-Gaussian data, this estimator provides a lower bound on the
     true conditional mutual information.
     """
@@ -71,18 +78,20 @@ def gaussian_conditional_mutual_information(X, Y, Z=None):
     return 0.5 * (SXZ + SYZ - SZ - SXYZ)
 
 
-def kde_conditional_mutual_information(X, Y, Z, bandwidth='silverman', kernel='gaussian'):
+def kde_conditional_mutual_information(
+    X, Y, Z, bandwidth="silverman", kernel="gaussian"
+):
     """
     Estimate conditional mutual information using Kernel Density Estimation.
-    
+
     This function computes conditional mutual information using the entropy decomposition:
-    
+
     .. math::
-        
+
         I(X; Y | Z) = H(X, Z) + H(Y, Z) - H(Z) - H(X, Y, Z)
-        
+
     where each entropy term is estimated using kernel density estimation.
-    
+
     Parameters
     ----------
     X : array-like of shape (n_samples, n_features_x)
@@ -95,19 +104,19 @@ def kde_conditional_mutual_information(X, Y, Z, bandwidth='silverman', kernel='g
         Bandwidth parameter for KDE.
     kernel : str, default='gaussian'
         Kernel function for density estimation.
-        
+
     Returns
     -------
     I : float
         Estimated conditional mutual information in nats.
-        
+
     Notes
     -----
     The KDE approach can capture nonlinear conditional dependencies but suffers from:
     - Curse of dimensionality for high-dimensional conditioning sets
     - Bandwidth selection sensitivity
     - Computational complexity scaling with sample size
-    
+
     Consider k-NN methods for high-dimensional problems or large datasets.
     """
     if Z is None:
@@ -128,25 +137,25 @@ def kde_conditional_mutual_information(X, Y, Z, bandwidth='silverman', kernel='g
     return I
 
 
-def knn_conditional_mutual_information(X, Y, Z, metric='euclidean', k=1):
+def knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=1):
     """
     Estimate conditional mutual information using k-nearest neighbor method.
-    
+
     This function implements conditional mutual information estimation using
     the relationship:
-    
+
     .. math::
-        
+
         I(X; Y | Z) = I(X, Y) - I(X, Y; Z)
-        
+
     where both mutual information terms are estimated using the KSG k-NN estimator.
-    
+
     The approach leverages the fact that:
-    
+
     .. math::
-        
+
         I(X; Y | Z) = I(X; Y) - I(X; Y | Z)
-        
+
     Parameters
     ----------
     X : array-like of shape (n_samples, n_features_x)
@@ -159,28 +168,30 @@ def knn_conditional_mutual_information(X, Y, Z, metric='euclidean', k=1):
         Distance metric for k-NN calculations.
     k : int, default=1
         Number of nearest neighbors.
-        
+
     Returns
     -------
     I : float
         Estimated conditional mutual information in nats.
-        
+
     Notes
     -----
     This implementation uses the decomposition approach rather than direct
     conditional MI estimation. The accuracy depends on:
-    
+
     - Quality of marginal MI estimates
     - Dimensionality of the joint space
     - Sample size relative to effective dimensionality
-    
+
     References
     ----------
     .. [1] Kraskov, A., Stögbauer, H., Grassberger, P. Estimating mutual information.
            Physical Review E 69, 066138 (2004).
     """
     if Z is None:
-        return knn_mutual_information(X, Y, metric=metric, k=k)  # np.max([self.MutualInfo_KNN(X,self.Y),0])
+        return knn_mutual_information(
+            X, Y, metric=metric, k=k
+        )  # np.max([self.MutualInfo_KNN(X,self.Y),0])
     else:
         XY = np.concatenate((X, Y), axis=1)
         MIXYZ = knn_mutual_information(XY, Z, metric=metric, k=k)
@@ -189,21 +200,21 @@ def knn_conditional_mutual_information(X, Y, Z, metric='euclidean', k=1):
         return MIXY - MIXYZ
 
 
-def geometric_knn_conditional_mutual_information(X, Y, Z, metric='euclidean', k=1):
+def geometric_knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=1):
     """
     Estimate conditional mutual information using geometric k-nearest neighbor method.
-    
+
     This function applies the geometric k-NN entropy estimator to compute
     conditional mutual information via the entropy decomposition:
-    
+
     .. math::
-        
+
         I(X; Y | Z) = H_{\text{geom}}(X, Z) + H_{\text{geom}}(Y, Z) - H_{\text{geom}}(Z) - H_{\text{geom}}(X, Y, Z)
-        
+
     The geometric correction accounts for local manifold structure, providing
     improved estimates for data with non-uniform density or intrinsic dimensionality
     lower than the ambient space.
-    
+
     Parameters
     ----------
     X : array-like of shape (n_samples, n_features_x)
@@ -216,25 +227,25 @@ def geometric_knn_conditional_mutual_information(X, Y, Z, metric='euclidean', k=
         Distance metric for neighbor calculations.
     k : int, default=1
         Number of nearest neighbors.
-        
+
     Returns
     -------
     I : float
         Estimated conditional mutual information using geometric k-NN method.
-        
+
     Notes
     -----
     The geometric approach is particularly effective for:
     - Data on lower-dimensional manifolds
     - Non-uniform density distributions
     - Cases where local geometric structure is important
-    
+
     The method accounts for the effective local dimensionality through
     geometric corrections to the standard k-NN entropy estimates.
-    
+
     References
     ----------
-    .. [1] Lord, W.M., Sun, J., Bollt, E.M. Geometric k-nearest neighbor estimation of 
+    .. [1] Lord, W.M., Sun, J., Bollt, E.M. Geometric k-nearest neighbor estimation of
            entropy and mutual information. Chaos 28, 033113 (2018).
     """
 
@@ -254,18 +265,18 @@ def geometric_knn_conditional_mutual_information(X, Y, Z, metric='euclidean', k=
 def poisson_conditional_mutual_information(X, Y, Z):
     """
     Estimate conditional mutual information for multivariate Poisson distributions.
-    
+
     This function computes conditional mutual information for discrete count data
     assuming Poisson distributions. The estimation uses the covariance structure
     of the multivariate Poisson distribution:
-    
+
     .. math::
-        
+
         I(X; Y | Z) = H(X, Z) + H(Y, Z) - H(Z) - H(X, Y, Z)
-        
+
     where entropies are computed using Poisson-specific formulations that account
     for the discrete nature and parameter structure of Poisson variables.
-    
+
     Parameters
     ----------
     X : array-like of shape (n_samples, n_features_x)
@@ -275,29 +286,29 @@ def poisson_conditional_mutual_information(X, Y, Z):
     Z : array-like of shape (n_samples, n_features_z) or None
         Count data from conditioning Poisson variables.
         If None, computes marginal mutual information.
-        
+
     Returns
     -------
     I : float
         Estimated conditional mutual information for Poisson data.
-        
+
     Notes
     -----
     This implementation is specifically designed for discrete count data where:
     - Variables follow Poisson distributions
     - Dependencies are captured through covariance structure
     - Joint distributions maintain Poisson-like properties
-    
+
     Applications include:
     - Gene expression count data
     - Event occurrence data
     - Discrete interaction networks
     - Epidemiological count models
-    
+
     References
     ----------
-    .. [1] Fish, A., Sun, J., Bollt, E. Interaction networks from discrete event data by 
-           Poisson multivariate mutual information estimation and information flow with 
+    .. [1] Fish, A., Sun, J., Bollt, E. Interaction networks from discrete event data by
+           Poisson multivariate mutual information estimation and information flow with
            applications from gene expression data. (In preparation)
     """
 
@@ -322,10 +333,18 @@ def poisson_conditional_mutual_information(X, Y, Z):
         SS = SXYZ
         Sa = SXYZ - np.diag(np.diag(SXYZ))
         np.fill_diagonal(SS, np.diagonal(SS) - Sa)
-        SS[0:SzX, 0:SzX] = SS[0:SzX, 0:SzX] + SXYZ[0:SzX, SzX:SzX + SzY]
-        SS[SzX:SzX + SzY, SzX:SzX + SzY] = SS[SzX:SzX + SzY, SzX:SzX + SzY] + SXYZ[SzX:SzX + SzY, 0:SzX]
-        S_est1 = SS[np.concatenate((indY.T, indZ.T), axis=0), np.concatenate((indY.T, indZ.T), axis=0)]
-        S_est2 = SS[np.concatenate((indX.T, indZ.T), axis=0), np.concatenate((indX.T, indZ.T), axis=0)]
+        SS[0:SzX, 0:SzX] = SS[0:SzX, 0:SzX] + SXYZ[0:SzX, SzX : SzX + SzY]
+        SS[SzX : SzX + SzY, SzX : SzX + SzY] = (
+            SS[SzX : SzX + SzY, SzX : SzX + SzY] + SXYZ[SzX : SzX + SzY, 0:SzX]
+        )
+        S_est1 = SS[
+            np.concatenate((indY.T, indZ.T), axis=0),
+            np.concatenate((indY.T, indZ.T), axis=0),
+        ]
+        S_est2 = SS[
+            np.concatenate((indX.T, indZ.T), axis=0),
+            np.concatenate((indX.T, indZ.T), axis=0),
+        ]
         HYZ = poisson_joint_entropy(S_est1)
         SindZ = SS[indZ, indZ]
         HZ = poisson_joint_entropy(SindZ)
@@ -335,28 +354,37 @@ def poisson_conditional_mutual_information(X, Y, Z):
         H_XYZ = HXYZ - HXZ
         return H_XYZ - H_YZ
 
-def conditional_mutual_information(X, Y, Z=None, method='gaussian', metric='euclidean', k=6, bandwidth='silverman',
-                                   kernel='gaussian'):
+
+def conditional_mutual_information(
+    X,
+    Y,
+    Z=None,
+    method="gaussian",
+    metric="euclidean",
+    k=6,
+    bandwidth="silverman",
+    kernel="gaussian",
+):
     """
     Compute conditional mutual information using specified estimation method.
-    
+
     This function provides a unified interface for computing conditional mutual information
     I(X;Y|Z) using various estimation approaches. The choice of method depends on the
     data type, dimensionality, and distributional assumptions.
-    
+
     Conditional mutual information quantifies the information shared between X and Y
     when conditioning on Z:
-    
+
     .. math::
-        
+
         I(X; Y | Z) = H(X | Z) - H(X | Y, Z)
-        
+
     Equivalently:
-    
+
     .. math::
-        
+
         I(X; Y | Z) = H(X, Z) + H(Y, Z) - H(Z) - H(X, Y, Z)
-    
+
     Parameters
     ----------
     X : array-like of shape (n_samples, n_features_x)
@@ -367,13 +395,13 @@ def conditional_mutual_information(X, Y, Z=None, method='gaussian', metric='eucl
         Conditioning variable. If None, computes marginal mutual information I(X;Y).
     method : str, default='gaussian'
         Estimation method. Available options:
-        
+
         - 'gaussian': Assumes multivariate Gaussian distributions
         - 'kde' or 'kernel_density': Kernel density estimation
         - 'knn': k-nearest neighbor (KSG) estimator
         - 'geometric_knn': Geometric k-NN with manifold corrections
         - 'poisson': For discrete count data with Poisson assumptions
-        
+
     metric : str, default='euclidean'
         Distance metric for k-NN based methods.
     k : int, default=1
@@ -382,71 +410,82 @@ def conditional_mutual_information(X, Y, Z=None, method='gaussian', metric='eucl
         Bandwidth parameter for KDE methods.
     kernel : str, default='gaussian'
         Kernel function for KDE methods.
-        
+
     Returns
     -------
     I : float
         Estimated conditional mutual information in nats.
-        
+
     Raises
     ------
     ValueError
         If an unsupported method is specified.
-        
+
     Notes
     -----
     **Method Selection Guidelines:**
-    
+
     - **Gaussian**: Best for linear relationships, exact under Gaussianity
     - **KDE**: Good for smooth nonlinear dependencies, curse of dimensionality
     - **k-NN**: Robust for moderate dimensions, adapts to local density
     - **Geometric k-NN**: Effective for manifold data with intrinsic structure
     - **Poisson**: Specifically for discrete count data
     - **Histogram**: Simple baseline, sensitive to binning
-    
+
     **Computational Complexity:**
     - Gaussian: O(n³) for matrix operations
     - KDE: O(n²) for density evaluation
     - k-NN: O(n² log n) for neighbor finding
-    
+
     **Sample Size Requirements:**
     - Increase with dimensionality and complexity of dependencies
     - k-NN methods generally require fewer samples than KDE
     - Parametric methods (Gaussian) most sample-efficient when assumptions hold
-    
+
     Examples
     --------
     >>> import numpy as np
     >>> from causalentropy.core.information.conditional_mutual_information import conditional_mutual_information
-    >>> 
+    >>>
     >>> # Generate sample data
     >>> n = 1000
     >>> X = np.random.randn(n, 2)
-    >>> Y = np.random.randn(n, 1) 
+    >>> Y = np.random.randn(n, 1)
     >>> Z = np.random.randn(n, 1)
-    >>> 
+    >>>
     >>> # Compute conditional MI using different methods
     >>> cmi_gauss = conditional_mutual_information(X, Y, Z, method='gaussian')
     >>> cmi_knn = conditional_mutual_information(X, Y, Z, method='knn', k=3)
-    >>> 
+    >>>
     >>> print(f"Gaussian CMI: {cmi_gauss:.3f}")
     >>> print(f"k-NN CMI: {cmi_knn:.3f}")
     """
-    if method == 'gaussian':
+    if method == "gaussian":
         return gaussian_conditional_mutual_information(X, Y, Z)
 
-    elif method == 'kde' or method == 'kernel_density':
-        return kde_conditional_mutual_information(X, Y, Z, bandwidth=bandwidth, kernel=kernel)
+    elif method == "kde" or method == "kernel_density":
+        return kde_conditional_mutual_information(
+            X, Y, Z, bandwidth=bandwidth, kernel=kernel
+        )
 
-    elif method == 'knn':
+    elif method == "knn":
         return knn_conditional_mutual_information(X, Y, Z, metric=metric, k=k)
 
-    elif method == 'geometric_knn':
+    elif method == "geometric_knn":
         return geometric_knn_conditional_mutual_information(X, Y, Z, metric=metric, k=k)
 
-    elif method == 'poisson':
+    elif method == "poisson":
         return poisson_conditional_mutual_information(X, Y, Z)
 
     else:
-        supported_methods = ['gaussian', 'kde', 'kernel_density', 'knn', 'geometric_knn', 'poisson']
-        raise ValueError(f"Method '{method}' unavailable. Supported methods: {supported_methods}")
+        supported_methods = [
+            "gaussian",
+            "kde",
+            "kernel_density",
+            "knn",
+            "geometric_knn",
+            "poisson",
+        ]
+        raise ValueError(
+            f"Method '{method}' unavailable. Supported methods: {supported_methods}"
+        )

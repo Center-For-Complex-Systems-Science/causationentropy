@@ -1,13 +1,14 @@
 import numpy as np
 import networkx as nx
 
+
 def logistic_map(X, r):
     return r * X * (1 - X)
 
 
 def logisic_dynamics(n=20, p=0.1, t=100, r=3.99, sigma=0.1, seed=42):
     """Network coupled logistic map, r is the logistic map parameter
-       and sigma is the coupling strength between oscillators"""
+    and sigma is the coupling strength between oscillators"""
 
     rng = np.random.default_rng(seed)
     G = nx.erdos_renyi_graph(n, p, seed=seed)
@@ -23,12 +24,17 @@ def logisic_dynamics(n=20, p=0.1, t=100, r=3.99, sigma=0.1, seed=42):
     XY = np.zeros((t, n))
     XY[0, :] = rng.random(n)
     for i in range(1, t):
-        XY[i, :] = logistic_map(XY[i - 1, :], r) - sigma * np.dot(L, logistic_map(XY[i - 1, :], r)).T
+        XY[i, :] = (
+            logistic_map(XY[i - 1, :], r)
+            - sigma * np.dot(L, logistic_map(XY[i - 1, :], r)).T
+        )
 
     return XY, A
 
 
-def linear_stochastic_gaussian_process(rho, n=20, T=100, p=0.1, epsilon=1e-1, seed=42, G=None):
+def linear_stochastic_gaussian_process(
+    rho, n=20, T=100, p=0.1, epsilon=1e-1, seed=42, G=None
+):
     """Linear stochastic Gaussian process"""
 
     rng = np.random.default_rng(seed)
@@ -47,10 +53,12 @@ def linear_stochastic_gaussian_process(rho, n=20, T=100, p=0.1, epsilon=1e-1, se
     return XY, A
 
 
-def poisson_coupled_oscillators(n=10, T=100, p=0.2, lambda_base=2.0, coupling_strength=0.3, seed=42, G=None):
+def poisson_coupled_oscillators(
+    n=10, T=100, p=0.2, lambda_base=2.0, coupling_strength=0.3, seed=42, G=None
+):
     """
     Coupled Poisson oscillators where each node's rate depends on its neighbors' previous states.
-    
+
     Parameters
     ----------
     n : int
@@ -65,7 +73,7 @@ def poisson_coupled_oscillators(n=10, T=100, p=0.2, lambda_base=2.0, coupling_st
         Strength of coupling between oscillators
     seed : int
         Random seed
-        
+
     Returns
     -------
     X : array (T, n)
@@ -92,11 +100,12 @@ def poisson_coupled_oscillators(n=10, T=100, p=0.2, lambda_base=2.0, coupling_st
     return X, A
 
 
-def negative_binomial_coupled_oscillators(n=10, T=100, p=0.2, r_base=5, p_nb=0.3,
-                                          coupling_strength=0.2, seed=42, G=None):
+def negative_binomial_coupled_oscillators(
+    n=10, T=100, p=0.2, r_base=5, p_nb=0.3, coupling_strength=0.2, seed=42, G=None
+):
     """
     Coupled negative binomial oscillators with overdispersed count dynamics.
-    
+
     Parameters
     ----------
     n : int
@@ -113,7 +122,7 @@ def negative_binomial_coupled_oscillators(n=10, T=100, p=0.2, r_base=5, p_nb=0.3
         Strength of coupling between oscillators
     seed : int
         Random seed
-        
+
     Returns
     -------
     X : array (T, n)
@@ -140,11 +149,21 @@ def negative_binomial_coupled_oscillators(n=10, T=100, p=0.2, r_base=5, p_nb=0.3
     return X, A
 
 
-def hawkes_coupled_processes(n=10, T=100, p=0.2, mu_base=0.5, alpha=0.3, beta=1.0,
-                             coupling_strength=0.2, dt=0.1, seed=42, G=None):
+def hawkes_coupled_processes(
+    n=10,
+    T=100,
+    p=0.2,
+    mu_base=0.5,
+    alpha=0.3,
+    beta=1.0,
+    coupling_strength=0.2,
+    dt=0.1,
+    seed=42,
+    G=None,
+):
     """
     Coupled Hawkes processes where each process can excite its neighbors.
-    
+
     Parameters
     ----------
     n : int
@@ -165,7 +184,7 @@ def hawkes_coupled_processes(n=10, T=100, p=0.2, mu_base=0.5, alpha=0.3, beta=1.
         Time step size
     seed : int
         Random seed
-        
+
     Returns
     -------
     X : array (T, n)
@@ -204,11 +223,19 @@ def hawkes_coupled_processes(n=10, T=100, p=0.2, mu_base=0.5, alpha=0.3, beta=1.
     return X, A
 
 
-def von_mises_coupled_oscillators(n=10, T=100, p=0.2, kappa_base=2.0, coupling_strength=0.5,
-                                  freq_base=0.1, seed=42, G=None):
+def von_mises_coupled_oscillators(
+    n=10,
+    T=100,
+    p=0.2,
+    kappa_base=2.0,
+    coupling_strength=0.5,
+    freq_base=0.1,
+    seed=42,
+    G=None,
+):
     """
     Coupled von Mises (circular) oscillators with phase coupling.
-    
+
     Parameters
     ----------
     n : int
@@ -225,7 +252,7 @@ def von_mises_coupled_oscillators(n=10, T=100, p=0.2, kappa_base=2.0, coupling_s
         Base frequency for phase evolution
     seed : int
         Random seed
-        
+
     Returns
     -------
     X : array (T, n)
@@ -253,7 +280,9 @@ def von_mises_coupled_oscillators(n=10, T=100, p=0.2, kappa_base=2.0, coupling_s
             for j in range(n):
                 if A[j, i] > 0:
                     phase_diff = phases[j] - phases[i]
-                    neighbor_coupling += coupling_strength * A[j, i] * np.sin(phase_diff)
+                    neighbor_coupling += (
+                        coupling_strength * A[j, i] * np.sin(phase_diff)
+                    )
 
             # New phase with coupling and noise
             mean_phase = phase_drift + neighbor_coupling
@@ -265,10 +294,12 @@ def von_mises_coupled_oscillators(n=10, T=100, p=0.2, kappa_base=2.0, coupling_s
     return X, A
 
 
-def laplace_coupled_oscillators(n=10, T=100, p=0.2, scale_base=1.0, coupling_strength=0.3, seed=42, G=None):
+def laplace_coupled_oscillators(
+    n=10, T=100, p=0.2, scale_base=1.0, coupling_strength=0.3, seed=42, G=None
+):
     """
     Coupled Laplace oscillators with heavy-tailed dynamics.
-    
+
     Parameters
     ----------
     n : int
@@ -283,7 +314,7 @@ def laplace_coupled_oscillators(n=10, T=100, p=0.2, scale_base=1.0, coupling_str
         Strength of coupling between oscillators
     seed : int
         Random seed
-        
+
     Returns
     -------
     X : array (T, n)

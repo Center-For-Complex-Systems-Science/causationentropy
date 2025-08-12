@@ -13,7 +13,7 @@ class TestAUC:
         TPRs = np.array([0, 1, 1])
         FPRs = np.array([0, 0, 1])
         result = auc(TPRs, FPRs)
-        
+
         # Should be close to 1 (perfect classifier)
         assert isinstance(result, float)
         assert result > 0.8  # Should be high for this ROC curve
@@ -23,7 +23,7 @@ class TestAUC:
         TPRs = np.array([0, 1])
         FPRs = np.array([0, 0])
         result = auc(TPRs, FPRs)
-        
+
         # Perfect classifier should have AUC close to 1
         # Note: depends on exact implementation of trapz
         assert isinstance(result, float)
@@ -36,7 +36,7 @@ class TestAUC:
         TPRs = points
         FPRs = points
         result = auc(TPRs, FPRs)
-        
+
         # Random classifier should have AUC H 0.5
         assert isinstance(result, float)
         assert 0.4 < result < 0.6
@@ -46,7 +46,7 @@ class TestAUC:
         TPRs = np.array([0, 0.2, 0.5, 0.8, 1.0])
         FPRs = np.array([0, 0.1, 0.3, 0.6, 1.0])
         result = auc(TPRs, FPRs)
-        
+
         assert isinstance(result, float)
         assert 0 <= result <= 1
 
@@ -55,7 +55,7 @@ class TestAUC:
         TPRs = np.array([0.5])
         FPRs = np.array([0.3])
         result = auc(TPRs, FPRs)
-        
+
         # Single point should give 0 area
         assert result == 0.0
 
@@ -64,7 +64,7 @@ class TestAUC:
         TPRs = np.array([0.0, 1.0])
         FPRs = np.array([0.0, 0.5])
         result = auc(TPRs, FPRs)
-        
+
         assert isinstance(result, float)
         assert result >= 0
 
@@ -73,7 +73,7 @@ class TestAUC:
         TPRs = np.array([0.0, 0.001, 0.002, 1.0])
         FPRs = np.array([0.0, 0.0001, 0.0002, 1.0])
         result = auc(TPRs, FPRs)
-        
+
         assert isinstance(result, float)
         assert not np.isnan(result)
         assert np.isfinite(result)
@@ -84,13 +84,11 @@ class TestComputeTPRFPR:
 
     def test_tpr_fpr_identical_matrices(self):
         """Test TPR/FPR when matrices are identical."""
-        A = np.array([[0, 1, 0],
-                      [1, 0, 1], 
-                      [0, 0, 0]])
+        A = np.array([[0, 1, 0], [1, 0, 1], [0, 0, 0]])
         B = A.copy()
-        
+
         TPR, FPR = Compute_TPR_FPR(A, B)
-        
+
         # Identical matrices should give TPR=1, FPR=0
         assert isinstance(TPR, (float, np.floating))
         assert isinstance(FPR, (float, np.floating))
@@ -99,15 +97,11 @@ class TestComputeTPRFPR:
 
     def test_tpr_fpr_different_matrices(self):
         """Test TPR/FPR with different matrices."""
-        A = np.array([[0, 1, 1],
-                      [0, 0, 1],
-                      [1, 0, 0]])
-        B = np.array([[0, 1, 0],
-                      [0, 0, 0],
-                      [0, 1, 0]])
-        
+        A = np.array([[0, 1, 1], [0, 0, 1], [1, 0, 0]])
+        B = np.array([[0, 1, 0], [0, 0, 0], [0, 1, 0]])
+
         TPR, FPR = Compute_TPR_FPR(A, B)
-        
+
         assert isinstance(TPR, (float, np.floating))
         assert isinstance(FPR, (float, np.floating))
         assert 0 <= TPR <= 1
@@ -117,7 +111,7 @@ class TestComputeTPRFPR:
         """Test TPR/FPR with zero matrices."""
         A = np.zeros((3, 3))
         B = np.zeros((3, 3))
-        
+
         # This might cause division by zero, should handle gracefully
         try:
             TPR, FPR = Compute_TPR_FPR(A, B)
@@ -129,19 +123,20 @@ class TestComputeTPRFPR:
     def test_tpr_fpr_binary_matrices(self):
         """Test TPR/FPR with binary matrices."""
         # True network
-        A = np.array([[0, 1, 0, 1],
-                      [0, 0, 1, 0],
-                      [1, 0, 0, 1],
-                      [0, 1, 0, 0]])
-        
+        A = np.array([[0, 1, 0, 1], [0, 0, 1, 0], [1, 0, 0, 1], [0, 1, 0, 0]])
+
         # Predicted network with some errors
-        B = np.array([[0, 1, 1, 1],  # Extra edge (2,0)
-                      [0, 0, 1, 0],  # Correct
-                      [1, 0, 0, 0],  # Missing edge (2,3)
-                      [0, 1, 1, 0]])  # Extra edge (3,2)
-        
+        B = np.array(
+            [
+                [0, 1, 1, 1],  # Extra edge (2,0)
+                [0, 0, 1, 0],  # Correct
+                [1, 0, 0, 0],  # Missing edge (2,3)
+                [0, 1, 1, 0],
+            ]
+        )  # Extra edge (3,2)
+
         TPR, FPR = Compute_TPR_FPR(A, B)
-        
+
         assert isinstance(TPR, (float, np.floating))
         assert isinstance(FPR, (float, np.floating))
         assert 0 <= TPR <= 1
@@ -149,26 +144,22 @@ class TestComputeTPRFPR:
 
     def test_tpr_fpr_perfect_prediction(self):
         """Test TPR/FPR with perfect prediction."""
-        A = np.array([[0, 1, 0],
-                      [1, 0, 1],
-                      [0, 1, 0]])
+        A = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
         B = A.copy()  # Perfect prediction
-        
+
         TPR, FPR = Compute_TPR_FPR(A, B)
-        
+
         assert TPR == 1.0  # All true edges detected
         assert FPR == 0.0  # No false positives
 
     def test_tpr_fpr_worst_prediction(self):
         """Test TPR/FPR with worst possible prediction."""
-        A = np.array([[0, 1, 0],
-                      [1, 0, 1],
-                      [0, 1, 0]])
+        A = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
         B = 1 - A  # Completely wrong (flip all off-diagonal elements)
         np.fill_diagonal(B, 0)  # Keep diagonal as zero
-        
+
         TPR, FPR = Compute_TPR_FPR(A, B)
-        
+
         assert isinstance(TPR, (float, np.floating))
         assert isinstance(FPR, (float, np.floating))
         # Should have low TPR and high FPR for completely wrong prediction
@@ -176,11 +167,10 @@ class TestComputeTPRFPR:
     def test_tpr_fpr_empty_true_network(self):
         """Test TPR/FPR when true network has no edges."""
         A = np.zeros((4, 4))  # No true edges
-        B = np.array([[0, 1, 0, 1],
-                      [0, 0, 1, 0],
-                      [1, 0, 0, 0],
-                      [0, 0, 1, 0]])  # Some predicted edges
-        
+        B = np.array(
+            [[0, 1, 0, 1], [0, 0, 1, 0], [1, 0, 0, 0], [0, 0, 1, 0]]
+        )  # Some predicted edges
+
         # This should cause division by zero for TPR calculation
         try:
             TPR, FPR = Compute_TPR_FPR(A, B)
@@ -194,7 +184,7 @@ class TestComputeTPRFPR:
         """Test that function validates matrix dimensions."""
         A = np.array([[0, 1], [1, 0]])
         B = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])  # Wrong size
-        
+
         with pytest.raises(AssertionError):
             Compute_TPR_FPR(A, B)
 
@@ -202,7 +192,7 @@ class TestComputeTPRFPR:
         """Test behavior with non-square matrices."""
         A = np.array([[0, 1, 0]])  # 1x3 matrix
         B = np.array([[0, 1, 0]])
-        
+
         with pytest.raises(AssertionError):
             Compute_TPR_FPR(A, B)
 
@@ -210,7 +200,7 @@ class TestComputeTPRFPR:
         """Test TPR/FPR with single node networks."""
         A = np.array([[0]])
         B = np.array([[0]])
-        
+
         # Single node with no self-loops
         try:
             TPR, FPR = Compute_TPR_FPR(A, B)
@@ -226,13 +216,13 @@ class TestComputeTPRFPR:
         n = 10
         A = (np.random.rand(n, n) > 0.7).astype(int)
         np.fill_diagonal(A, 0)  # No self-loops
-        
+
         B = (np.random.rand(n, n) > 0.8).astype(int)
         np.fill_diagonal(B, 0)  # No self-loops
-        
+
         if np.sum(A) > 0:  # Only test if A has some edges
             TPR, FPR = Compute_TPR_FPR(A, B)
-            
+
             assert isinstance(TPR, (float, np.floating))
             assert isinstance(FPR, (float, np.floating))
             assert 0 <= TPR <= 1
@@ -248,7 +238,7 @@ class TestStatsFunctionProperties:
         TPRs = np.array([0, 0.3, 0.7, 1.0])
         FPRs = np.array([0, 0.2, 0.5, 1.0])
         result = auc(TPRs, FPRs)
-        
+
         assert 0 <= result <= 1
 
     def test_tpr_fpr_range(self):
@@ -260,7 +250,7 @@ class TestStatsFunctionProperties:
             B = (np.random.rand(n, n) > 0.6).astype(int)
             np.fill_diagonal(A, 0)
             np.fill_diagonal(B, 0)
-            
+
             if np.sum(A) > 0:  # Only test if A has edges
                 TPR, FPR = Compute_TPR_FPR(A, B)
                 assert 0 <= TPR <= 1
@@ -272,7 +262,7 @@ class TestStatsFunctionProperties:
         TPRs = np.array([0.0, 0.33333, 0.66667, 1.0])
         FPRs = np.array([0.0, 0.1111, 0.4444, 1.0])
         result = auc(TPRs, FPRs)
-        
+
         assert isinstance(result, float)
         assert not np.isnan(result)
         assert np.isfinite(result)

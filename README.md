@@ -62,8 +62,8 @@ for source, sink in network.edges(data=True):
 # Configure discovery parameters
 network = discover_network(
     data,
-    method='standard',           # 'standard' or 'hawkes'
-    information='gaussian',      # 'gaussian' or 'geometric_knn'
+    method='standard',           # 'standard', 'alternative', 'information_lasso', or 'lasso'
+    information='gaussian',      # 'gaussian', 'knn', 'kde', 'geometric_knn', or 'poisson'
     max_lag=5,                  # Maximum time lag to consider
     alpha_forward=0.05,         # Forward selection significance
     alpha_backward=0.05,        # Backward elimination significance
@@ -93,9 +93,9 @@ print(f"Discovered edges: {discovered.number_of_edges()}")
 
 ## Key Features
 
-- **Multiple Algorithms**: Standard oCSE and Hawkes process variants
-- **Flexible Information Estimators**: Gaussian and geometric k-nearest neighbor methods  
-- **Statistical Rigor**: Permutation-based significance testing with >90% test coverage
+- **Multiple Algorithms**: Standard, alternative, information lasso, and lasso variants of oCSE
+- **Flexible Information Estimators**: Gaussian, k-NN, KDE, geometric k-NN, and Poisson methods  
+- **Statistical Rigor**: Permutation-based significance testing with comprehensive test coverage
 - **Synthetic Data**: Built-in generators for testing and validation
 - **Visualization**: Network plotting and analysis tools
 - **Performance**: Optimized implementations with parallel processing support

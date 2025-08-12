@@ -6,7 +6,6 @@ from typing import Union, Dict, Tuple
 
 from sklearn.linear_model import LassoLarsIC, Lasso
 from causalentropy.core.information.conditional_mutual_information import conditional_mutual_information
-from causalentropy.core.discovery_utils import discover_network_hawkes
 
 
 def discover_network(
@@ -150,23 +149,11 @@ def discover_network(
     if method not in ["standard", 'alternative', 'information_lasso', "lasso"]:
         raise NotImplementedError(f"discover_network: method={method} not supported.")
     supported_information_types = [
-        "gaussian", "knn", "kde", "geometric_knn", "poisson",
-        "negative_binomial", "hawkes", "von_mises", "laplace", "histogram"
+        "gaussian", "knn", "kde", "geometric_knn", "poisson"
     ]
     if information not in supported_information_types:
         raise NotImplementedError(f"discover_network: information={information} not supported. "
                                   f"Supported types: {supported_information_types}")
-
-    # Hawkes information needs to be treated differently because the data array is inhomogeneous
-    if information == 'hawkes':
-        return discover_network_hawkes(
-            data=data,
-            method=method,
-            alpha_forward=alpha_forward,
-            alpha_backward=alpha_backward,
-            n_shuffles=n_shuffles,
-            rng=rng
-        )
 
     # Convert DataFrame to ndarray while keeping column labels
     if isinstance(data, pd.DataFrame):

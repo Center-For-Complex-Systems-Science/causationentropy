@@ -135,7 +135,7 @@ class TestConditionalMutualInformation:
         Y = np.random.normal(0, 1, (20, 1))
         Z = np.random.normal(0, 1, (20, 1))
         
-        with pytest.raises(ValueError, match="Unknown method"):
+        with pytest.raises(ValueError, match="Method 'invalid' unavailable"):
             conditional_mutual_information(X, Y, Z, method='invalid')
 
     def test_cmi_no_conditioning_variable(self):

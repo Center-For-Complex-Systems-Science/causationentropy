@@ -226,4 +226,10 @@ def geometric_knn_mutual_information(X, Y, metric="euclidean", k=1):
     HY = geometric_knn_entropy(Y, Ydist, k)
     HXY = geometric_knn_entropy(np.hstack((X, Y)), XYdist, k)
 
-    return HX + HY - HXY
+    mi = HX + HY - HXY
+    
+    # Safety check: return 0 if result is NaN or infinite
+    if not np.isfinite(mi):
+        return 0.0
+    
+    return mi

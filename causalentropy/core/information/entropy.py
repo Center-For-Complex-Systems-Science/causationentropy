@@ -164,44 +164,61 @@ def geometric_knn_entropy(X, Xdist, k=1):
     for i in range(N):
         Xknn[i, :] = np.argsort(Xdist[i, :])[1 : k + 1]
     H_X = np.log(N) + np.log(np.pi ** (d / 2) / gamma(1 + d / 2))
-    H_X += (
-        d
-        / N
-        * np.sum([np.log(l2dist(X[i, :], X[Xknn[i, k - 1], :])) for i in range(N)])
-    )
-    H_X += (
-        1
-        / N
-        * np.sum(
-            [
-                -np.log(
-                    max(
-                        1,
-                        np.sum(
-                            [
-                                hyperellipsoid_check(np.linalg.svd(Y_i), Z_i[j, :])
-                                for j in range(k)
-                            ]
-                        ),
-                    )
-                )
-                + np.sum(
-                    [
-                        np.log(sing_Yi[l] / sing_Yi[0])
-                        for l in range(min(d, len(sing_Yi)))
-                    ]
-                )
-                for i in range(N)
-                for Y_i in [
-                    X[np.append([i], Xknn[i, :]), :]
-                    - np.mean(X[np.append([i], Xknn[i, :]), :], axis=0)
-                ]
-                for svd_Yi in [np.linalg.svd(Y_i)]
-                for sing_Yi in [svd_Yi[1]]
-                for Z_i in [X[Xknn[i, :], :] - X[i, :]]
-            ]
+    
+    # Compute distance-based term with safety checks
+    log_distances = []
+    for i in range(N):
+        dist = l2dist(X[i, :], X[Xknn[i, k - 1], :])
+        if dist > 1e-12:  # Avoid log(0)
+            log_distances.append(np.log(dist))
+        else:
+            log_distances.append(-12.0)  # log(1e-12) as a reasonable lower bound
+    
+    H_X += d / N * np.sum(log_distances)
+    
+    # Compute geometric correction term with safety checks
+    geometric_corrections = []
+    for i in range(N):
+        Y_i = (
+            X[np.append([i], Xknn[i, :]), :]
+            - np.mean(X[np.append([i], Xknn[i, :]), :], axis=0)
         )
-    )
+        Z_i = X[Xknn[i, :], :] - X[i, :]
+        
+        try:
+            svd_Yi = np.linalg.svd(Y_i)
+            sing_Yi = svd_Yi[1]
+            
+            # Hyperellipsoid check
+            hyperellipsoid_sum = np.sum(
+                [hyperellipsoid_check(svd_Yi, Z_i[j, :]) for j in range(k)]
+            )
+            
+            # Avoid log(0) in the hyperellipsoid term
+            log_hyper = -np.log(max(1, hyperellipsoid_sum))
+            
+            # Singular value ratio term with safety checks
+            sing_ratio_sum = 0.0
+            if len(sing_Yi) > 0 and sing_Yi[0] > 1e-12:
+                for l in range(min(d, len(sing_Yi))):
+                    if l < len(sing_Yi) and sing_Yi[l] > 1e-12:
+                        ratio = sing_Yi[l] / sing_Yi[0]
+                        if ratio > 1e-12:
+                            sing_ratio_sum += np.log(ratio)
+                        else:
+                            sing_ratio_sum += -12.0  # log(1e-12)
+            
+            correction = log_hyper + sing_ratio_sum
+            if np.isfinite(correction):
+                geometric_corrections.append(correction)
+            else:
+                geometric_corrections.append(0.0)  # Fallback for non-finite values
+                
+        except (np.linalg.LinAlgError, ValueError):
+            # Handle SVD failures gracefully
+            geometric_corrections.append(0.0)
+    
+    H_X += (1 / N) * np.sum(geometric_corrections)
     return H_X
 
 

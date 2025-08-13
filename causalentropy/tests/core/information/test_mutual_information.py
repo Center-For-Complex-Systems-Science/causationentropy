@@ -150,7 +150,11 @@ class TestKNNMutualInformation:
         X = np.random.normal(0, 1, (n, 2))
         Y = np.random.normal(0, 1, (n, 2))
 
-        metrics = ["euclidean", "cityblock", "chebyshev"]  # cityblock is scipy's name for manhattan
+        metrics = [
+            "euclidean",
+            "cityblock",
+            "chebyshev",
+        ]  # cityblock is scipy's name for manhattan
         for metric in metrics:
             mi = knn_mutual_information(X, Y, metric=metric, k=2)
             assert isinstance(mi, float)

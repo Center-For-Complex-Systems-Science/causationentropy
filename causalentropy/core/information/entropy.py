@@ -185,7 +185,12 @@ def geometric_knn_entropy(X, Xdist, k=1):
                         ),
                     )
                 )
-                + np.sum([np.log(sing_Yi[l] / sing_Yi[0]) for l in range(min(d, len(sing_Yi)))])
+                + np.sum(
+                    [
+                        np.log(sing_Yi[l] / sing_Yi[0])
+                        for l in range(min(d, len(sing_Yi)))
+                    ]
+                )
                 for i in range(N)
                 for Y_i in [
                     X[np.append([i], Xknn[i, :]), :]

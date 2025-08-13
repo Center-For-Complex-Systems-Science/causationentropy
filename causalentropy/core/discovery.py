@@ -99,7 +99,8 @@ def discover_network(
         node pair represent relationships at different time lags. Edge attributes include:
 
         - 'lag': Time delay :math:`\tau` of the causal relationship
-        - 'cmi': Conditional mutual information value at time of selection
+        - 'cmi': Conditional mutual information value for this edge
+        - 'p_value': Empirical p-value from permutation test
 
     Raises
     ------
@@ -225,7 +226,48 @@ def discover_network(
             S = lasso_optimal_causation_entropy(X_lagged, Y, rng)
         for s in S:
             src_var, src_lag = feature_names[s]
-            G.add_edge(var_names[src_var], var_names[i], lag=src_lag)
+
+            # Compute CMI and p-value for this edge
+            X_predictor = X_lagged[:, [s]]  # predictor at this lag
+            Y_target = Y  # target variable
+
+            # Conditioning set: all other selected predictors for this target
+            other_selected = [idx for idx in S if idx != s]
+            Z_cond = X_lagged[:, other_selected] if other_selected else None
+
+            # Compute conditional mutual information
+            cmi = conditional_mutual_information(
+                X_predictor,
+                Y_target,
+                Z_cond,
+                method=information,
+                metric=metric,
+                k=k_means,
+                bandwidth=bandwidth,
+            )
+
+            # Compute p-value using shuffle test
+            test_result = shuffle_test(
+                X_predictor,
+                Y_target,
+                Z_cond,
+                cmi,
+                alpha=alpha_backward,  # Use backward elimination alpha
+                rng=rng,
+                n_shuffles=n_shuffles,
+                information=information,
+                metric=metric,
+                k_means=k_means,
+                bandwidth=bandwidth,
+            )
+
+            G.add_edge(
+                var_names[src_var],
+                var_names[i],
+                lag=src_lag,
+                cmi=cmi,
+                p_value=test_result["P_value"],
+            )
 
     return G
 
@@ -828,6 +870,7 @@ def shuffle_test(
         - 'Threshold': float, the (1-α) percentile of the null distribution
         - 'Value': float, the observed conditional mutual information value
         - 'Pass': bool, True if observed_cmi >= threshold (statistically significant)
+        - 'P_value': float, empirical p-value (proportion of null values >= observed)
 
     Notes
     -----
@@ -870,10 +913,13 @@ def shuffle_test(
         )
 
     threshold = np.percentile(null_cmi, 100 * (1 - alpha))
+    # Calculate p-value: proportion of null values >= observed value
+    p_value = np.mean(null_cmi >= observed_cmi)
     return {
         "Threshold": threshold,
         "Value": observed_cmi,
         "Pass": observed_cmi >= threshold,
+        "P_value": p_value,
     }
 
 

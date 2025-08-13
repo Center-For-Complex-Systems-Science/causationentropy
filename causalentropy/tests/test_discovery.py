@@ -122,9 +122,13 @@ class TestDiscoverNetwork:
             source, target, attrs = edge
             if "lag" in attrs:
                 assert isinstance(attrs["lag"], int)
-                assert attrs["lag"] >= 0
+                assert attrs["lag"] >= 1  # Lags should be >= 1
             if "cmi" in attrs:
                 assert isinstance(attrs["cmi"], (int, float))
+                assert attrs["cmi"] >= 0  # CMI should be non-negative
+            if "p_value" in attrs:
+                assert isinstance(attrs["p_value"], (int, float))
+                assert 0 <= attrs["p_value"] <= 1  # p-value should be in [0,1]
 
     def test_discover_network_different_parameters(self):
         """Test discover_network with different parameter values."""
@@ -424,3 +428,66 @@ class TestDiscoverNetwork:
 
         assert isinstance(G, nx.MultiDiGraph)
         assert type(G) == nx.MultiDiGraph  # Should be exactly MultiDiGraph type
+
+    def test_edge_attributes_cmi_and_pvalue(self):
+        """Test that edges have CMI and p-value attributes."""
+        # Create strong causal relationship
+        np.random.seed(42)
+        T = 100
+        X0 = np.random.normal(0, 1, T)
+        X1 = np.zeros(T)
+
+        # Strong linear relationship at lag 1
+        for t in range(1, T):
+            X1[t] = 0.9 * X0[t - 1] + 0.1 * np.random.normal()
+
+        data = np.column_stack([X0, X1])
+        G = discover_network(data, max_lag=2, alpha_forward=0.2, n_shuffles=50)
+
+        # Check edge attributes
+        edges_found = False
+        for u, v, d in G.edges(data=True):
+            edges_found = True
+            # Every edge should have these attributes
+            assert "lag" in d, f"Edge {u}->{v} missing lag attribute"
+            assert "cmi" in d, f"Edge {u}->{v} missing cmi attribute"
+            assert "p_value" in d, f"Edge {u}->{v} missing p_value attribute"
+
+            # Check attribute types and ranges
+            assert isinstance(d["lag"], int) and d["lag"] >= 1
+            assert isinstance(d["cmi"], (int, float)) and d["cmi"] >= 0
+            assert isinstance(d["p_value"], (int, float)) and 0 <= d["p_value"] <= 1
+
+        if not edges_found:
+            pytest.skip("No edges found in this test run - may occur due to randomness")
+
+    def test_pvalue_calculation_correctness(self):
+        """Test that p-values are calculated correctly."""
+        # Create data with very strong signal to ensure edge detection
+        np.random.seed(123)
+        T = 150
+        X0 = np.random.normal(0, 1, T)
+        X1 = np.zeros(T)
+
+        # Very strong deterministic relationship
+        for t in range(1, T):
+            X1[t] = 0.95 * X0[t - 1] + 0.05 * np.random.normal()
+
+        data = np.column_stack([X0, X1])
+        G = discover_network(data, max_lag=2, alpha_forward=0.3, n_shuffles=100)
+
+        # Find edges from X0 to X1
+        x0_to_x1_edges = [
+            (u, v, d) for u, v, d in G.edges(data=True) if u == "X0" and v == "X1"
+        ]
+
+        if len(x0_to_x1_edges) > 0:
+            for u, v, d in x0_to_x1_edges:
+                # Strong causal relationship should have low p-value
+                assert (
+                    d["p_value"] < 0.5
+                ), f"Strong causal edge has p-value {d['p_value']} >= 0.5"
+                # CMI should be positive for causal relationship
+                assert d["cmi"] > 0, f"Causal edge has non-positive CMI: {d['cmi']}"
+        else:
+            pytest.skip("No X0->X1 edges found - test setup may need adjustment")

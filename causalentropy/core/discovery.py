@@ -23,7 +23,7 @@ def discover_network(
     k_means: int = 5,
     n_shuffles: int = 200,
     n_jobs=-1,
-) -> nx.DiGraph:
+) -> nx.MultiDiGraph:
     r"""
     Infer a causal graph via Optimal Causation Entropy (oCSE).
 
@@ -93,9 +93,10 @@ def discover_network(
 
     Returns
     -------
-    G : networkx.DiGraph
-        Directed graph representing the discovered causal network. Nodes correspond to
-        variables and edges represent causal relationships. Edge attributes include:
+    G : networkx.MultiDiGraph
+        Multi-directed graph representing the discovered causal network. Nodes correspond to
+        variables and edges represent causal relationships. Multiple edges between the same
+        node pair represent relationships at different time lags. Edge attributes include:
 
         - 'lag': Time delay :math:`\tau` of the causal relationship
         - 'cmi': Conditional mutual information value at time of selection
@@ -166,14 +167,6 @@ def discover_network(
         raise ValueError("Time series too short for chosen max_lag.")
 
     indices = np.arange(max_lag, T - 1)
-    lagged: Dict[Tuple[int, int], np.ndarray] = {}
-    for j in range(n):
-        for tau in range(max_lag + 1):
-            lagged[(j, tau)] = series[indices - tau, j]
-
-    G = nx.DiGraph()
-    G.add_nodes_from(var_names)
-
     # Step 1: Create lagged predictors and corresponding labels
     X_lagged = []
     feature_names = []  # stores (var_idx, lag)
@@ -187,7 +180,7 @@ def discover_network(
     Y_all = series[max_lag:, :]  # aligned target matrix
 
     # Step 2: Initialize causal graph
-    G = nx.DiGraph()
+    G = nx.MultiDiGraph()
     G.add_nodes_from(var_names)
 
     # Step 3: Loop over each variable and infer parents from lagged predictors

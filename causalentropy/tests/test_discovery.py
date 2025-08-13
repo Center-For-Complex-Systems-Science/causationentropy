@@ -27,7 +27,7 @@ class TestDiscoverNetwork:
         # Test the function runs without error
         G = discover_network(data, max_lag=2, n_shuffles=50)
 
-        assert isinstance(G, nx.DiGraph)
+        assert isinstance(G, nx.MultiDiGraph)
         assert len(G.nodes()) == 2
         assert "X0" in G.nodes()
         assert "X1" in G.nodes()
@@ -45,7 +45,7 @@ class TestDiscoverNetwork:
 
         G = discover_network(df, max_lag=1, n_shuffles=20)
 
-        assert isinstance(G, nx.DiGraph)
+        assert isinstance(G, nx.MultiDiGraph)
         assert len(G.nodes()) == 3
         assert "var1" in G.nodes()
         assert "var2" in G.nodes()
@@ -79,7 +79,7 @@ class TestDiscoverNetwork:
         valid_methods = ["standard", "alternative", "information_lasso", "lasso"]
         for method in valid_methods:
             G = discover_network(data, method=method, max_lag=1, n_shuffles=10)
-            assert isinstance(G, nx.DiGraph)
+            assert isinstance(G, nx.MultiDiGraph)
 
     def test_discover_network_valid_information_types(self):
         """Test that all valid information types are accepted."""
@@ -90,7 +90,7 @@ class TestDiscoverNetwork:
         valid_info_types = ["gaussian", "kde"]
         for info_type in valid_info_types:
             G = discover_network(data, information=info_type, max_lag=1, n_shuffles=10)
-            assert isinstance(G, nx.DiGraph)
+            assert isinstance(G, nx.MultiDiGraph)
 
         # Test specialized types that are still available
         specialized_types = ["poisson"]
@@ -99,7 +99,7 @@ class TestDiscoverNetwork:
                 G = discover_network(
                     data, information=info_type, max_lag=1, n_shuffles=10
                 )
-                assert isinstance(G, nx.DiGraph)
+                assert isinstance(G, nx.MultiDiGraph)
             except (ValueError, TypeError):
                 pass  # Some may require specific data types/parameters
 
@@ -133,8 +133,8 @@ class TestDiscoverNetwork:
         # Test different max_lag values
         G1 = discover_network(data, max_lag=1, n_shuffles=10)
         G2 = discover_network(data, max_lag=3, n_shuffles=10)
-        assert isinstance(G1, nx.DiGraph)
-        assert isinstance(G2, nx.DiGraph)
+        assert isinstance(G1, nx.MultiDiGraph)
+        assert isinstance(G2, nx.MultiDiGraph)
 
         # Test different alpha values
         G3 = discover_network(
@@ -143,8 +143,8 @@ class TestDiscoverNetwork:
         G4 = discover_network(
             data, alpha_forward=0.1, alpha_backward=0.1, n_shuffles=10
         )
-        assert isinstance(G3, nx.DiGraph)
-        assert isinstance(G4, nx.DiGraph)
+        assert isinstance(G3, nx.MultiDiGraph)
+        assert isinstance(G4, nx.MultiDiGraph)
 
     def test_discover_network_empty_result(self):
         """Test behavior when no causal relationships are found."""
@@ -156,7 +156,7 @@ class TestDiscoverNetwork:
             data, max_lag=1, alpha_forward=0.001, n_shuffles=50
         )  # Very strict alpha
 
-        assert isinstance(G, nx.DiGraph)
+        assert isinstance(G, nx.MultiDiGraph)
         assert len(G.nodes()) == 3
         # Edges may or may not be found depending on random chance
 
@@ -183,7 +183,7 @@ class TestDiscoverNetwork:
         data = np.random.normal(0, 1, (T, 2))
 
         G = discover_network(data, max_lag=max_lag, n_shuffles=10)
-        assert isinstance(G, nx.DiGraph)
+        assert isinstance(G, nx.MultiDiGraph)
         assert len(G.nodes()) == 2
 
     def test_discover_network_single_variable(self):
@@ -192,7 +192,7 @@ class TestDiscoverNetwork:
 
         G = discover_network(data, max_lag=1, n_shuffles=10)
 
-        assert isinstance(G, nx.DiGraph)
+        assert isinstance(G, nx.MultiDiGraph)
         assert len(G.nodes()) == 1
         assert len(G.edges()) == 0  # No self-loops expected
 
@@ -206,7 +206,7 @@ class TestDiscoverNetwork:
 
         # Verify CMI was called
         assert mock_cmi.called
-        assert isinstance(G, nx.DiGraph)
+        assert isinstance(G, nx.MultiDiGraph)
 
     def test_discover_network_data_types(self):
         """Test different input data types."""
@@ -219,7 +219,7 @@ class TestDiscoverNetwork:
 
         for data in [data_float32, data_float64, data_int]:
             G = discover_network(data, max_lag=1, n_shuffles=10)
-            assert isinstance(G, nx.DiGraph)
+            assert isinstance(G, nx.MultiDiGraph)
             assert len(G.nodes()) == n
 
     @patch("causalentropy.core.discovery.conditional_mutual_information")
@@ -346,8 +346,8 @@ class TestDiscoverNetwork:
         )
 
         # Both should be valid graphs
-        assert isinstance(G1, nx.DiGraph)
-        assert isinstance(G2, nx.DiGraph)
+        assert isinstance(G1, nx.MultiDiGraph)
+        assert isinstance(G2, nx.MultiDiGraph)
         assert len(G1.nodes()) == len(G2.nodes()) == 2
 
     def test_default_parameter_values(self):
@@ -357,5 +357,70 @@ class TestDiscoverNetwork:
         # Call without specifying the three new parameters - should use defaults
         G = discover_network(data, max_lag=1, n_shuffles=10)
 
-        assert isinstance(G, nx.DiGraph)
+        assert isinstance(G, nx.MultiDiGraph)
         assert len(G.nodes()) == 2
+
+    def test_multiple_lags_single_edge(self):
+        """Test that multiple lags between the same variables create separate edges."""
+        # Create data where X0 influences X1 at both lag 1 and lag 3
+        np.random.seed(42)
+        T = 200
+        X0 = np.random.normal(0, 1, T)
+        X1 = np.zeros(T)
+
+        # Strong relationships at lag 1 and lag 3
+        for t in range(3, T):
+            X1[t] = 0.8 * X0[t - 1] + 0.6 * X0[t - 3] + 0.2 * np.random.normal()
+
+        data = np.column_stack([X0, X1])
+        G = discover_network(data, max_lag=5, alpha_forward=0.1, n_shuffles=100)
+
+        assert isinstance(G, nx.MultiDiGraph)
+
+        # Check if we have multiple edges from X0 to X1
+        edges_X0_to_X1 = [
+            (u, v, d) for u, v, d in G.edges(data=True) if u == "X0" and v == "X1"
+        ]
+
+        if len(edges_X0_to_X1) > 1:
+            # Verify we have edges with different lags
+            lags = [edge[2]["lag"] for edge in edges_X0_to_X1]
+            assert len(set(lags)) == len(lags), "All lags should be unique"
+            assert 1 in lags or 3 in lags, "Should detect at least one of the true lags"
+
+    def test_multigraph_edge_iteration(self):
+        """Test that MultiDiGraph properly handles multiple edges between same nodes."""
+        np.random.seed(123)
+        T = 100
+        X0 = np.random.normal(0, 1, T)
+        X1 = np.zeros(T)
+
+        # Clear relationship at lag 2
+        for t in range(2, T):
+            X1[t] = 0.9 * X0[t - 2] + 0.1 * np.random.normal()
+
+        data = np.column_stack([X0, X1])
+        G = discover_network(data, max_lag=3, alpha_forward=0.2, n_shuffles=50)
+
+        # Test different ways to access edges
+        all_edges = list(G.edges(data=True))
+        edges_with_keys = list(G.edges(keys=True, data=True))
+
+        # Verify edge data structure
+        for edge in all_edges:
+            assert len(edge) == 3  # (source, target, attributes)
+            if "lag" in edge[2]:
+                assert isinstance(edge[2]["lag"], int)
+                assert edge[2]["lag"] >= 1
+
+        # Verify keys are included when requested
+        for edge in edges_with_keys:
+            assert len(edge) == 4  # (source, target, key, attributes)
+
+    def test_return_type_multidigraph(self):
+        """Test that discover_network returns MultiDiGraph."""
+        data = np.random.normal(0, 1, (30, 2))
+        G = discover_network(data, max_lag=1, n_shuffles=10)
+
+        assert isinstance(G, nx.MultiDiGraph)
+        assert type(G) == nx.MultiDiGraph  # Should be exactly MultiDiGraph type

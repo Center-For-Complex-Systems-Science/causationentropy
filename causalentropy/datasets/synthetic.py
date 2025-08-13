@@ -14,7 +14,10 @@ def logisic_dynamics(n=20, p=0.1, t=100, r=3.99, sigma=0.1, seed=42):
     G = nx.erdos_renyi_graph(n, p, seed=seed)
     A = nx.to_numpy_array(G)
     # Must adjust the adjacency matrix so that dynamics stay in [0,1]
-    A = A / np.sum(A, axis=1)
+    row_sums = np.sum(A, axis=1)
+    # Avoid division by zero: only normalize rows that have connections
+    non_zero_mask = row_sums > 0
+    A[non_zero_mask] = A[non_zero_mask] / row_sums[non_zero_mask, np.newaxis]
     A = A.T
 
     # Since the row sums equal to 1 the Laplacian matrix is easy...
@@ -41,15 +44,19 @@ def linear_stochastic_gaussian_process(
     if G is None:
         G = nx.erdos_renyi_graph(n, p, seed=seed, directed=True)
     A = nx.to_numpy_array(G).T
-    R = 2 * (np.random.rand(n, n) - 0.5)
+    R = 2 * (rng.random((n, n)) - 0.5)
     A = A * R
-    A = A / np.max(np.abs(np.linalg.eigvals(A)))
+    # Avoid division by zero in eigenvalue normalization
+    eigvals = np.linalg.eigvals(A)
+    max_eigval = np.max(np.abs(eigvals))
+    if max_eigval > 1e-12:  # Only normalize if eigenvalue is significant
+        A = A / max_eigval
     A = A * rho
     XY = np.zeros((T, n))
-    XY[0, :] = epsilon * np.random.randn(1, n)
+    XY[0, :] = epsilon * rng.standard_normal(n)
     for i in range(1, T):
-        Xi = np.dot(A, np.matrix(XY[i - 1, :]).T) + epsilon * np.random.randn(n, 1)
-        XY[i, :] = Xi.T
+        Xi = np.dot(A, XY[i - 1, :]) + epsilon * rng.standard_normal(n)
+        XY[i, :] = Xi
     return XY, A
 
 

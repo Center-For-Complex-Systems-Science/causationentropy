@@ -92,14 +92,8 @@ class TestDiscoverNetwork:
             G = discover_network(data, information=info_type, max_lag=1, n_shuffles=10)
             assert isinstance(G, nx.DiGraph)
 
-        # Test specialized types (may need specific data types but shouldn't crash)
-        specialized_types = [
-            "poisson",
-            "negative_binomial",
-            "hawkes",
-            "von_mises",
-            "laplace",
-        ]
+        # Test specialized types that are still available
+        specialized_types = ["poisson"]
         for info_type in specialized_types:
             try:
                 G = discover_network(
@@ -236,7 +230,7 @@ class TestDiscoverNetwork:
         data = np.random.normal(0, 1, (20, 2))
 
         # Test with different metric values
-        for metric in ["euclidean", "manhattan", "chebyshev"]:
+        for metric in ["euclidean", "cityblock", "chebyshev"]:
             discover_network(
                 data, information="knn", metric=metric, max_lag=1, n_shuffles=5
             )
@@ -287,7 +281,7 @@ class TestDiscoverNetwork:
         data = np.random.normal(0, 1, (20, 2))
 
         # Test with specific combination of all three parameters
-        metric = "manhattan"
+        metric = "cityblock"
         bandwidth = 0.8
         k_means = 7
 

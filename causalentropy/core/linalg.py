@@ -88,4 +88,12 @@ def correlation_log_determinant(A, epsilon=1e-10):
     C = np.corrcoef(A.T)
     if C.ndim == 0:
         return 0.0
-    return np.linalg.slogdet(C)[1]
+    
+    # Handle numerical issues with correlation matrix
+    sign, logdet = np.linalg.slogdet(C)
+    
+    # If the matrix is singular (sign=0), return a large negative value instead of -inf
+    if sign == 0 or not np.isfinite(logdet):
+        return -1000.0  # Large negative value for singular matrices
+    
+    return logdet

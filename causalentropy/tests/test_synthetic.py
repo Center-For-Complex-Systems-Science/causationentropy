@@ -120,10 +120,10 @@ class TestLogisticDynamics:
         # A should be non-negative (after normalization)
         assert np.all(A >= 0)
 
-        # A should be properly normalized (each row should sum to 1 or 0)
-        row_sums = np.array(A.sum(axis=1)).flatten()
-        # Rows with connections should sum to 1, rows without should sum to 0
-        assert np.all((np.isclose(row_sums, 1.0)) | (np.isclose(row_sums, 0.0)))
+        # A should be properly normalized (after transpose, each column should sum to 1 or 0)
+        col_sums = np.array(A.sum(axis=0)).flatten()
+        # Columns with connections should sum to 1, columns without should sum to 0
+        assert np.all((np.isclose(col_sums, 1.0)) | (np.isclose(col_sums, 0.0)))
 
     def test_logistic_dynamics_initial_conditions(self):
         """Test that initial conditions are in [0,1]."""
@@ -155,57 +155,61 @@ class TestLinearStochasticGaussianProcess:
 
     def test_gaussian_process_basic(self):
         """Test basic Gaussian process functionality."""
-        XY = linear_stochastic_gaussian_process(
+        XY, A = linear_stochastic_gaussian_process(
             rho=0.3, n=5, T=20, p=0.2, epsilon=0.1, seed=42
         )
 
-        # Check output shape
+        # Check output shapes
         assert XY.shape == (20, 5)
+        assert A.shape == (5, 5)
         assert isinstance(XY, np.ndarray)
+        assert isinstance(A, np.ndarray)
 
         # Values should be reasonable (not infinite or NaN)
         assert np.all(np.isfinite(XY))
+        assert np.all(np.isfinite(A))
 
     def test_gaussian_process_reproducibility(self):
         """Test reproducibility with same seed."""
-        XY1 = linear_stochastic_gaussian_process(rho=0.5, n=4, T=15, seed=123)
-        XY2 = linear_stochastic_gaussian_process(rho=0.5, n=4, T=15, seed=123)
+        XY1, A1 = linear_stochastic_gaussian_process(rho=0.5, n=4, T=15, seed=123)
+        XY2, A2 = linear_stochastic_gaussian_process(rho=0.5, n=4, T=15, seed=123)
 
         assert np.allclose(XY1, XY2)
+        assert np.allclose(A1, A2)
 
     def test_gaussian_process_different_parameters(self):
         """Test with different parameter values."""
         # Different rho values
         for rho in [0.1, 0.5, 0.9]:
-            XY = linear_stochastic_gaussian_process(rho=rho, n=4, T=10, seed=42)
+            XY, A = linear_stochastic_gaussian_process(rho=rho, n=4, T=10, seed=42)
             assert XY.shape == (10, 4)
             assert np.all(np.isfinite(XY))
 
         # Different network sizes
         for n in [2, 5, 10]:
-            XY = linear_stochastic_gaussian_process(rho=0.4, n=n, T=15, seed=42)
+            XY, A = linear_stochastic_gaussian_process(rho=0.4, n=n, T=15, seed=42)
             assert XY.shape == (15, n)
 
         # Different time lengths
         for T in [5, 25, 50]:
-            XY = linear_stochastic_gaussian_process(rho=0.3, n=3, T=T, seed=42)
+            XY, A = linear_stochastic_gaussian_process(rho=0.3, n=3, T=T, seed=42)
             assert XY.shape == (T, 3)
 
         # Different connection probabilities
         for p in [0.0, 0.2, 0.8]:
-            XY = linear_stochastic_gaussian_process(rho=0.4, n=4, T=10, p=p, seed=42)
+            XY, A = linear_stochastic_gaussian_process(rho=0.4, n=4, T=10, p=p, seed=42)
             assert XY.shape == (10, 4)
 
         # Different noise levels
         for epsilon in [0.01, 0.1, 1.0]:
-            XY = linear_stochastic_gaussian_process(
+            XY, A = linear_stochastic_gaussian_process(
                 rho=0.3, n=3, T=10, epsilon=epsilon, seed=42
             )
             assert XY.shape == (10, 3)
 
     def test_gaussian_process_statistical_properties(self):
         """Test statistical properties of the generated data."""
-        XY = linear_stochastic_gaussian_process(
+        XY, A = linear_stochastic_gaussian_process(
             rho=0.3, n=6, T=200, epsilon=0.1, seed=42
         )
 
@@ -220,7 +224,7 @@ class TestLinearStochasticGaussianProcess:
     def test_gaussian_process_stability(self):
         """Test numerical stability."""
         # Test with parameters that might cause instability
-        XY = linear_stochastic_gaussian_process(
+        XY, A = linear_stochastic_gaussian_process(
             rho=0.95, n=4, T=50, p=0.8, epsilon=0.01, seed=42
         )
 
@@ -232,7 +236,7 @@ class TestLinearStochasticGaussianProcess:
 
     def test_gaussian_process_initial_conditions(self):
         """Test initial conditions."""
-        XY = linear_stochastic_gaussian_process(
+        XY, A = linear_stochastic_gaussian_process(
             rho=0.4, n=5, T=30, epsilon=0.2, seed=42
         )
 
@@ -253,7 +257,7 @@ class TestEdgeCases:
         assert A[0, 0] == 0  # No self-loops in Erdős–Rényi
 
         # Two nodes
-        XY = linear_stochastic_gaussian_process(rho=0.3, n=2, T=15, seed=42)
+        XY, A = linear_stochastic_gaussian_process(rho=0.3, n=2, T=15, seed=42)
         assert XY.shape == (15, 2)
 
     def test_short_time_series(self):
@@ -262,7 +266,7 @@ class TestEdgeCases:
         XY, A = logisic_dynamics(n=3, p=0.2, t=2, seed=42)
         assert XY.shape == (2, 3)
 
-        XY = linear_stochastic_gaussian_process(rho=0.4, n=3, T=2, seed=42)
+        XY, A = linear_stochastic_gaussian_process(rho=0.4, n=3, T=2, seed=42)
         assert XY.shape == (2, 3)
 
     def test_extreme_coupling_parameters(self):
@@ -281,19 +285,19 @@ class TestEdgeCases:
     def test_extreme_rho_values(self):
         """Test Gaussian process with extreme rho values."""
         # Very small rho
-        XY = linear_stochastic_gaussian_process(rho=1e-6, n=3, T=10, seed=42)
+        XY, A = linear_stochastic_gaussian_process(rho=1e-6, n=3, T=10, seed=42)
         assert XY.shape == (10, 3)
 
         # rho close to 1 (might be unstable)
         try:
-            XY = linear_stochastic_gaussian_process(rho=0.99, n=3, T=10, seed=42)
+            XY, A = linear_stochastic_gaussian_process(rho=0.99, n=3, T=10, seed=42)
             assert XY.shape == (10, 3)
         except:
             pass  # Very high rho might cause numerical issues
 
     def test_zero_noise(self):
         """Test with zero noise."""
-        XY = linear_stochastic_gaussian_process(
+        XY, A = linear_stochastic_gaussian_process(
             rho=0.3, n=3, T=10, epsilon=0.0, seed=42
         )
         assert XY.shape == (10, 3)
@@ -312,7 +316,7 @@ class TestParameterValidation:
         )
         assert XY.shape == (10, 4)
 
-        XY = linear_stochastic_gaussian_process(
+        XY, A = linear_stochastic_gaussian_process(
             rho=0.3, n=int(5), T=int(15), seed=int(42)
         )
         assert XY.shape == (15, 5)
@@ -322,7 +326,7 @@ class TestParameterValidation:
         XY, A = logisic_dynamics(n=4, p=0.2, t=10, r=3.14159, sigma=0.123, seed=42)
         assert XY.shape == (10, 4)
 
-        XY = linear_stochastic_gaussian_process(
+        XY, A = linear_stochastic_gaussian_process(
             rho=0.333, n=4, T=12, epsilon=0.01, seed=42
         )
         assert XY.shape == (12, 4)

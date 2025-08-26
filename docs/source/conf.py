@@ -5,7 +5,7 @@ import sys
 import pathlib
 
 # Path configuration
-PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]   # …/causalentropy/
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]   # …/causationentropy/
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # -- Project information -----------------------------------------------------
@@ -16,7 +16,7 @@ version = '0.1.0'
 
 # Get release version from installed package
 try:
-    release = importlib.metadata.version("causalentropy")  # pulls from code
+    release = importlib.metadata.version("causationentropy")  # pulls from code
 except importlib.metadata.PackageNotFoundError:
     release = version  # fallback to version if package not installed
 
@@ -169,7 +169,7 @@ latex_documents = [
 
 # -- Options for manual page output ------------------------------------------
 man_pages = [
-    ('index', 'optimalcausalentropy', 'Optimal Causal Entropy Documentation',
+    ('index', 'optimalcausationentropy', 'Optimal Causal Entropy Documentation',
      [author], 1)
 ]
 

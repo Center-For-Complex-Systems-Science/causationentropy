@@ -7,18 +7,18 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
     requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
 
 setup(
-    name="causalentropy",
+    name="causationentropy",
     version="0.1.0",
     author="Kevin Slote",  # Replace with your name
     author_email="kslote1@gmail.com",  # Replace with your email
     description="Causal network discovery using optimal causation entropy",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/kslote1/causalentropy",  # Replace with your repo URL
+    url="https://github.com/kslote1/causationentropy",  # Replace with your repo URL
     project_urls={
-        "Bug Tracker": "https://github.com/kslote1/causalentropy/issues",
-        "Documentation": "https://github.com/kslote1/causalentropy",
-        "Source Code": "https://github.com/kslote1/causalentropy",
+        "Bug Tracker": "https://github.com/kslote1/causationentropy/issues",
+        "Documentation": "https://github.com/kslote1/causationentropy",
+        "Source Code": "https://github.com/kslote1/causationentropy",
     },
     packages=find_packages(),
     classifiers=[
@@ -59,7 +59,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "causalentropy-cli=causalentropy.cli:main",  # Optional CLI interface
+            "causationentropy-cli=causationentropy.cli:main",  # Optional CLI interface
         ],
     },
     keywords="causality, entropy, time-series, network, causal-discovery, information-theory",

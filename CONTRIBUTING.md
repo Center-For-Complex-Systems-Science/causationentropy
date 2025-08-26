@@ -262,8 +262,8 @@ Create comprehensive tests in `causalentropy/tests/`:
 import pytest
 import numpy as np
 import pandas as pd
-from causalentropy.core.discovery import your_discovery_method
-from causalentropy.core.information.entropy import your_entropy_estimator
+from causationentropy.core.discovery import your_discovery_method
+from causationentropy.core.information.entropy import your_entropy_estimator
 
 class TestYourMethod:
     def test_entropy_estimator(self):
@@ -290,7 +290,7 @@ class TestYourMethod:
     
     def test_integration(self):
         """Test integration with main interface."""
-        from causalentropy import discover_network
+        from causationentropy import discover_network
         
         data = pd.DataFrame(np.random.normal(0, 1, (50, 3)))
         network = discover_network(data, method='your_method')

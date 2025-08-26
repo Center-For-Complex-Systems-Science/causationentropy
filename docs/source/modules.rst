@@ -1,7 +1,7 @@
-causalentropy
-=============
+causationentropy
+================
 
 .. toctree::
    :maxdepth: 4
 
-   causalentropy
+   causationentropy

@@ -361,7 +361,7 @@ Consider a high-dimensional time series system:
 .. code-block:: python
 
    import numpy as np
-   from causalentropy.core.discovery import discover_network
+   from causationentropy.core.discovery import discover_network
    
    # Generate high-dimensional data
    T, n = 500, 50  # p >> n scenario

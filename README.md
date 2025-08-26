@@ -2,9 +2,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![Documentation Status](https://readthedocs.org/projects/causalentropy/badge/?version=latest)](https://causalentropy.readthedocs.io/en/latest/?badge=latest)
-[![codecov](https://codecov.io/gh/kslote1/causalentropy/branch/main/graph/badge.svg)](https://codecov.io/gh/kslote1/causalentropy)
-[![Tests](https://github.com/kslote1/causalentropy/workflows/Tests/badge.svg)](https://github.com/kslote1/causalentropy/actions)
+[![Documentation Status](https://readthedocs.org/projects/causationentropy/badge/?version=latest)](https://causationentropy.readthedocs.io/en/latest/?badge=latest)
+[![codecov](https://codecov.io/gh/kslote1/causationentropy/branch/main/graph/badge.svg)](https://codecov.io/gh/kslote1/causationentropy)
+[![Tests](https://github.com/kslote1/causationentropy/workflows/Tests/badge.svg)](https://github.com/kslote1/causationentropy/actions)
 
 A Python library for discovering causal networks from time series data using **Optimal Causation Entropy (oCSE)**.
 
@@ -30,8 +30,8 @@ pip install causationentropy
 
 ### Development Installation
 ```bash
-git clone https://github.com/kslote1/causalentropy.git
-cd causalentropy
+git clone https://github.com/kslote1/causationentropy.git
+cd causationentropy
 pip install -e .[dev,docs,plotting]
 ```
 
@@ -42,7 +42,7 @@ pip install -e .[dev,docs,plotting]
 ```python
 import numpy as np
 import pandas as pd
-from causalentropy import discover_network
+from causationentropy import discover_network
 
 # Load your time series data (variables as columns, time as rows)
 data = pd.read_csv('your_data.csv')
@@ -74,7 +74,7 @@ network = discover_network(
 ### Synthetic Data Example
 
 ```python
-from causalentropy.datasets import synthetic
+from causationentropy.datasets import synthetic
 
 # Generate synthetic causal time series
 data, true_network = synthetic.generate_var_data(
@@ -116,11 +116,11 @@ The algorithm implements a two-phase approach:
 
 ## Documentation
 
-📚 **[Read the full documentation on ReadTheDocs](https://causalentropy.readthedocs.io/)**
+📚 **[Read the full documentation on ReadTheDocs](https://causationentropy.readthedocs.io/)**
 
-- **[API Reference](https://causalentropy.readthedocs.io/en/latest/api/)**: Complete function and class documentation
-- **[User Guide](https://causalentropy.readthedocs.io/en/latest/user_guide/)**: Detailed tutorials and examples
-- **[Theory](https://causalentropy.readthedocs.io/en/latest/theory/)**: Mathematical background and algorithms
+- **[API Reference](https://causationentropy.readthedocs.io/en/latest/api/)**: Complete function and class documentation
+- **[User Guide](https://causationentropy.readthedocs.io/en/latest/user_guide/)**: Detailed tutorials and examples
+- **[Theory](https://causationentropy.readthedocs.io/en/latest/theory/)**: Mathematical background and algorithms
 - **Examples**: Check the `examples/` and `notebooks/` directories
 - **Research Papers**: See the `papers/` directory for theoretical foundations
 
@@ -146,7 +146,7 @@ If you use this library in your research, please cite:
   title={CausationEntropy: A Python Library for Causal Discovery},
   author={Kevin Slote},
   year={2024},
-  url={https://github.com/kslote1/causalentropy}
+  url={https://github.com/kslote1/causationentropy}
 }
 ```
 
@@ -156,8 +156,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE.txt) 
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/kslote1/causalentropy/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/kslote1/causalentropy/discussions)
+- **Issues**: [GitHub Issues](https://github.com/kslote1/causationentropy/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/kslote1/causationentropy/discussions)
 - **Email**: kslote1@gmail.com
 
 ## Acknowledgments

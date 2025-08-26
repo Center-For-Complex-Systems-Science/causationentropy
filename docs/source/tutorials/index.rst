@@ -32,7 +32,7 @@ Simple Example
 .. code-block:: python
 
    import numpy as np
-   from causalentropy import OptimalCausalEntropy
+   from causationentropy import OptimalCausalEntropy
    
    # Generate sample data
    data = np.random.randn(100, 3)

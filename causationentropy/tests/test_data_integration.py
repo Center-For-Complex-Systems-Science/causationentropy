@@ -62,7 +62,7 @@ def calculate_recovery_metrics(
     }
 
 
-def test_method_information_combination(
+def run_method_information_combination(
     method: str,
     information: str,
     test_graph: Optional[nx.DiGraph] = None,
@@ -139,7 +139,7 @@ def run_comprehensive_integration_test(n_nodes: int = 4, T: int = 80) -> pd.Data
             test_count += 1
             print(f"Progress: {test_count}/{total_tests}")
 
-            result = test_method_information_combination(
+            result = run_method_information_combination(
                 method=method,
                 information=information,
                 test_graph=test_graph,

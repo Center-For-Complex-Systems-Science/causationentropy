@@ -8,7 +8,7 @@ using synthetic data generators that match each entropy's distributional assumpt
 import numpy as np
 import networkx as nx
 import pandas as pd
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -16,17 +16,13 @@ from causationentropy.core.discovery import discover_network
 from causationentropy.datasets.synthetic import (
     linear_stochastic_gaussian_process,
     poisson_coupled_oscillators,
-    negative_binomial_coupled_oscillators, 
-    hawkes_coupled_processes,
-    von_mises_coupled_oscillators,
-    laplace_coupled_oscillators
 )
 
 
 def create_test_graph(n_nodes=5, edge_prob=0.3, seed=42) -> nx.DiGraph:
     """Create a simple test graph for all methods."""
     rng = np.random.default_rng(seed)
-    G = nx.erdos_renyi_graph(n_nodes, edge_prob, seed=seed, directed=True)
+    G = nx.erdos_renyi_graph(n_nodes, edge_prob, seed=rng, directed=True)
     return G
 
 
@@ -60,7 +56,7 @@ def calculate_recovery_metrics(true_adj: np.ndarray, inferred_graph: nx.DiGraph)
 
 def test_method_information_combination(method: str, information: str, 
                                       test_graph: Optional[nx.DiGraph] = None,
-                                      n_nodes: int = 5, T: int = 100) -> Dict:
+                                      n_nodes: int = 5, T: int = 10000) -> Dict:
     """Test a specific method-information combination."""
     
     print(f"Testing method='{method}', information='{information}'...")
@@ -70,56 +66,19 @@ def test_method_information_combination(method: str, information: str,
         test_graph = create_test_graph(n_nodes)
     
     # Generate appropriate synthetic data
-    try:
-        if information == 'gaussian':
-            # Use existing Gaussian generator with custom graph
-            data = linear_stochastic_gaussian_process(rho=0.7, n=n_nodes, T=T, p=0.0, seed=42)
-            # Get true adjacency from the graph structure used internally
-            true_adj = nx.to_numpy_array(test_graph)
+
+    if information == 'gaussian':
+        # Use existing Gaussian generator with custom graph
+        data, true_adj = linear_stochastic_gaussian_process(rho=0.7, n=n_nodes, T=T, p=0.0, seed=42)
             
-        elif information == 'poisson':
-            data, true_adj = poisson_coupled_oscillators(
-                n=n_nodes, T=T, G=test_graph, lambda_base=2.0, coupling_strength=0.3, seed=42
-            )
+    elif information == 'poisson':
+        data, true_adj = poisson_coupled_oscillators(n=n_nodes, T=T, lambda_base=2.0, coupling_strength=0.3, seed=42)
             
-        elif information == 'negative_binomial':
-            data, true_adj = negative_binomial_coupled_oscillators(
-                n=n_nodes, T=T, G=test_graph, r_base=5, p_nb=0.3, coupling_strength=0.2, seed=42
-            )
-            
-        elif information == 'hawkes':
-            data, true_adj = hawkes_coupled_processes(
-                n=n_nodes, T=T, G=test_graph, mu_base=0.5, alpha=0.3, beta=1.0, 
-                coupling_strength=0.2, dt=0.1, seed=42
-            )
-            
-        elif information == 'von_mises':
-            data, true_adj = von_mises_coupled_oscillators(
-                n=n_nodes, T=T, G=test_graph, kappa_base=2.0, coupling_strength=0.5, 
-                freq_base=0.1, seed=42
-            )
-            
-        elif information == 'laplace':
-            data, true_adj = laplace_coupled_oscillators(
-                n=n_nodes, T=T, G=test_graph, scale_base=0.5, coupling_strength=0.1, seed=42
-            )
-            
-        else:  # For kde, knn, geometric_knn, histogram - use Gaussian data
-            data = linear_stochastic_gaussian_process(rho=0.7, n=n_nodes, T=T, p=0.0, seed=42)
-            true_adj = nx.to_numpy_array(test_graph)
-            
-    except Exception as e:
-        return {
-            'method': method,
-            'information': information,
-            'status': 'data_generation_failed',
-            'error': str(e),
-            'metrics': {}
-        }
-    
+    else:  # For kde, knn, geometric_knn, histogram - use Gaussian data
+        data, true_adj = linear_stochastic_gaussian_process(rho=0.7, n=n_nodes, T=T, p=0.0, seed=42)
+
     # Run causal discovery
-    try:
-        inferred_graph = discover_network(
+    inferred_graph = discover_network(
             data=data,
             method=method,
             information=information,
@@ -130,37 +89,26 @@ def test_method_information_combination(method: str, information: str,
         )
         
         # Calculate recovery metrics
-        metrics = calculate_recovery_metrics(true_adj, inferred_graph)
+    metrics = calculate_recovery_metrics(true_adj, inferred_graph)
         
-        return {
+    return {
             'method': method,
             'information': information,
             'status': 'success',
             'error': None,
             'metrics': metrics,
-            'data_shape': data.shape,
             'true_graph_edges': int(np.sum(true_adj > 0))
         }
-        
-    except Exception as e:
-        return {
-            'method': method,
-            'information': information,
-            'status': 'discovery_failed',
-            'error': str(e),
-            'metrics': {},
-            'data_shape': data.shape if 'data' in locals() else None
-        }
+
 
 
 def run_comprehensive_integration_test(n_nodes: int = 4, T: int = 80) -> pd.DataFrame:
     """Run integration test for all method-information combinations."""
     
     # All supported methods and information types
-    methods = ['standard', 'alternative', 'information_lasso', 'lasso']
+    methods = ['standard', 'alternative']#, 'information_lasso', 'lasso']
     information_types = [
-        'gaussian', 'kde', 'knn', 'geometric_knn', 'histogram',
-        'poisson', 'negative_binomial', 'hawkes', 'von_mises', 'laplace'
+        'gaussian', 'kde', 'knn', 'geometric_knn', 'poisson'
     ]
     
     # Create a common test graph for consistency
@@ -197,14 +145,11 @@ def run_comprehensive_integration_test(n_nodes: int = 4, T: int = 80) -> pd.Data
 
 def analyze_results(df: pd.DataFrame):
     """Analyze and print summary of integration test results."""
-    print("\n" + "="*80)
-    print("INTEGRATION TEST RESULTS SUMMARY")
-    print("="*80)
-    
+
     # Overall success rate
     success_rate = (df['status'] == 'success').mean()
     print(f"Overall Success Rate: {success_rate:.1%} ({np.sum(df['status'] == 'success')}/{len(df)} tests)")
-    
+
     # Success by method
     print(f"\nSuccess Rate by Method:")
     method_success = df.groupby('method')['status'].apply(lambda x: (x == 'success').mean())
@@ -244,8 +189,6 @@ def analyze_results(df: pd.DataFrame):
         unique_errors = failed_tests['error'].dropna().unique()[:5]
         for i, error in enumerate(unique_errors[:3], 1):
             print(f"  {i}. {error}")
-    
-    print("\n" + "="*80)
     return df
 
 

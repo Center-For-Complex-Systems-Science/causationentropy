@@ -284,8 +284,6 @@ def poisson_entropy(lambdas):
 
     P = np.array(P).squeeze()
     est_a = P * np.log(P)
-    est_a[np.isinf(est_a)] = 0
-    est_a[np.isnan(est_a)] = 0
     try:
         est = -np.sum(est_a, axis=0)
     except:

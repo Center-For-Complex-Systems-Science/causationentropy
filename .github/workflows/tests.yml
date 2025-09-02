@@ -51,25 +51,25 @@ jobs:
     - name: Lint with flake8
       run: |
         # Stop the build if there are Python syntax errors or undefined names
-        flake8 causalentropy --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 causationentropy --count --select=E9,F63,F7,F82 --show-source --statistics
         # Exit-zero treats all errors as warnings
-        flake8 causalentropy --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+        flake8 causationentropy --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
     
     - name: Check code formatting with Black
       run: |
-        black --check --diff causalentropy/
+        black --check --diff causationentropy/
     
     - name: Sort imports with isort
       run: |
-        isort --check-only --diff causalentropy/
+        isort --check-only --diff causationentropy/
     
     - name: Type check with mypy
       run: |
-        mypy causalentropy/ || true  # Allow mypy to fail for now
+        mypy causationentropy/ || true  # Allow mypy to fail for now
     
     - name: Test with pytest
       run: |
-        pytest causalentropy/tests/ --cov=causalentropy --cov-report=xml --cov-report=term-missing -v
+        pytest causationentropy/tests/ --cov=causationentropy --cov-report=xml --cov-report=term-missing -v
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3

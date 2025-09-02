@@ -5,11 +5,12 @@ Integration test for all entropy methods in causal discovery.
 This test runs discover_network() for every supported information type and method,
 using synthetic data generators that match each entropy's distributional assumptions.
 """
-import numpy as np
-import networkx as nx
-import pandas as pd
-from typing import Dict, Optional
 import warnings
+from typing import Dict, Optional
+
+import networkx as nx
+import numpy as np
+import pandas as pd
 
 warnings.filterwarnings("ignore")
 

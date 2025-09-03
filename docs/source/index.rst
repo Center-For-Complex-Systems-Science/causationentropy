@@ -81,7 +81,7 @@ If you use Causation Entropy in your work, please cite:
      author  = {Slote, Kevin and Fish Jeremie and Bollt, Erirk},
      title   = {CausationEntropy: A Python Library for Causal Discovery},
      url     = {https://github.com/kslote1/causationentropy},
-     doi     = {}
+     doi     = {10.5281/zenodo.17047565}
    }
 
 

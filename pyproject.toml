@@ -63,10 +63,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/causationentropy"
-Documentation = "https://github.com/yourusername/causationentropy"
-Repository = "https://github.com/yourusername/causationentropy"
-"Bug Tracker" = "https://github.com/yourusername/causationentropy/issues"
+Homepage = "https://github.com/Center-For-Complex-Systems-Science/causationentropy"
+Repository = "https://github.com/Center-For-Complex-Systems-Science/causationentropy"
+Documentation = "https://causationentropy.readthedocs.io/en/latest/"  # when live
+"Bug Tracker" = "https://github.com/Center-For-Complex-Systems-Science/causationentropy/issues"
 
 [project.scripts]
 causationentropy-cli = "causationentropy.cli:main"

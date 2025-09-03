@@ -2,7 +2,7 @@
 Theoretical Guide
 ================
 
-This section provides comprehensive theoretical background for the Optimal Causal Entropy library,
+This section provides comprehensive theoretical background for the Causation Entropy library,
 including mathematical foundations, algorithmic details, and methodological comparisons.
 
 .. toctree::
@@ -19,7 +19,7 @@ including mathematical foundations, algorithmic details, and methodological comp
 Overview
 ========
 
-The Optimal Causal Entropy (oCSE) framework provides a principled approach to causal network
+The Causation Entropy (oCSE) framework provides a principled approach to causal network
 discovery from time series data using information-theoretic measures. The core philosophy
 centers on the idea that causal relationships can be quantified through conditional mutual
 information, which measures the information content shared between variables when conditioning

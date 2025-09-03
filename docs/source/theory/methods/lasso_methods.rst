@@ -3,7 +3,7 @@ Pure LASSO Methods
 =====================
 
 Pure LASSO methods represent the linear regression baseline for causal discovery in 
-the Optimal Causal Entropy framework. While not information-theoretic in nature, these 
+the Causation Entropy framework. While not information-theoretic in nature, these 
 methods serve as important benchmarks and provide computationally efficient alternatives 
 for linear systems. This section covers the theoretical foundation, implementation, and 
 role of LASSO-based approaches in causal network inference.

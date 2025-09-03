@@ -9,7 +9,7 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]   # …/causationentr
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # -- Project information -----------------------------------------------------
-project = 'Optimal Causal Entropy'
+project = 'Causation Entropy'
 copyright = '2025, Kevin Slote'
 author = 'Kevin Slote'
 version = '0.1.0'
@@ -163,20 +163,20 @@ latex_elements = {
 }
 
 latex_documents = [
-    ('index', 'OptimalCausalEntropy.tex', 'Optimal Causal Entropy Documentation',
+    ('index', 'CausationEntropy.tex', 'Causation Entropy Documentation',
      'Kevin Slote', 'manual'),
 ]
 
 # -- Options for manual page output ------------------------------------------
 man_pages = [
-    ('index', 'optimalcausationentropy', 'Optimal Causal Entropy Documentation',
+    ('index', 'causationentropy', 'Causation Entropy Documentation',
      [author], 1)
 ]
 
 # -- Options for Texinfo output ----------------------------------------------
 texinfo_documents = [
-    ('index', 'OptimalCausalEntropy', 'Optimal Causal Entropy Documentation',
-     author, 'OptimalCausalEntropy', 'Library for optimal causal entropy analysis.',
+    ('index', 'CausationEntropy', 'Causation Entropy Documentation',
+     author, 'CausationEntropy', 'Library for causation entropy analysis.',
      'Miscellaneous'),
 ]
 

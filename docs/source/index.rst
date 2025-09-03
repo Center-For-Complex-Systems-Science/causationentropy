@@ -1,15 +1,15 @@
-.. Optimal Causal Entropy documentation master file
+.. Causation Entropy documentation master file
 
-====================================
-Optimal Causal Entropy Documentation
-====================================
+===============================
+Causation Entropy Documentation
+===============================
 
 .. image:: _static/images/logo.jpeg
-   :alt: Optimal Causation Entropy Logo
+   :alt: Causation Entropy Logo
    :width: 200px
    :align: center
 
-Welcome to the Optimal Causation Entropy documentation! This library provides tools for
+Welcome to the Causation Entropy documentation! This library provides tools for
 analyzing causal relationships using entropy-based methods.
 
 .. note::
@@ -29,11 +29,14 @@ Basic usage:
 
 .. code-block:: python
 
-   from causationentropy.cs import discover_network
+   from causationentropy.core.discovery import discover_network
+   import numpy as np
    
-   # Your basic example here
-   oc = OptimalCausalEntropy()
-   result = oc.compute(data)
+   # Generate synthetic data
+   data = np.random.randn(100, 5)  # 100 time points, 5 variables
+   
+   # Discover causal network
+   network = discover_network(data, method='standard', information='gaussian')
 
 .. toctree::
    :maxdepth: 2
@@ -45,10 +48,18 @@ Basic usage:
 
 .. toctree::
    :maxdepth: 2
-   :caption: Reference
+   :caption: API Reference
    :hidden:
 
-   api/causationentropy
+   api/network_discovery
+   api/information
+   api/datasets
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Theory
+   :hidden:
+
    theory/index
 
 .. toctree::
@@ -62,18 +73,15 @@ Basic usage:
 Please Cite
 -----------
 
-If you use Optimal Causal Entropy in your work, please cite:
+If you use Causation Entropy in your work, please cite:
 
 .. code-block:: bibtex
 
-   @article{slote2025causationentropy,
-     author  = {Slote, Kevin and Bollt, Erirk},
-     title   = {Optimal Causal Entropy for Network Inference},
-     journal = {Journal of Causal Inference},
-     year    = {2025},
-     volume  = {X},
-     pages   = {1--20},
-     doi     = {10.1234/causationentropy.2025}
+   @misc{slote2025causationentropy,
+     author  = {Slote, Kevin and Fish Jeremie and Bollt, Erirk},
+     title   = {CausationEntropy: A Python Library for Causal Discovery},
+     url     = {https://github.com/kslote1/causationentropy},
+     doi     = {}
    }
 
 

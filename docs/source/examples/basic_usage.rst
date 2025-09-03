@@ -30,7 +30,7 @@ Simple Example
    :width: 600px
    :align: center
    
-   Basic workflow of the Optimal Causal Entropy method
+   Basic workflow of the Causation Entropy method
 
 Expected Output
 ===============

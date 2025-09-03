@@ -77,7 +77,7 @@ network = discover_network(
 from causationentropy.datasets import synthetic
 
 # Generate synthetic causal time series
-data, true_network = synthetic.generate_var_data(
+data, true_network = synthetic.linear_stochastic_gaussian_process(
     n_variables=5, 
     n_samples=1000, 
     sparsity=0.3
@@ -142,12 +142,12 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 If you use this library in your research, please cite:
 
 ```bibtex
-@misc{causationentropy2024,
-  title={CausationEntropy: A Python Library for Causal Discovery},
-  author={Kevin Slote},
-  year={2024},
-  url={https://github.com/kslote1/causationentropy}
-}
+   @misc{slote2025causationentropy,
+     author  = {Slote, Kevin and Fish Jeremie and Bollt, Erirk},
+     title   = {CausationEntropy: A Python Library for Causal Discovery},
+     url     = {https://github.com/kslote1/causationentropy},
+     doi     = {}
+   }
 ```
 
 ## License
@@ -162,4 +162,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE.txt) 
 
 ## Acknowledgments
 
-This work builds upon fundamental research in information theory, causal inference, and time series analysis. Special thanks to the open-source scientific Python community.
+This work builds upon fundamental research in information theory, causal inference, and time series analysis.
+Special thanks to the open-source scientific Python community.
+
+[Original Code](https://github.com/jefish003/NetworkInference)
+
+## LLM Disclosure
+
+Generative AI was used to help with doc strings, documentation, and unit tests.

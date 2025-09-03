@@ -3,7 +3,7 @@ Glossary
 ========
 
 This glossary provides definitions of key terms and concepts used throughout the 
-Optimal Causal Entropy library and documentation.
+Causation Entropy library and documentation.
 
 .. glossary::
 
@@ -113,7 +113,7 @@ Optimal Causal Entropy library and documentation.
       observational data on the nodes. In causal discovery, this involves identifying 
       directed edges representing causal relationships.
 
-   Optimal Causal Entropy (oCSE)
+   Causation Entropy (oCSE)
       The main algorithmic framework of this library, which combines forward selection 
       and backward elimination of predictors based on conditional mutual information 
       and statistical significance testing.

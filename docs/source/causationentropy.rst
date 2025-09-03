@@ -11,9 +11,7 @@ Subpackages
 
    causationentropy.core
    causationentropy.datasets
-   causationentropy.plotting
    causationentropy.tests
-   causationentropy.utils
 
 Module contents
 ---------------

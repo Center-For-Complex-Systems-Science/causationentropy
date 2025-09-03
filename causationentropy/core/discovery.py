@@ -37,8 +37,11 @@ def discover_network(
 
     .. math::
 
-        `I(X_j^{(t-\\tau)}; X_i^{(t)} | \mathbf{Z}_i^{(t)}) =
-        H(X_i^{(t)} | \\mathbf{Z}_i^{(t)}) - H(X_i^{(t)} | X_j^{(t-\tau)}, \mathbf{Z}_i^{(t)})`
+        I\!\left(X_j^{(t-\tau)}; X_i^{(t)} \,\middle|\, \mathbf{Z}_i^{(t)}\right)
+        \;=\;
+        H\!\left(X_i^{(t)} \,\middle|\, \mathbf{Z}_i^{(t)}\right)
+        \;-\;
+        H\!\left(X_i^{(t)} \,\middle|\, X_j^{(t-\tau)}, \mathbf{Z}_i^{(t)}\right)
 
     where :math:`\mathbf{Z}_i^{(t)}` represents the conditioning set for variable :math:`i` at time :math:`t`.
 
@@ -111,7 +114,7 @@ def discover_network(
 
     Notes
     -----
-    The algorithm's computational complexity is approximately :math:`O(T \\cdot n^2 \\cdot \\tau_{max} \\cdot N_{shuffle})`,
+    The algorithm's computational complexity is approximately :math:`O(T \cdot n^2 \cdot \tau_{max} \cdot N_{shuffle})`,
     where :math:`T` is the time series length, :math:`n` is the number of variables,
     :math:`\tau_{max}` is the maximum lag, and :math:`N_{shuffle}` is the number of permutations.
 
@@ -135,7 +138,7 @@ def discover_network(
     >>>
     >>> # Examine discovered edges
     >>> for edge in G.edges(data=True):
-    ...     print(f"{edge[0]} -> {edge[1]}, lag={edge[2]['lag']}")
+    ...     print(f"Source:{edge[0]}  Sink: {edge[1]}, lag={edge[2]['lag']}, cmi:={edge[2]['cmi']},")
 
     References
     ----------
@@ -297,7 +300,7 @@ def standard_optimal_causation_entropy(
 
     .. math::
 
-        I(X_j; Y | \\mathbf{Z}) = \\sum_{x_j,y,\\mathbf{z}} p(x_j,y,\\mathbf{z}) \\log \\frac{p(x_j,y|\\mathbf{z})}{p(x_j|\\mathbf{z})p(y|\\mathbf{z})}
+        I(X_j; Y | \mathbf{Z}) = \sum_{x_j,y,\mathbf{z}} p(x_j,y,\mathbf{z}) \log \frac{p(x_j,y|\mathbf{z})}{p(x_j|\mathbf{z})p(y|\mathbf{z})}
 
     Parameters
     ----------

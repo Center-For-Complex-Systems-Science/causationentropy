@@ -3,7 +3,7 @@ Information Theory
 ==================
 
 This section provides a comprehensive overview of information theory concepts that 
-underpin the Optimal Causal Entropy framework. Understanding these foundational concepts 
+underpin the Causation Entropy framework. Understanding these foundational concepts 
 is essential for applying and interpreting the methods in this library.
 
 Fundamental Concepts
@@ -440,7 +440,7 @@ Open Problems
 Conclusion
 =========
 
-Information theory provides the mathematical foundation for the Optimal Causal Entropy 
+Information theory provides the mathematical foundation for the Causation Entropy 
 framework. Understanding entropy, mutual information, and their estimation is crucial 
 for effective application of these methods. Key takeaways:
 

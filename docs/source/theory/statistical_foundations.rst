@@ -2,7 +2,7 @@
 Statistical Foundations
 =======================
 
-This section covers the statistical principles underlying the Optimal Causal Entropy 
+This section covers the statistical principles underlying the Causation Entropy 
 framework, including hypothesis testing, multiple comparisons, bootstrap methods, 
 and theoretical guarantees. Understanding these foundations is essential for proper 
 application and interpretation of causal discovery results.

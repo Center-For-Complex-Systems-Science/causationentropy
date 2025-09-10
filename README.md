@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Documentation Status](https://readthedocs.org/projects/causationentropy/badge/?version=latest)](https://causationentropy.readthedocs.io/en/latest/?badge=latest)
-[![codecov](https://codecov.io/gh/kslote1/causationentropy/branch/main/graph/badge.svg)](https://codecov.io/gh/kslote1/causationentropy)
+[![codecov](https://codecov.io/gh/kslote1/causationentropy/branch/main/graph/badge.svg)](https://app.codecov.io/gh/Center-For-Complex-Systems-Science/causationentropy)
 [![Tests](https://github.com/kslote1/causationentropy/workflows/Tests/badge.svg)](https://github.com/kslote1/causationentropy/actions)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17047565.svg)](https://doi.org/10.5281/zenodo.17047565)
 

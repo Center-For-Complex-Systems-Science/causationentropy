@@ -32,9 +32,9 @@ pip install causationentropy
 
 ### Development Installation
 ```bash
-git clone https://github.com/kslote1/causationentropy.git
+git clone https://github.com/Center-For-Complex-Systems-Science/causationentropy.git
 cd causationentropy
-pip install -e .[dev,docs,plotting]
+pip install -e .
 ```
 
 ## Quick Start
@@ -145,9 +145,9 @@ If you use this library in your research, please cite:
 
 ```bibtex
    @misc{slote2025causationentropy,
-     author  = {Slote, Kevin and Fish Jeremie and Bollt, Erirk},
+     author  = {Slote, Kevin and Fish, Jeremie and Bollt, Erik},
      title   = {CausationEntropy: A Python Library for Causal Discovery},
-     url     = {https://github.com/kslote1/causationentropy},
+     url     = {https://github.com/Center-For-Complex-Systems-Science/causationentropy},
      doi     = {10.5281/zenodo.17047565}
    }
 ```

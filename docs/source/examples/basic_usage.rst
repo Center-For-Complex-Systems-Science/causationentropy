@@ -9,21 +9,13 @@ Simple Example
 
 .. code-block:: python
 
-   import numpy as np
-   from causationentropy import OptimalCausalEntropy
+   from causationentropy import discover_network
    
-   # Generate sample data
-   data = np.random.randn(100, 3)
-   
-   # Initialize the model
-   oce = OptimalCausalEntropy()
-   
-   # Fit the model
-   oce.fit(data)
-   
-   # Get results
-   entropy = oce.compute_entropy()
-   print(f"Causal entropy: {entropy}")
+   # Load your time series data (variables as columns, time as rows)
+   data = pd.read_csv('your_data.csv')
+
+   # Discover causal network
+   network = discover_network(data, method='standard', max_lag=5)
 
 .. figure:: ../_static/images/diagrams/basic_flow.png
    :alt: Basic workflow diagram

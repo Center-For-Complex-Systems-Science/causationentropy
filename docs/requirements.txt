@@ -9,5 +9,4 @@ networkx~=3.4.2
 scipy~=1.15.3
 pandas~=2.3.0
 matplotlib~=3.10.3
-matplotlib-inline==0.1.7=1.7.0
 scipy~=1.15.3

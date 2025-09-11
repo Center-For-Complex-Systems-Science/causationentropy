@@ -47,7 +47,7 @@ import pandas as pd
 from causationentropy import discover_network
 
 # Load your time series data (variables as columns, time as rows)
-data = pd.read_csv('your_data.csv')
+data = pd.read_csv('data.csv')
 
 # Discover causal network
 network = discover_network(data, method='standard', max_lag=5)
@@ -55,7 +55,7 @@ network = discover_network(data, method='standard', max_lag=5)
 # Examine results
 print(f"Found {network.number_of_edges()} causal relationships")
 for source, sink in network.edges(data=True):
-    print(f"{source} → {sink}: {network[source][sink]}")
+    print(f"{source} to {sink}: {network[source][sink]}")
 ```
 
 ### Advanced Configuration
@@ -64,12 +64,12 @@ for source, sink in network.edges(data=True):
 # Configure discovery parameters
 network = discover_network(
     data,
-    method='standard',           # 'standard', 'alternative', 'information_lasso', or 'lasso'
-    information='gaussian',      # 'gaussian', 'knn', 'kde', 'geometric_knn', or 'poisson'
+    method='standard',          # 'standard', 'alternative', 'information_lasso', or 'lasso'
+    information='gaussian',     # 'gaussian', 'knn', 'kde', 'geometric_knn', or 'poisson'
     max_lag=5,                  # Maximum time lag to consider
     alpha_forward=0.05,         # Forward selection significance
     alpha_backward=0.05,        # Backward elimination significance
-    n_shuffles=200             # Permutation test iterations
+    n_shuffles=200              # Permutation test iterations
 )
 ```
 

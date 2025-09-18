@@ -201,7 +201,13 @@ def cached_cdist(data, metric="euclidean"):
 
     # Check if result is already cached
     if data_hash in _distance_cache:
-        return _distance_cache[data_hash]
+        cached_result = _distance_cache[data_hash]
+        # Verify cached result has correct shape
+        if cached_result.shape[0] != data.shape[0]:
+            # Cache collision detected, remove invalid entry
+            del _distance_cache[data_hash]
+        else:
+            return cached_result
 
     # Compute distance matrix
     result = cdist(data, data, metric=metric)
@@ -562,9 +568,9 @@ def poisson_conditional_mutual_information(X, Y, Z):
         SzX = X.shape[1]
         SzY = Y.shape[1]
         SzZ = Z.shape[1]
-        indX = np.matrix(np.arange(SzX))
-        indY = np.matrix(np.arange(SzY) + SzX)
-        indZ = np.matrix(np.arange(SzZ) + SzX + SzY)
+        indX = np.arange(SzX)
+        indY = np.arange(SzY) + SzX
+        indZ = np.arange(SzZ) + SzX + SzY
         XYZ = np.concatenate((X, Y, Z), axis=1)
         SXYZ = np.corrcoef(XYZ.T)
         SS = SXYZ
@@ -575,15 +581,15 @@ def poisson_conditional_mutual_information(X, Y, Z):
             SS[SzX : SzX + SzY, SzX : SzX + SzY] + SXYZ[SzX : SzX + SzY, 0:SzX]
         )
         S_est1 = SS[
-            np.concatenate((indY.T, indZ.T), axis=0),
-            np.concatenate((indY.T, indZ.T), axis=0),
-        ]
+            np.concatenate((indY, indZ)),
+            :
+        ][:, np.concatenate((indY, indZ))]
         S_est2 = SS[
-            np.concatenate((indX.T, indZ.T), axis=0),
-            np.concatenate((indX.T, indZ.T), axis=0),
-        ]
+            np.concatenate((indX, indZ)),
+            :
+        ][:, np.concatenate((indX, indZ))]
         HYZ = poisson_joint_entropy(S_est1)
-        SindZ = SS[indZ, indZ]
+        SindZ = SS[indZ, :][:, indZ]
         HZ = poisson_joint_entropy(SindZ)
         HXYZ = poisson_joint_entropy(SXYZ - np.diag(Sa))
         HXZ = poisson_joint_entropy(S_est2)

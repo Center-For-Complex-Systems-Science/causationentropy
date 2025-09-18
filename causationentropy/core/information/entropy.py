@@ -268,7 +268,7 @@ def poisson_entropy(lambdas):
     lambdas = np.abs(lambdas)
     First = np.exp(-lambdas)
     Psum = First
-    P = [np.matrix(First)]
+    P = [First]
     counter = 0
     small = 1
     i = 1
@@ -276,7 +276,7 @@ def poisson_entropy(lambdas):
         counter = counter + 1
         prob = scipy.stats.poisson.pmf(i, lambdas)
         Psum = Psum + prob
-        P.append(np.matrix(prob))
+        P.append(prob)
         if i >= np.max(lambdas):
             small = np.min(prob)
 
@@ -330,8 +330,7 @@ def poisson_joint_entropy(Cov):
     This approach is computationally efficient for high-dimensional Poisson models.
     """
     T = np.triu(Cov, 1)
-    T = np.matrix(T)
-    U = np.matrix(np.diag(Cov))
+    U = np.diag(Cov)
     Ent1 = np.sum(poisson_entropy(U))
     Ent2 = np.sum(T)
     return Ent1 + Ent2

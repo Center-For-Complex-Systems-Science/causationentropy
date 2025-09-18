@@ -80,7 +80,7 @@ class TestLogisticDynamics:
 
         # Check data types
         assert isinstance(XY, np.ndarray)
-        assert isinstance(A, (np.ndarray, np.matrix))
+        assert isinstance(A, np.ndarray)
 
         # Values should be in reasonable range for logistic map
         assert np.all(XY >= -1)  # Allow some negative due to coupling

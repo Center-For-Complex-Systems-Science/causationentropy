@@ -162,9 +162,9 @@ def knn_mutual_information(X, Y, metric="euclidean", k=1):
 
     # Count neighbors within epsilon in marginal spaces
     Dx = cached_cdist(X, metric=metric)
-    nx = np.sum(Dx < epsilon[:, None], axis=1) - 1
+    nx = np.sum(Dx < epsilon[:, np.newaxis], axis=1) - 1
     Dy = cached_cdist(Y, metric=metric)
-    ny = np.sum(Dy < epsilon[:, None], axis=1) - 1
+    ny = np.sum(Dy < epsilon[:, np.newaxis], axis=1) - 1
 
     # KSG Estimation formula
     I1a = digamma(k)

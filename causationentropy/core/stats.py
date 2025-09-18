@@ -72,7 +72,7 @@ def auc(TPRs, FPRs):
     >>> print(f"Random AUC: {auc(tpr_random, fpr_random)}")
     """
 
-    AUC = np.trapz(TPRs, FPRs)
+    AUC = np.trapezoid(TPRs, FPRs)
     return AUC
 
 

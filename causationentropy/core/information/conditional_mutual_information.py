@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.spatial.distance import cdist
+import functools
+import hashlib
 
 from causationentropy.core.information.entropy import (
     geometric_knn_entropy,
@@ -14,6 +16,246 @@ from causationentropy.core.information.mutual_information import (
     knn_mutual_information,
 )
 
+
+def _array_hash(arr, metric="euclidean"):
+    """Create a hashable key for numpy arrays to use with LRU cache."""
+    return hashlib.md5(f"{arr.tobytes()}{metric}".encode()).hexdigest()
+
+
+def estimate_cache_size(n_vars, max_lag, n_samples):
+    """
+    Estimate optimal LRU cache size for distance matrices.
+
+    Parameters
+    ----------
+    n_vars : int
+        Number of variables in the dataset
+    max_lag : int
+        Maximum lag considered
+    n_samples : int
+        Number of time samples
+
+    Returns
+    -------
+    cache_size : int
+        Recommended cache size
+    memory_mb : float
+        Estimated memory usage in MB
+    """
+    # Number of unique predictor combinations per variable
+    predictors_per_var = n_vars * max_lag
+
+    # Forward selection: at most predictors_per_var evaluations per variable
+    # Backward elimination: at most len(selected) evaluations per variable
+    # Conservative estimate: 2 * predictors_per_var operations per variable
+    operations_per_var = 2 * predictors_per_var
+
+    # Total operations across all variables
+    total_operations = n_vars * operations_per_var
+
+    # Distance matrices have unique combinations:
+    # X, Y, Z, XZ, YZ, XYZ combinations
+    # Conservative estimate: 6 unique combinations per operation
+    unique_matrices = min(total_operations * 6, 1000)  # Cap at reasonable limit
+
+    # Memory estimation (8 bytes per float64 element)
+    avg_matrix_size = n_samples * n_samples * 8  # bytes
+    memory_bytes = unique_matrices * avg_matrix_size
+    memory_mb = memory_bytes / (1024 * 1024)
+
+    # Recommend cache size (balance memory vs hit rate)
+    if memory_mb < 100:
+        cache_size = unique_matrices
+    elif memory_mb < 500:
+        cache_size = int(unique_matrices * 0.5)
+    else:
+        cache_size = min(200, int(unique_matrices * 0.2))
+
+    return cache_size, memory_mb
+
+
+# Create a configurable cache - default size, can be updated
+_distance_cache_size = 128
+
+def set_distance_cache_size(size):
+    """Set the cache size for distance matrix computations."""
+    global _distance_cache_size
+    _distance_cache_size = size
+
+
+def get_cache_stats():
+    """
+    Get statistics about the current cache usage.
+
+    Returns
+    -------
+    stats : dict
+        Dictionary containing cache statistics:
+        - distance_cache_size: Current number of cached distance matrices
+        - distance_cache_limit: Maximum cache size for distance matrices
+        - detcorr_cache_size: Current number of cached determinants
+        - detcorr_cache_limit: Maximum cache size for determinants
+    """
+    return {
+        'distance_cache_size': len(_distance_cache),
+        'distance_cache_limit': _distance_cache_size,
+        'detcorr_cache_size': len(_detcorr_cache),
+        'detcorr_cache_limit': 128
+    }
+
+
+def clear_caches():
+    """Clear all caches to free memory."""
+    global _distance_cache, _detcorr_cache
+    _distance_cache.clear()
+    _detcorr_cache.clear()
+
+
+def configure_cache_for_discovery(data_shape, max_lag=5, information_method="knn"):
+    """
+    Configure optimal cache settings for causal discovery.
+
+    This is a convenience function that automatically sets up caching
+    based on your data and analysis parameters.
+
+    Parameters
+    ----------
+    data_shape : tuple
+        Shape of your data (n_samples, n_variables)
+    max_lag : int, default=5
+        Maximum lag for causal discovery
+    information_method : str, default='knn'
+        Information estimation method ('knn', 'geometric_knn', 'gaussian', etc.)
+
+    Returns
+    -------
+    config : dict
+        Cache configuration details including recommended settings
+    """
+    n_samples, n_vars = data_shape
+
+    # Estimate cache requirements
+    cache_size, memory_mb = estimate_cache_size(n_vars, max_lag, n_samples)
+
+    # Adjust based on information method
+    if information_method in ['knn', 'geometric_knn']:
+        # These methods are distance-heavy, benefit most from caching
+        cache_multiplier = 1.0
+    elif information_method == 'gaussian':
+        # Less distance computation, smaller cache sufficient
+        cache_multiplier = 0.3
+    elif information_method == 'kde':
+        # Moderate distance usage
+        cache_multiplier = 0.6
+    else:
+        cache_multiplier = 0.5
+
+    # Apply multiplier and ensure reasonable bounds
+    adjusted_cache_size = max(16, min(1000, int(cache_size * cache_multiplier)))
+
+    # Set the cache size
+    set_distance_cache_size(adjusted_cache_size)
+
+    # Clear existing caches to start fresh
+    clear_caches()
+
+    config = {
+        'data_shape': data_shape,
+        'max_lag': max_lag,
+        'information_method': information_method,
+        'cache_size': adjusted_cache_size,
+        'estimated_memory_mb': memory_mb * cache_multiplier,
+        'cache_efficiency': 'high' if information_method in ['knn', 'geometric_knn'] else 'moderate'
+    }
+
+    print(f"Cache configured for {information_method} method:")
+    print(f"  Cache size: {adjusted_cache_size}")
+    print(f"  Estimated memory: {config['estimated_memory_mb']:.1f} MB")
+    print(f"  Cache efficiency: {config['cache_efficiency']}")
+
+    return config
+
+
+# Global cache for distance matrices
+_distance_cache = {}
+
+def cached_cdist(data, metric="euclidean"):
+    """
+    Cached distance matrix computation.
+
+    Parameters
+    ----------
+    data : array-like of shape (n_samples, n_features)
+        Input data matrix
+    metric : str, default='euclidean'
+        Distance metric
+
+    Returns
+    -------
+    distances : ndarray of shape (n_samples, n_samples)
+        Pairwise distance matrix
+    """
+    data = np.asarray(data)
+
+    # Create a cache key from data content and parameters
+    data_hash = _array_hash(data, metric)
+
+    # Check if result is already cached
+    if data_hash in _distance_cache:
+        return _distance_cache[data_hash]
+
+    # Compute distance matrix
+    result = cdist(data, data, metric=metric)
+
+    # Manage cache size
+    if len(_distance_cache) >= _distance_cache_size:
+        # Remove oldest entry (simple FIFO, could be improved to LRU)
+        oldest_key = next(iter(_distance_cache))
+        del _distance_cache[oldest_key]
+
+    # Cache the result
+    _distance_cache[data_hash] = result
+
+    return result
+
+
+# Global cache for correlation determinants
+_detcorr_cache = {}
+
+def cached_detcorr(A):
+    """
+    Cached correlation determinant computation.
+
+    Parameters
+    ----------
+    A : array-like
+        Input data matrix
+
+    Returns
+    -------
+    det : float
+        Log determinant of correlation matrix
+    """
+    A = np.asarray(A)
+    data_hash = _array_hash(A)
+
+    # Check if result is already cached
+    if data_hash in _detcorr_cache:
+        return _detcorr_cache[data_hash]
+
+    # Compute correlation determinant
+    C = np.corrcoef(A.T)
+    result = float(C) if np.ndim(C) == 0 else np.linalg.slogdet(C)[1]
+
+    # Manage cache size (keep it smaller for detcorr)
+    if len(_detcorr_cache) >= 128:
+        oldest_key = next(iter(_detcorr_cache))
+        del _detcorr_cache[oldest_key]
+
+    # Cache the result
+    _detcorr_cache[data_hash] = result
+
+    return result
 
 def gaussian_conditional_mutual_information(X, Y, Z=None):
     r"""
@@ -66,14 +308,10 @@ def gaussian_conditional_mutual_information(X, Y, Z=None):
     if Z is None:
         return gaussian_mutual_information(X, Y)
 
-    def _detcorr(A):
-        C = np.corrcoef(A.T)
-        return float(C) if np.ndim(C) == 0 else np.linalg.slogdet(C)[1]
-
-    SZ = _detcorr(Z)
-    SXZ = _detcorr(np.hstack((X, Z)))
-    SYZ = _detcorr(np.hstack((Y, Z)))
-    SXYZ = _detcorr(np.hstack((X, Y, Z)))
+    SZ = cached_detcorr(Z)
+    SXZ = cached_detcorr(np.hstack((X, Z)))
+    SYZ = cached_detcorr(np.hstack((Y, Z)))
+    SXYZ = cached_detcorr(np.hstack((X, Y, Z)))
 
     return 0.5 * (SXZ + SYZ - SZ - SXYZ)
 
@@ -251,10 +489,10 @@ def geometric_knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=
 
     if Z is None:
         return geometric_knn_mutual_information(X, Y)
-    YZdist = cdist(np.hstack((Y, Z)), np.hstack((Y, Z)), metric=metric)
-    XZdist = cdist(np.hstack((X, Z)), np.hstack((X, Z)), metric=metric)
-    XYZdist = cdist(np.hstack((X, Y, Z)), np.hstack((X, Y, Z)), metric=metric)
-    Zdist = cdist(Z, Z, metric=metric)
+    YZdist = cached_cdist(np.hstack((Y, Z)), metric=metric)
+    XZdist = cached_cdist(np.hstack((X, Z)), metric=metric)
+    XYZdist = cached_cdist(np.hstack((X, Y, Z)), metric=metric)
+    Zdist = cached_cdist(Z, metric=metric)
     HZ = geometric_knn_entropy(Z, Zdist, k)
     HXZ = geometric_knn_entropy(np.hstack((X, Z)), XZdist, k)
     HYZ = geometric_knn_entropy(np.hstack((Y, Z)), YZdist, k)

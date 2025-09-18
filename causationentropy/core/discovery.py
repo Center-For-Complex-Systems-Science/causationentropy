@@ -1,3 +1,5 @@
+# Copyright 2025 Kevin Slote
+# SPDX-License-Identifier: MIT
 import copy
 from typing import Dict, Tuple, Union
 
@@ -23,6 +25,9 @@ def discover_network(
     k_means: int = 5,
     n_shuffles: int = 200,
     n_jobs=-1,
+    early_stopping: bool = True,
+    min_shuffles: int = 50,
+    confidence: float = 0.95,
 ) -> nx.MultiDiGraph:
     r"""
     Infer a causal graph via Optimal Causation Entropy (oCSE).
@@ -89,10 +94,18 @@ def discover_network(
     metric : str, default='euclidean'
         Distance metric for k-NN based estimators.
     n_shuffles : int, default=200
-        Number of permutations for statistical significance testing. Higher values
-        provide more accurate p-value estimates but increase computational cost.
+        Maximum number of permutations for statistical significance testing. Higher values
+        provide more accurate p-value estimates but increase computational cost. With early
+        stopping enabled, the actual number may be lower.
     n_jobs : int, default=-1
         Number of parallel jobs for computation. -1 uses all available processors.
+    early_stopping : bool, default=True
+        Whether to enable early stopping in permutation tests when statistical significance
+        is clear. Can significantly reduce computation time.
+    min_shuffles : int, default=50
+        Minimum number of shuffles before early stopping can occur in permutation tests.
+    confidence : float, default=0.95
+        Confidence level for early stopping decisions in permutation tests.
 
     Returns
     -------
@@ -209,6 +222,9 @@ def discover_network(
                 metric,
                 k_means,
                 bandwidth,
+                early_stopping,
+                min_shuffles,
+                confidence,
             )
         if method == "alternative":
             S = alternative_optimal_causation_entropy(
@@ -222,6 +238,9 @@ def discover_network(
                 metric,
                 k_means,
                 bandwidth,
+                early_stopping,
+                min_shuffles,
+                confidence,
             )
         if method == "information_lasso":
             S = information_lasso_optimal_causation_entropy(X_lagged, Y, rng)
@@ -262,6 +281,9 @@ def discover_network(
                 metric=metric,
                 k_means=k_means,
                 bandwidth=bandwidth,
+                early_stopping=early_stopping,
+                min_shuffles=min_shuffles,
+                confidence=confidence,
             )
 
             G.add_edge(
@@ -287,6 +309,9 @@ def standard_optimal_causation_entropy(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    early_stopping=True,
+    min_shuffles=50,
+    confidence=0.95,
 ):
     r"""
     Execute the standard optimal Causation Entropy algorithm with initial conditioning set.
@@ -328,7 +353,7 @@ def standard_optimal_causation_entropy(
     """
 
     forward_pass = standard_forward(
-        X, Y, Z_init, rng, alpha1, n_shuffles, information, metric, k_means, bandwidth
+        X, Y, Z_init, rng, alpha1, n_shuffles, information, metric, k_means, bandwidth, early_stopping, min_shuffles, confidence
     )
 
     S = backward(
@@ -342,6 +367,9 @@ def standard_optimal_causation_entropy(
         metric,
         k_means,
         bandwidth,
+        early_stopping,
+        min_shuffles,
+        confidence,
     )
 
     return S
@@ -358,6 +386,9 @@ def alternative_optimal_causation_entropy(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    early_stopping=True,
+    min_shuffles=50,
+    confidence=0.95,
 ):
     """
     Execute the alternative optimal Causation Entropy algorithm without initial conditioning.
@@ -390,7 +421,7 @@ def alternative_optimal_causation_entropy(
     """
 
     forward_pass = alternative_forward(
-        X, Y, rng, alpha1, n_shuffles, information, metric, k_means, bandwidth
+        X, Y, rng, alpha1, n_shuffles, information, metric, k_means, bandwidth, early_stopping, min_shuffles, confidence
     )
 
     S = backward(
@@ -404,6 +435,9 @@ def alternative_optimal_causation_entropy(
         metric,
         k_means,
         bandwidth,
+        early_stopping,
+        min_shuffles,
+        confidence,
     )
 
     return S
@@ -513,6 +547,9 @@ def alternative_forward(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    early_stopping=True,
+    min_shuffles=50,
+    confidence=0.95,
 ):
     r"""
     Forward selection phase of oCSE without initial conditioning set.
@@ -598,6 +635,9 @@ def alternative_forward(
             metric=metric,
             k_means=k_means,
             bandwidth=bandwidth,
+            early_stopping=early_stopping,
+            min_shuffles=min_shuffles,
+            confidence=confidence,
         )["Pass"]
         if not passed:
             break
@@ -620,6 +660,9 @@ def standard_forward(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    early_stopping=True,
+    min_shuffles=50,
+    confidence=0.95,
 ):
     r"""
     Standard forward selection phase of oCSE with initial conditioning set.
@@ -705,6 +748,9 @@ def standard_forward(
             metric=metric,
             k_means=k_means,
             bandwidth=bandwidth,
+            early_stopping=early_stopping,
+            min_shuffles=min_shuffles,
+            confidence=confidence,
         )["Pass"]
 
         if not passed:
@@ -730,6 +776,9 @@ def backward(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    early_stopping=True,
+    min_shuffles=50,
+    confidence=0.95,
 ):
     r"""
     Backward elimination phase of optimal Causation Entropy.
@@ -803,6 +852,9 @@ def backward(
             metric=metric,
             k_means=k_means,
             bandwidth=bandwidth,
+            early_stopping=early_stopping,
+            min_shuffles=min_shuffles,
+            confidence=confidence,
         )["Pass"]
         if not passed:
             S.remove(j)  # prune j
@@ -822,6 +874,9 @@ def shuffle_test(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    early_stopping=True,
+    min_shuffles=50,
+    confidence=0.95,
 ):
     r"""
     Permutation test for conditional mutual information significance.
@@ -859,11 +914,19 @@ def shuffle_test(
     alpha : float, default=0.05
         Significance level for the test. Lower values require stronger evidence.
     n_shuffles : int, default=500
-        Number of random permutations to generate for the null distribution.
+        Maximum number of random permutations to generate for the null distribution.
+        With early stopping enabled, the actual number may be lower.
     rng : int, numpy.random.Generator, or None
         Random number generator or seed for reproducible results.
     information : str, default='gaussian'
         Information measure estimator type used for conditional mutual information.
+    early_stopping : bool, default=True
+        Whether to enable early stopping when statistical significance is clear.
+    min_shuffles : int, default=50
+        Minimum number of shuffles before early stopping can occur.
+    confidence : float, default=0.95
+        Confidence level for early stopping decision. Higher values require more
+        evidence before stopping early.
 
     Returns
     -------
@@ -874,6 +937,7 @@ def shuffle_test(
         - 'Value': float, the observed conditional mutual information value
         - 'Pass': bool, True if observed_cmi >= threshold (statistically significant)
         - 'P_value': float, empirical p-value (proportion of null values >= observed)
+        - 'n_shuffles_used': int, actual number of shuffles performed (may be less than n_shuffles if early stopping)
 
     Notes
     -----
@@ -883,7 +947,9 @@ def shuffle_test(
     require distributional assumptions.
 
     For computational efficiency, consider reducing n_shuffles for preliminary analyses,
-    though this may reduce the precision of p-value estimates.
+    though this may reduce the precision of p-value estimates. Early stopping is enabled
+    by default and can significantly reduce computation time when statistical significance
+    is clear, while maintaining statistical validity through adaptive stopping criteria.
 
     Examples
     --------
@@ -898,14 +964,21 @@ def shuffle_test(
     >>>
     >>> # Perform permutation test
     >>> result = shuffle_test(X, Y, Z, observed, alpha=0.05, n_shuffles=1000)
-    >>> print(f"Significant: {result['Pass']}, p-value ≈ {1 - result['Value']/result['Threshold']:.3f}")
+    >>> print(f"Significant: {result['Pass']}, p-value: {result['P_value']:.3f}")
+    >>> print(f"Used {result['n_shuffles_used']} of {1000} shuffles")
     """
+    from scipy import stats
+
     rng = np.random.default_rng(rng)
-    null_cmi = np.empty(n_shuffles)
+    null_cmi = []
+
+    # Variables for early stopping
+    n_shuffles_used = 0
+    early_stop = False
 
     for i in range(n_shuffles):
         X_perm = X[rng.permutation(len(X)), :]  # shuffle rows
-        null_cmi[i] = conditional_mutual_information(
+        null_val = conditional_mutual_information(
             X_perm,
             Y,
             Z,
@@ -914,15 +987,49 @@ def shuffle_test(
             k=k_means,
             bandwidth=bandwidth,
         )
+        null_cmi.append(null_val)
+        n_shuffles_used = i + 1
 
+        # Check for early stopping after minimum number of shuffles
+        if early_stopping and n_shuffles_used >= min_shuffles:
+            # Count how many null values are >= observed
+            n_greater_equal = sum(1 for x in null_cmi if x >= observed_cmi)
+            current_p_value = n_greater_equal / n_shuffles_used
+
+            # Use binomial test to check if we can confidently determine significance
+            # H0: true p-value = alpha (boundary case)
+            # If current_p_value is significantly different from alpha, we can stop early
+
+            if n_shuffles_used >= min_shuffles:
+                # For clearly significant cases (p << alpha)
+                if current_p_value <= alpha / 10:  # Very strong evidence against H0
+                    # Use conservative estimate - need enough evidence
+                    binom_p = stats.binom.cdf(n_greater_equal, n_shuffles_used, alpha)
+                    if binom_p >= confidence:
+                        early_stop = True
+                        break
+
+                # For clearly non-significant cases (p >> alpha)
+                elif current_p_value >= alpha * 3:  # Strong evidence for H0
+                    # Test if p-value is significantly greater than alpha
+                    binom_p = 1 - stats.binom.cdf(n_greater_equal - 1, n_shuffles_used, alpha)
+                    if binom_p >= confidence:
+                        early_stop = True
+                        break
+
+    # Convert to numpy array for final calculations
+    null_cmi = np.array(null_cmi)
+
+    # Calculate final statistics
     threshold = np.percentile(null_cmi, 100 * (1 - alpha))
-    # Calculate p-value: proportion of null values >= observed value
     p_value = np.mean(null_cmi >= observed_cmi)
+
     return {
         "Threshold": threshold,
         "Value": observed_cmi,
         "Pass": observed_cmi >= threshold,
         "P_value": p_value,
+        "n_shuffles_used": n_shuffles_used,
     }
 
 

@@ -106,7 +106,6 @@ def get_cache_stats():
 
 def clear_caches():
     """Clear all caches to free memory."""
-    global _distance_cache, _detcorr_cache
     _distance_cache.clear()
     _detcorr_cache.clear()
 

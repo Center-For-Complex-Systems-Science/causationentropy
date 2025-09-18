@@ -6,6 +6,7 @@ import functools
 from causationentropy.core.information.entropy import geometric_knn_entropy, kde_entropy
 from causationentropy.core.linalg import correlation_log_determinant
 
+
 def gaussian_mutual_information(X, Y):
     r"""
     Compute mutual information for multivariate Gaussian variables using log-determinants.
@@ -55,6 +56,7 @@ def gaussian_mutual_information(X, Y):
 
     return 0.5 * (SX + SY - SXY)
 
+
 def kde_mutual_information(X, Y, bandwidth="silverman", kernel="gaussian"):
     """
     Estimate mutual information using Kernel Density Estimation.
@@ -99,6 +101,7 @@ def kde_mutual_information(X, Y, bandwidth="silverman", kernel="gaussian"):
     Hxy = kde_entropy(XY, bandwidth=bandwidth, kernel=kernel)
 
     return Hx + Hy - Hxy
+
 
 def knn_mutual_information(X, Y, metric="euclidean", k=1):
     r"""
@@ -150,7 +153,9 @@ def knn_mutual_information(X, Y, metric="euclidean", k=1):
            Physical Review E 69, 066138 (2004).
     """
     # Import here to avoid circular import
-    from causationentropy.core.information.conditional_mutual_information import cached_cdist
+    from causationentropy.core.information.conditional_mutual_information import (
+        cached_cdist,
+    )
 
     # construct the joint space
     n = X.shape[0]
@@ -172,6 +177,7 @@ def knn_mutual_information(X, Y, metric="euclidean", k=1):
     I1 = I1a + I1b
     I2 = -np.mean(digamma(nx + 1) + digamma(ny + 1))
     return I1 + I2
+
 
 def geometric_knn_mutual_information(X, Y, metric="euclidean", k=1):
     """
@@ -219,7 +225,9 @@ def geometric_knn_mutual_information(X, Y, metric="euclidean", k=1):
            entropy and mutual information. Chaos 28, 033113 (2018).
     """
     # Import here to avoid circular import
-    from causationentropy.core.information.conditional_mutual_information import cached_cdist
+    from causationentropy.core.information.conditional_mutual_information import (
+        cached_cdist,
+    )
 
     Xdist = cached_cdist(X, metric=metric)
     Ydist = cached_cdist(Y, metric=metric)

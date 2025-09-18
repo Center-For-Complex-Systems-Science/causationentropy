@@ -233,6 +233,7 @@ class TestCorrelationLogDeterminant:
             if np.isfinite(result):
                 assert result <= 1  # Small tolerance for numerical errors
 
+
 class TestCorrelationLogDeterminantEdgeCases:
     """Test edge cases and error conditions."""
 

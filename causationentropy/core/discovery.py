@@ -353,7 +353,19 @@ def standard_optimal_causation_entropy(
     """
 
     forward_pass = standard_forward(
-        X, Y, Z_init, rng, alpha1, n_shuffles, information, metric, k_means, bandwidth, early_stopping, min_shuffles, confidence
+        X,
+        Y,
+        Z_init,
+        rng,
+        alpha1,
+        n_shuffles,
+        information,
+        metric,
+        k_means,
+        bandwidth,
+        early_stopping,
+        min_shuffles,
+        confidence,
     )
 
     S = backward(
@@ -421,7 +433,18 @@ def alternative_optimal_causation_entropy(
     """
 
     forward_pass = alternative_forward(
-        X, Y, rng, alpha1, n_shuffles, information, metric, k_means, bandwidth, early_stopping, min_shuffles, confidence
+        X,
+        Y,
+        rng,
+        alpha1,
+        n_shuffles,
+        information,
+        metric,
+        k_means,
+        bandwidth,
+        early_stopping,
+        min_shuffles,
+        confidence,
     )
 
     S = backward(
@@ -1012,7 +1035,9 @@ def shuffle_test(
                 # For clearly non-significant cases (p >> alpha)
                 elif current_p_value >= alpha * 3:  # Strong evidence for H0
                     # Test if p-value is significantly greater than alpha
-                    binom_p = 1 - stats.binom.cdf(n_greater_equal - 1, n_shuffles_used, alpha)
+                    binom_p = 1 - stats.binom.cdf(
+                        n_greater_equal - 1, n_shuffles_used, alpha
+                    )
                     if binom_p >= confidence:
                         early_stop = True
                         break

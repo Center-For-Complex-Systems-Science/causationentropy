@@ -77,6 +77,7 @@ def estimate_cache_size(n_vars, max_lag, n_samples):
 # Create a configurable cache - default size, can be updated
 _distance_cache_size = 128
 
+
 def set_distance_cache_size(size):
     """Set the cache size for distance matrix computations."""
     global _distance_cache_size
@@ -97,10 +98,10 @@ def get_cache_stats():
         - detcorr_cache_limit: Maximum cache size for determinants
     """
     return {
-        'distance_cache_size': len(_distance_cache),
-        'distance_cache_limit': _distance_cache_size,
-        'detcorr_cache_size': len(_detcorr_cache),
-        'detcorr_cache_limit': 128
+        "distance_cache_size": len(_distance_cache),
+        "distance_cache_limit": _distance_cache_size,
+        "detcorr_cache_size": len(_detcorr_cache),
+        "detcorr_cache_limit": 128,
     }
 
 
@@ -137,13 +138,13 @@ def configure_cache_for_discovery(data_shape, max_lag=5, information_method="knn
     cache_size, memory_mb = estimate_cache_size(n_vars, max_lag, n_samples)
 
     # Adjust based on information method
-    if information_method in ['knn', 'geometric_knn']:
+    if information_method in ["knn", "geometric_knn"]:
         # These methods are distance-heavy, benefit most from caching
         cache_multiplier = 1.0
-    elif information_method == 'gaussian':
+    elif information_method == "gaussian":
         # Less distance computation, smaller cache sufficient
         cache_multiplier = 0.3
-    elif information_method == 'kde':
+    elif information_method == "kde":
         # Moderate distance usage
         cache_multiplier = 0.6
     else:
@@ -159,12 +160,14 @@ def configure_cache_for_discovery(data_shape, max_lag=5, information_method="knn
     clear_caches()
 
     config = {
-        'data_shape': data_shape,
-        'max_lag': max_lag,
-        'information_method': information_method,
-        'cache_size': adjusted_cache_size,
-        'estimated_memory_mb': memory_mb * cache_multiplier,
-        'cache_efficiency': 'high' if information_method in ['knn', 'geometric_knn'] else 'moderate'
+        "data_shape": data_shape,
+        "max_lag": max_lag,
+        "information_method": information_method,
+        "cache_size": adjusted_cache_size,
+        "estimated_memory_mb": memory_mb * cache_multiplier,
+        "cache_efficiency": (
+            "high" if information_method in ["knn", "geometric_knn"] else "moderate"
+        ),
     }
 
     print(f"Cache configured for {information_method} method:")
@@ -177,6 +180,7 @@ def configure_cache_for_discovery(data_shape, max_lag=5, information_method="knn
 
 # Global cache for distance matrices
 _distance_cache = {}
+
 
 def cached_cdist(data, metric="euclidean"):
     """
@@ -227,6 +231,7 @@ def cached_cdist(data, metric="euclidean"):
 # Global cache for correlation determinants
 _detcorr_cache = {}
 
+
 def cached_detcorr(A):
     """
     Cached correlation determinant computation.
@@ -261,6 +266,7 @@ def cached_detcorr(A):
     _detcorr_cache[data_hash] = result
 
     return result
+
 
 def gaussian_conditional_mutual_information(X, Y, Z=None):
     r"""
@@ -580,14 +586,8 @@ def poisson_conditional_mutual_information(X, Y, Z):
         SS[SzX : SzX + SzY, SzX : SzX + SzY] = (
             SS[SzX : SzX + SzY, SzX : SzX + SzY] + SXYZ[SzX : SzX + SzY, 0:SzX]
         )
-        S_est1 = SS[
-            np.concatenate((indY, indZ)),
-            :
-        ][:, np.concatenate((indY, indZ))]
-        S_est2 = SS[
-            np.concatenate((indX, indZ)),
-            :
-        ][:, np.concatenate((indX, indZ))]
+        S_est1 = SS[np.concatenate((indY, indZ)), :][:, np.concatenate((indY, indZ))]
+        S_est2 = SS[np.concatenate((indX, indZ)), :][:, np.concatenate((indX, indZ))]
         HYZ = poisson_joint_entropy(S_est1)
         SindZ = SS[indZ, :][:, indZ]
         HZ = poisson_joint_entropy(SindZ)

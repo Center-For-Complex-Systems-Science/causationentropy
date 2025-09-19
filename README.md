@@ -51,11 +51,6 @@ data = pd.read_csv('data.csv')
 
 # Discover causal network
 network = discover_network(data, method='standard', max_lag=5)
-
-# Examine results
-print(f"Found {network.number_of_edges()} causal relationships")
-for source, sink in network.edges(data=True):
-    print(f"{source} to {sink}: {network[source][sink]}")
 ```
 
 ### Advanced Configuration
@@ -72,7 +67,7 @@ network = discover_network(
     n_shuffles=200              # Permutation test iterations
 )
 ```
-
+See the documentation for additional available methods and information parameters.
 ### Synthetic Data Example
 
 ```python
@@ -80,17 +75,14 @@ from causationentropy.datasets import synthetic
 
 # Generate synthetic causal time series
 data, true_network = synthetic.linear_stochastic_gaussian_process(
-    n_variables=5, 
-    n_samples=1000, 
-    sparsity=0.3
+    rho=0.5,    # coupling strength
+    n=5,        # number of variables
+    T=1000,     # number of time samples
+    p=0.3       # edge probability (sparsity)
 )
 
 # Discover network
 discovered = discover_network(data)
-
-# Compare with ground truth
-print(f"True edges: {true_network.number_of_edges()}")
-print(f"Discovered edges: {discovered.number_of_edges()}")
 ```
 
 ## Key Features

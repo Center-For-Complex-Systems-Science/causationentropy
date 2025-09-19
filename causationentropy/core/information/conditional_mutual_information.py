@@ -1,7 +1,8 @@
-import numpy as np
-from scipy.spatial.distance import cdist
 import functools
 import hashlib
+
+import numpy as np
+from scipy.spatial.distance import cdist
 
 from causationentropy.core.information.entropy import (
     geometric_knn_entropy,

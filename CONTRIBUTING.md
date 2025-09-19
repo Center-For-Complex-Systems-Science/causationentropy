@@ -365,6 +365,8 @@ mypy causalentropy/           # Type checking
 pytest --cov=causalentropy    # Test with coverage
 ```
 
+These commands will enforce that the code is formatted
+correctly.
 ## Submitting for Publication
 
 ### Preparing Your Contribution for Academic Publication

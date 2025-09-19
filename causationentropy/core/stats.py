@@ -73,7 +73,7 @@ def auc(TPRs, FPRs):
     """
 
     # Use trapezoid for NumPy 2.0+, trapz for older versions
-    if hasattr(np, 'trapezoid'):
+    if hasattr(np, "trapezoid"):
         AUC = np.trapezoid(TPRs, FPRs)
     else:
         AUC = np.trapz(TPRs, FPRs)

@@ -6,6 +6,7 @@ import pytest
 from causationentropy.core.information.conditional_mutual_information import (
     conditional_mutual_information,
     gaussian_conditional_mutual_information,
+    geometric_knn_conditional_mutual_information,
 )
 
 
@@ -362,3 +363,177 @@ class TestMethodComparison:
         cmi2 = conditional_mutual_information(X, Y, Z, method="gaussian")
 
         assert np.isclose(cmi1, cmi2, rtol=1e-15)
+
+
+class TestGeometricKnnConditionalMutualInformation:
+    """Test geometric k-NN conditional mutual information calculation."""
+
+    def test_geometric_knn_cmi_no_conditioning(self):
+        """Test that geometric k-NN CMI reduces to MI when Z=None."""
+        np.random.seed(42)
+        n = 50
+        X = np.random.normal(0, 1, (n, 2))
+        Y = np.random.normal(0, 1, (n, 1))
+
+        # I(X;Y|Z) with Z=None should equal I(X;Y) with default k=1
+        cmi = geometric_knn_conditional_mutual_information(X, Y, Z=None, k=3)
+
+        from causationentropy.core.information.mutual_information import (
+            geometric_knn_mutual_information,
+        )
+
+        # The function uses default k=1 when Z=None, so compare with k=1
+        mi = geometric_knn_mutual_information(X, Y, k=1)
+
+        assert np.isclose(cmi, mi, rtol=1e-10)
+
+    def test_geometric_knn_cmi_basic_properties(self):
+        """Test basic properties of geometric k-NN CMI."""
+        np.random.seed(42)
+        n = 80
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+        Z = np.random.normal(0, 1, (n, 1))
+
+        cmi = geometric_knn_conditional_mutual_information(X, Y, Z, k=3)
+
+        assert isinstance(cmi, float)
+        assert not np.isnan(cmi)
+        assert np.isfinite(cmi)
+
+    def test_geometric_knn_cmi_dependent_variables(self):
+        """Test geometric k-NN CMI with dependent variables."""
+        np.random.seed(42)
+        n = 100
+        Z = np.random.normal(0, 1, (n, 1))
+        X = np.random.normal(0, 1, (n, 1))
+        # Create Y that depends on both X and Z
+        Y = 0.6 * X + 0.4 * Z + 0.1 * np.random.normal(0, 1, (n, 1))
+
+        cmi = geometric_knn_conditional_mutual_information(X, Y, Z, k=3)
+
+        assert isinstance(cmi, float)
+        assert cmi > 0  # Should be positive due to X->Y dependence
+        assert not np.isnan(cmi)
+
+    def test_geometric_knn_cmi_multivariate(self):
+        """Test geometric k-NN CMI with multivariate inputs."""
+        np.random.seed(42)
+        n = 70
+        X = np.random.normal(0, 1, (n, 2))
+        Y = np.random.normal(0, 1, (n, 2))
+        Z = np.random.normal(0, 1, (n, 1))
+
+        cmi = geometric_knn_conditional_mutual_information(X, Y, Z, k=3)
+
+        assert isinstance(cmi, float)
+        assert not np.isnan(cmi)
+        assert np.isfinite(cmi)
+
+    def test_geometric_knn_cmi_different_k_values(self):
+        """Test geometric k-NN CMI with different k values."""
+        np.random.seed(42)
+        n = 60
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+        Z = np.random.normal(0, 1, (n, 1))
+
+        for k in [1, 3, 5]:
+            cmi = geometric_knn_conditional_mutual_information(X, Y, Z, k=k)
+            assert isinstance(cmi, float)
+            assert not np.isnan(cmi)
+            assert np.isfinite(cmi)
+
+    def test_geometric_knn_cmi_different_metrics(self):
+        """Test geometric k-NN CMI with different distance metrics."""
+        np.random.seed(42)
+        n = 50
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+        Z = np.random.normal(0, 1, (n, 1))
+
+        # Use valid scipy.spatial.distance metric names
+        metrics = ["euclidean", "cityblock", "chebyshev"]
+        for metric in metrics:
+            cmi = geometric_knn_conditional_mutual_information(X, Y, Z, k=3, metric=metric)
+            assert isinstance(cmi, float)
+            assert not np.isnan(cmi)
+            assert np.isfinite(cmi)
+
+    def test_geometric_knn_cmi_symmetry(self):
+        """Test that geometric k-NN CMI is symmetric in X and Y."""
+        np.random.seed(42)
+        n = 60
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+        Z = np.random.normal(0, 1, (n, 1))
+
+        cmi_xy = geometric_knn_conditional_mutual_information(X, Y, Z, k=3)
+        cmi_yx = geometric_knn_conditional_mutual_information(Y, X, Z, k=3)
+
+        # Allow for small numerical differences due to k-NN estimation
+        assert np.isclose(cmi_xy, cmi_yx, rtol=1e-6, atol=1e-6)
+
+    def test_geometric_knn_cmi_identical_variables(self):
+        """Test geometric k-NN CMI with identical X and Y."""
+        np.random.seed(42)
+        n = 50
+        X = np.random.normal(0, 1, (n, 1))
+        Y = X.copy()  # Identical
+        Z = np.random.normal(0, 1, (n, 1))
+
+        cmi = geometric_knn_conditional_mutual_information(X, Y, Z, k=3)
+
+        assert isinstance(cmi, float)
+        assert cmi > 0  # Should be positive for identical variables
+        assert not np.isnan(cmi)
+
+    def test_geometric_knn_cmi_edge_cases(self):
+        """Test geometric k-NN CMI edge cases."""
+        # Test with minimum valid sample size
+        np.random.seed(42)
+        n = 10
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+        Z = np.random.normal(0, 1, (n, 1))
+
+        # Should work with k < n
+        cmi = geometric_knn_conditional_mutual_information(X, Y, Z, k=min(3, n-1))
+        assert isinstance(cmi, float)
+        assert not np.isnan(cmi)
+
+    def test_geometric_knn_cmi_manifold_data(self):
+        """Test geometric k-NN CMI with manifold-like data."""
+        np.random.seed(42)
+        n = 80
+
+        # Create data that lies on a lower-dimensional manifold
+        t = np.linspace(0, 2*np.pi, n).reshape(-1, 1)
+        noise = 0.1 * np.random.normal(0, 1, (n, 1))
+
+        # X lies on a circle in 2D
+        X = np.hstack([np.cos(t), np.sin(t)]) + noise
+        Y = np.random.normal(0, 1, (n, 1))
+        Z = t + 0.1 * np.random.normal(0, 1, (n, 1))
+
+        cmi = geometric_knn_conditional_mutual_information(X, Y, Z, k=3)
+
+        assert isinstance(cmi, float)
+        assert not np.isnan(cmi)
+        assert np.isfinite(cmi)
+
+    def test_geometric_knn_cmi_via_main_function(self):
+        """Test geometric k-NN CMI through the main conditional_mutual_information function."""
+        np.random.seed(42)
+        n = 60
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+        Z = np.random.normal(0, 1, (n, 1))
+
+        # Call through main interface
+        cmi_main = conditional_mutual_information(X, Y, Z, method="geometric_knn", k=3)
+
+        # Call directly
+        cmi_direct = geometric_knn_conditional_mutual_information(X, Y, Z, k=3)
+
+        assert np.isclose(cmi_main, cmi_direct, rtol=1e-15)

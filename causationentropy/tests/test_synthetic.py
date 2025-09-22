@@ -5,7 +5,7 @@ from causationentropy.datasets.synthetic import (
     linear_stochastic_gaussian_process,
     logisic_dynamics,
     logistic_map,
-    poisson_coupled_oscillators
+    poisson_coupled_oscillators,
 )
 
 
@@ -344,7 +344,6 @@ class TestParameterValidation:
         XY3, A3 = logisic_dynamics(n=3, p=0.3, t=10, seed=42)
         assert np.allclose(XY1, XY3)
         assert np.allclose(A1, A3)
-
 
 
 class TestPoissonCoupledOscillators:

@@ -53,6 +53,10 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
           # attestations are ON by default; disable with: attestations: false
+          verbose: true
+          skip-existing: true
+          # Optional: show SHA256 hashes in logs
+          print-hash: true
 
   publish-pypi:
     name: Publish to PyPI (on tag)

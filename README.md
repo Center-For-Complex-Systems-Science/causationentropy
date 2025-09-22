@@ -2,8 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![Documentation Status](https://readthedocs.org/projects/causationentropy/badge/?version=latest)](https://causationentropy.readthedocs.io/en/latest/?badge=latest)
-[![codecov](https://codecov.io/gh/kslote1/causationentropy/branch/main/graph/badge.svg)](https://app.codecov.io/gh/Center-For-Complex-Systems-Science/causationentropy)
+[![codecov](https://codecov.io/gh/Center-For-Complex-Systems-Science/causationentropy/branch/main/graph/badge.svg)](https://app.codecov.io/gh/Center-For-Complex-Systems-Science/causationentropy)
 [![Tests](https://github.com/kslote1/causationentropy/workflows/Tests/badge.svg)](https://github.com/kslote1/causationentropy/actions)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17047565.svg)](https://doi.org/10.5281/zenodo.17047565)
 
@@ -51,11 +50,6 @@ data = pd.read_csv('data.csv')
 
 # Discover causal network
 network = discover_network(data, method='standard', max_lag=5)
-
-# Examine results
-print(f"Found {network.number_of_edges()} causal relationships")
-for source, sink in network.edges(data=True):
-    print(f"{source} to {sink}: {network[source][sink]}")
 ```
 
 ### Advanced Configuration
@@ -87,10 +81,6 @@ data, true_network = synthetic.linear_stochastic_gaussian_process(
 
 # Discover network
 discovered = discover_network(data)
-
-# Compare with ground truth
-print(f"True edges: {true_network.number_of_edges()}")
-print(f"Discovered edges: {discovered.number_of_edges()}")
 ```
 
 ## Key Features

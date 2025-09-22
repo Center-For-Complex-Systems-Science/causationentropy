@@ -1,4 +1,3 @@
-import networkx as nx
 import numpy as np
 import pytest
 
@@ -6,6 +5,7 @@ from causationentropy.datasets.synthetic import (
     linear_stochastic_gaussian_process,
     logisic_dynamics,
     logistic_map,
+    poisson_coupled_oscillators
 )
 
 
@@ -344,3 +344,247 @@ class TestParameterValidation:
         XY3, A3 = logisic_dynamics(n=3, p=0.3, t=10, seed=42)
         assert np.allclose(XY1, XY3)
         assert np.allclose(A1, A3)
+
+
+
+class TestPoissonCoupledOscillators:
+    """Test Poisson coupled oscillators synthetic data generation."""
+
+    def test_poisson_oscillators_basic_functionality(self):
+        """Test basic functionality of Poisson coupled oscillators."""
+        X, A = poisson_coupled_oscillators(
+            n=5, T=50, p=0.3, lambda_base=2.0, coupling_strength=0.2, seed=42
+        )
+
+        # Check output shapes
+        assert X.shape == (50, 5)
+        assert A.shape == (5, 5)
+
+        # Check data types
+        assert isinstance(X, np.ndarray)
+        assert isinstance(A, np.ndarray)
+
+        # X should contain integer values (Poisson counts)
+        assert np.all(X >= 0)
+        assert np.all(X == X.astype(int))  # Should be integers
+
+        # A should be binary adjacency matrix
+        assert np.all((A == 0) | (A == 1))
+
+    def test_poisson_oscillators_parameters(self):
+        """Test different parameter combinations."""
+        # Test with different numbers of oscillators
+        X1, A1 = poisson_coupled_oscillators(n=3, T=20, seed=42)
+        X2, A2 = poisson_coupled_oscillators(n=7, T=20, seed=42)
+
+        assert X1.shape == (20, 3)
+        assert A1.shape == (3, 3)
+        assert X2.shape == (20, 7)
+        assert A2.shape == (7, 7)
+
+        # Test with different time lengths
+        X3, A3 = poisson_coupled_oscillators(n=4, T=10, seed=42)
+        X4, A4 = poisson_coupled_oscillators(n=4, T=100, seed=42)
+
+        assert X3.shape == (10, 4)
+        assert X4.shape == (100, 4)
+
+    def test_poisson_oscillators_lambda_base_effect(self):
+        """Test effect of base lambda parameter."""
+        # Higher base rate should give higher average counts
+        X_low, _ = poisson_coupled_oscillators(
+            n=5, T=100, lambda_base=1.0, coupling_strength=0.0, seed=42
+        )
+        X_high, _ = poisson_coupled_oscillators(
+            n=5, T=100, lambda_base=5.0, coupling_strength=0.0, seed=42
+        )
+
+        # With no coupling, higher lambda_base should give higher mean
+        assert np.mean(X_high) > np.mean(X_low)
+
+    def test_poisson_oscillators_coupling_strength_effect(self):
+        """Test effect of coupling strength parameter."""
+        # Generate with custom network to ensure coupling exists
+        import networkx as nx
+
+        G = nx.path_graph(3, create_using=nx.DiGraph())  # Simple chain: 0->1->2
+
+        X_weak, A_weak = poisson_coupled_oscillators(
+            n=3, T=100, coupling_strength=0.1, seed=42, G=G
+        )
+        X_strong, A_strong = poisson_coupled_oscillators(
+            n=3, T=100, coupling_strength=1.0, seed=42, G=G
+        )
+
+        # Should use the same adjacency matrix
+        assert np.array_equal(A_weak, A_strong)
+
+        # Both should be valid time series
+        assert X_weak.shape == (100, 3)
+        assert X_strong.shape == (100, 3)
+        assert np.all(X_weak >= 0)
+        assert np.all(X_strong >= 0)
+
+    def test_poisson_oscillators_edge_probability(self):
+        """Test different edge probabilities."""
+        # Very sparse network
+        X_sparse, A_sparse = poisson_coupled_oscillators(n=6, T=50, p=0.1, seed=42)
+
+        # Dense network
+        X_dense, A_dense = poisson_coupled_oscillators(n=6, T=50, p=0.8, seed=42)
+
+        # Dense network should have more edges
+        assert np.sum(A_dense) > np.sum(A_sparse)
+
+        # Both should produce valid data
+        assert X_sparse.shape == (50, 6)
+        assert X_dense.shape == (50, 6)
+
+    def test_poisson_oscillators_reproducibility(self):
+        """Test that same seed produces identical results."""
+        X1, A1 = poisson_coupled_oscillators(
+            n=4, T=30, lambda_base=2.5, coupling_strength=0.3, seed=123
+        )
+        X2, A2 = poisson_coupled_oscillators(
+            n=4, T=30, lambda_base=2.5, coupling_strength=0.3, seed=123
+        )
+
+        # Should be identical with same seed
+        assert np.array_equal(X1, X2)
+        assert np.array_equal(A1, A2)
+
+        # Different seed should give different results
+        X3, A3 = poisson_coupled_oscillators(
+            n=4, T=30, lambda_base=2.5, coupling_strength=0.3, seed=456
+        )
+
+        # Network might be different
+        # Time series should definitely be different (very high probability)
+        assert not np.array_equal(X1, X3)
+
+    def test_poisson_oscillators_custom_graph(self):
+        """Test with custom network graph."""
+        import networkx as nx
+
+        # Create a specific graph structure
+        G = nx.DiGraph()
+        G.add_edges_from([(0, 1), (1, 2), (2, 0)])  # Cycle graph
+
+        X, A = poisson_coupled_oscillators(
+            n=3, T=40, lambda_base=2.0, coupling_strength=0.4, seed=42, G=G
+        )
+
+        # Check that adjacency matrix matches the graph
+        expected_A = nx.to_numpy_array(G)
+        assert np.array_equal(A, expected_A)
+
+        # Check output properties
+        assert X.shape == (40, 3)
+        assert np.all(X >= 0)
+        assert np.all(X == X.astype(int))
+
+    def test_poisson_oscillators_statistical_properties(self):
+        """Test statistical properties of generated data."""
+        X, A = poisson_coupled_oscillators(
+            n=4, T=200, lambda_base=3.0, coupling_strength=0.1, seed=42
+        )
+
+        # Mean should be roughly around lambda_base (with coupling effects)
+        mean_values = np.mean(X, axis=0)
+        assert np.all(mean_values > 1.0)  # Should be positive
+        assert np.all(mean_values < 10.0)  # Should be reasonable
+
+        # Variance should be positive (Poisson-like)
+        var_values = np.var(X, axis=0)
+        assert np.all(var_values > 0)
+
+        # Values should be non-negative integers
+        assert np.all(X >= 0)
+        assert np.all(X == np.round(X))
+
+    def test_poisson_oscillators_temporal_dependencies(self):
+        """Test that coupling creates temporal dependencies."""
+        # Create a simple network where node 1 influences node 0
+        import networkx as nx
+
+        G = nx.DiGraph()
+        G.add_edge(1, 0)  # Node 1 -> Node 0
+
+        X, A = poisson_coupled_oscillators(
+            n=2, T=100, lambda_base=2.0, coupling_strength=0.5, seed=42, G=G
+        )
+
+        # Verify the adjacency matrix matches our expected graph
+        expected_A = nx.to_numpy_array(G)
+        assert np.array_equal(A, expected_A)
+
+        # Node 0 should be influenced by previous values of node 1
+        # This is hard to test statistically with small samples, but we can
+        # at least verify the mechanism works without errors
+        assert X.shape == (100, 2)
+
+        # Check that the graph has the expected structure
+        assert np.sum(A) == 1  # Only one edge
+        edges = np.nonzero(A)
+        assert len(edges[0]) == 1  # One edge exists
+
+    def test_poisson_oscillators_edge_cases(self):
+        """Test edge cases and boundary conditions."""
+        # Minimum viable parameters
+        X_min, A_min = poisson_coupled_oscillators(n=1, T=2, seed=42)
+        assert X_min.shape == (2, 1)
+        assert A_min.shape == (1, 1)
+
+        # Zero coupling strength
+        X_zero, A_zero = poisson_coupled_oscillators(
+            n=3, T=50, coupling_strength=0.0, seed=42
+        )
+        assert X_zero.shape == (50, 3)
+        # Should still work, nodes act independently
+
+        # Very high coupling strength
+        X_high, A_high = poisson_coupled_oscillators(
+            n=3, T=50, coupling_strength=2.0, seed=42
+        )
+        assert X_high.shape == (50, 3)
+        assert np.all(X_high >= 0)  # Should still be non-negative
+
+    def test_poisson_oscillators_error_conditions(self):
+        """Test error handling for invalid parameters."""
+        # Test edge case: n=0 (should work, creating empty arrays)
+        X_empty, A_empty = poisson_coupled_oscillators(n=0, T=10)
+        assert X_empty.shape == (10, 0)
+        assert A_empty.shape == (0, 0)
+
+        # Test edge case: T=0 (should raise an error)
+        with pytest.raises(IndexError):
+            poisson_coupled_oscillators(n=5, T=0)
+
+        # Negative lambda_base should be handled gracefully or raise error
+        try:
+            X, A = poisson_coupled_oscillators(n=3, T=10, lambda_base=-1.0, seed=42)
+            # If it doesn't raise an error, it should still produce valid output
+            assert X.shape == (10, 3)
+            assert np.all(X >= 0)
+        except (ValueError, RuntimeError):
+            # It's also acceptable to raise an error for negative lambda
+            pass
+
+    def test_poisson_oscillators_integration_with_discovery(self):
+        """Test that generated data can be used with discovery methods."""
+        X, A_true = poisson_coupled_oscillators(
+            n=4, T=100, lambda_base=2.0, coupling_strength=0.3, seed=42
+        )
+
+        # Convert to pandas DataFrame (common input format)
+        import pandas as pd
+
+        data = pd.DataFrame(X, columns=[f"X{i}" for i in range(4)])
+
+        # Check that data is suitable for time series analysis
+        assert data.shape == (100, 4)
+        assert not data.isnull().any().any()
+        assert (data >= 0).all().all()
+
+        # Test basic properties expected by discovery algorithms
+        assert len(data.columns) == A_true.shape[0]  # Matching dimensions

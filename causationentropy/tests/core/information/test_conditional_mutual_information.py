@@ -455,7 +455,9 @@ class TestGeometricKnnConditionalMutualInformation:
         # Use valid scipy.spatial.distance metric names
         metrics = ["euclidean", "cityblock", "chebyshev"]
         for metric in metrics:
-            cmi = geometric_knn_conditional_mutual_information(X, Y, Z, k=3, metric=metric)
+            cmi = geometric_knn_conditional_mutual_information(
+                X, Y, Z, k=3, metric=metric
+            )
             assert isinstance(cmi, float)
             assert not np.isnan(cmi)
             assert np.isfinite(cmi)
@@ -498,7 +500,7 @@ class TestGeometricKnnConditionalMutualInformation:
         Z = np.random.normal(0, 1, (n, 1))
 
         # Should work with k < n
-        cmi = geometric_knn_conditional_mutual_information(X, Y, Z, k=min(3, n-1))
+        cmi = geometric_knn_conditional_mutual_information(X, Y, Z, k=min(3, n - 1))
         assert isinstance(cmi, float)
         assert not np.isnan(cmi)
 
@@ -508,7 +510,7 @@ class TestGeometricKnnConditionalMutualInformation:
         n = 80
 
         # Create data that lies on a lower-dimensional manifold
-        t = np.linspace(0, 2*np.pi, n).reshape(-1, 1)
+        t = np.linspace(0, 2 * np.pi, n).reshape(-1, 1)
         noise = 0.1 * np.random.normal(0, 1, (n, 1))
 
         # X lies on a circle in 2D

@@ -16,6 +16,7 @@ from causationentropy.core.information.mutual_information import (
     kde_mutual_information,
     knn_mutual_information,
 )
+from causationentropy.core.linalg import correlation_log_determinant
 
 
 def _array_hash(arr, metric="euclidean"):
@@ -229,6 +230,157 @@ def cached_cdist(data, metric="euclidean"):
     return result
 
 
+# Global cache for spatial trees
+_tree_cache = {}
+_tree_cache_size = 100  # Maximum number of cached trees
+
+
+def get_or_build_tree(data, metric="euclidean"):
+    """
+    Get or build a spatial tree for efficient neighbor queries.
+
+    This function implements tree-based spatial indexing as an alternative to
+    full distance matrix computation. For k-NN queries, this provides significant
+    performance improvements:
+    - KDTree: O(N log N) for d≤15, best for low-dimensional data
+    - BallTree: O(N log N) for any dimension, handles high-dimensional data
+
+    Parameters
+    ----------
+    data : array-like of shape (n_samples, n_features)
+        Input data matrix
+    metric : str, default='euclidean'
+        Distance metric for tree construction
+
+    Returns
+    -------
+    tree : KDTree or BallTree
+        Spatial tree for efficient neighbor queries
+    """
+    from sklearn.neighbors import BallTree, KDTree
+
+    data = np.asarray(data)
+
+    # Create cache key
+    data_hash = _array_hash(data, metric)
+
+    # Check cache first
+    if data_hash in _tree_cache:
+        return _tree_cache[data_hash]
+
+    # Choose optimal tree type based on dimensionality and metric
+    n_samples, n_features = data.shape
+
+    if metric == "euclidean" and n_features <= 15:
+        # KDTree is optimal for low-dimensional euclidean space
+        tree = KDTree(data, metric=metric)
+    else:
+        # BallTree handles any metric and high dimensions
+        tree = BallTree(data, metric=metric)
+
+    # Manage cache size
+    if len(_tree_cache) >= _tree_cache_size:
+        # Simple FIFO eviction
+        oldest_key = next(iter(_tree_cache))
+        del _tree_cache[oldest_key]
+
+    # Cache the tree
+    _tree_cache[data_hash] = tree
+
+    return tree
+
+
+def tree_knn_distances(data, k=1, metric="euclidean"):
+    """
+    Compute k-nearest neighbor distances using spatial trees.
+
+    This function replaces full distance matrix computation with efficient
+    tree-based queries. Instead of computing O(N²) distances, it computes
+    only the k nearest neighbors for each point: O(N*k).
+
+    Parameters
+    ----------
+    data : array-like of shape (n_samples, n_features)
+        Input data matrix
+    k : int, default=1
+        Number of nearest neighbors to find
+    metric : str, default='euclidean'
+        Distance metric
+
+    Returns
+    -------
+    distances : ndarray of shape (n_samples, k)
+        Distances to k nearest neighbors for each point
+    indices : ndarray of shape (n_samples, k)
+        Indices of k nearest neighbors for each point
+    """
+    tree = get_or_build_tree(data, metric=metric)
+
+    # Query k+1 neighbors (first neighbor is the point itself)
+    distances, indices = tree.query(data, k=k + 1)
+
+    # Remove self (first column) to get k nearest neighbors
+    return distances[:, 1:], indices[:, 1:]
+
+
+def tree_neighbors_within_distance(data, distances, metric="euclidean"):
+    """
+    Count neighbors within specified distances for each point using trees.
+
+    This function efficiently finds all neighbors within a given distance
+    for each point, used in k-NN entropy estimation algorithms.
+
+    Parameters
+    ----------
+    data : array-like of shape (n_samples, n_features)
+        Input data matrix
+    distances : array-like of shape (n_samples,)
+        Distance threshold for each point
+    metric : str, default='euclidean'
+        Distance metric
+
+    Returns
+    -------
+    neighbor_counts : ndarray of shape (n_samples,)
+        Number of neighbors within distance for each point
+    """
+    tree = get_or_build_tree(data, metric=metric)
+
+    neighbor_counts = np.zeros(len(data))
+    for i, epsilon in enumerate(distances):
+        # Query all neighbors within distance epsilon
+        neighbors = tree.query_radius([data[i]], r=epsilon)[0]
+        # Subtract 1 to exclude the point itself
+        neighbor_counts[i] = len(neighbors) - 1
+
+    return neighbor_counts
+
+
+import functools
+import hashlib
+
+import numpy as np
+from scipy.spatial.distance import cdist
+
+from causationentropy.core.information.entropy import (
+    geometric_knn_entropy,
+    kde_entropy,
+    poisson_entropy,
+    poisson_joint_entropy,
+)
+from causationentropy.core.information.mutual_information import (
+    gaussian_mutual_information,
+    geometric_knn_mutual_information,
+    kde_mutual_information,
+    knn_mutual_information,
+)
+
+
+def _array_hash(arr, metric="euclidean"):
+    """Create a hashable key for numpy arrays to use with LRU cache."""
+    return hashlib.md5(f"{arr.tobytes()}{metric}".encode()).hexdigest()
+
+
 # Global cache for correlation determinants
 _detcorr_cache = {}
 
@@ -236,86 +388,34 @@ _detcorr_cache = {}
 def cached_detcorr(A):
     """
     Cached correlation determinant computation.
-
-    Parameters
-    ----------
-    A : array-like
-        Input data matrix
-
-    Returns
-    -------
-    det : float
-        Log determinant of correlation matrix
     """
     A = np.asarray(A)
     data_hash = _array_hash(A)
 
-    # Check if result is already cached
     if data_hash in _detcorr_cache:
         return _detcorr_cache[data_hash]
 
-    # Compute correlation determinant
     C = np.corrcoef(A.T)
-    result = float(C) if np.ndim(C) == 0 else np.linalg.slogdet(C)[1]
+    if np.ndim(C) == 0:
+        result = 0.0
+    else:
+        sign, logdet = np.linalg.slogdet(C)
+        if sign == 0 or not np.isfinite(logdet):
+            result = -1000.0
+        else:
+            result = logdet
 
-    # Manage cache size (keep it smaller for detcorr)
     if len(_detcorr_cache) >= 128:
         oldest_key = next(iter(_detcorr_cache))
         del _detcorr_cache[oldest_key]
 
-    # Cache the result
     _detcorr_cache[data_hash] = result
-
     return result
 
 
 def gaussian_conditional_mutual_information(X, Y, Z=None):
     r"""
     Compute conditional mutual information for multivariate Gaussian variables.
-
-    For multivariate Gaussian variables, the conditional mutual information has
-    a closed-form expression using covariance matrix determinants:
-
-    .. math::
-
-        I(X; Y | Z) = \frac{1}{2} \log \frac{|\Sigma_{XZ}| |\Sigma_{YZ}|}{|\Sigma_Z| |\Sigma_{XYZ}|}
-
-    This can also be expressed as:
-
-    .. math::
-
-        I(X; Y | Z) = \frac{1}{2} [\log |\Sigma_{XZ}| + \log |\Sigma_{YZ}| - \log |\Sigma_Z| - \log |\Sigma_{XYZ}|]
-
-    where :math:`\Sigma_{\cdot}` denotes the covariance matrix of the subscripted variables.
-
-    Parameters
-    ----------
-    X : array-like of shape (N, k_x)
-        First variable with N samples and k_x features.
-    Y : array-like of shape (N, k_y)
-        Second variable with N samples and k_y features.
-    Z : array-like of shape (N, k_z) or None
-        Conditioning variable with N samples and k_z features.
-        If None, computes marginal mutual information I(X;Y).
-
-    Returns
-    -------
-    I : float
-        Conditional mutual information in nats.
-
-    Notes
-    -----
-    This implementation uses log-determinants of correlation matrices for
-    numerical stability, employing the signed log-determinant function
-    to handle potential numerical issues.
-
-    The Gaussian assumption implies that:
-    - All conditional dependencies are captured by linear relationships
-    - Higher-order moments beyond covariance carry no information
-    - The estimator is exact under Gaussianity
-
-    For non-Gaussian data, this estimator provides a lower bound on the
-    true conditional mutual information.
     """
     if Z is None:
         return gaussian_mutual_information(X, Y)
@@ -387,7 +487,7 @@ def kde_conditional_mutual_information(
     return I
 
 
-def knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=1):
+def knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=1, kd_tree=True):
     """
     Estimate conditional mutual information using k-nearest neighbor method.
 
@@ -440,17 +540,19 @@ def knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=1):
     """
     if Z is None:
         return knn_mutual_information(
-            X, Y, metric=metric, k=k
+            X, Y, metric=metric, k=k, kd_tree=kd_tree
         )  # np.max([self.MutualInfo_KNN(X,self.Y),0])
     else:
         XY = np.concatenate((X, Y), axis=1)
-        MIXYZ = knn_mutual_information(XY, Z, metric=metric, k=k)
-        MIXY = knn_mutual_information(X, Y, metric=metric, k=k)
+        MIXYZ = knn_mutual_information(XY, Z, metric=metric, k=k, kd_tree=kd_tree)
+        MIXY = knn_mutual_information(X, Y, metric=metric, k=k, kd_tree=kd_tree)
 
         return MIXY - MIXYZ
 
 
-def geometric_knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=1):
+def geometric_knn_conditional_mutual_information(
+    X, Y, Z, metric="euclidean", k=1, kd_tree=True
+):
     """
     Estimate conditional mutual information using geometric k-nearest neighbor method.
 
@@ -500,7 +602,9 @@ def geometric_knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=
     """
 
     if Z is None:
-        return geometric_knn_mutual_information(X, Y)
+        return geometric_knn_mutual_information(
+            X, Y, metric=metric, k=k, kd_tree=kd_tree
+        )
     YZdist = cached_cdist(np.hstack((Y, Z)), metric=metric)
     XZdist = cached_cdist(np.hstack((X, Z)), metric=metric)
     XYZdist = cached_cdist(np.hstack((X, Y, Z)), metric=metric)
@@ -608,6 +712,7 @@ def conditional_mutual_information(
     k=6,
     bandwidth="silverman",
     kernel="gaussian",
+    kd_tree=True,
 ):
     """
     Compute conditional mutual information using specified estimation method.
@@ -713,10 +818,14 @@ def conditional_mutual_information(
         )
 
     elif method == "knn":
-        return knn_conditional_mutual_information(X, Y, Z, metric=metric, k=k)
+        return knn_conditional_mutual_information(
+            X, Y, Z, metric=metric, k=k, kd_tree=kd_tree
+        )
 
     elif method == "geometric_knn":
-        return geometric_knn_conditional_mutual_information(X, Y, Z, metric=metric, k=k)
+        return geometric_knn_conditional_mutual_information(
+            X, Y, Z, metric=metric, k=k, kd_tree=kd_tree
+        )
 
     elif method == "poisson":
         return poisson_conditional_mutual_information(X, Y, Z)

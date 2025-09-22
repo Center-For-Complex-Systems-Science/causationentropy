@@ -1,7 +1,7 @@
 # Copyright 2025 Kevin Slote
 # SPDX-License-Identifier: MIT
 import copy
-from typing import Dict, Tuple, Union
+from typing import Union
 
 import networkx as nx
 import numpy as np
@@ -28,137 +28,10 @@ def discover_network(
     early_stopping: bool = True,
     min_shuffles: int = 50,
     confidence: float = 0.95,
+    kd_tree: bool = True,
 ) -> nx.MultiDiGraph:
     r"""
     Infer a causal graph via Optimal Causation Entropy (oCSE).
-
-    This function implements the optimal Causation Entropy algorithm for causal network discovery
-    from multivariate time series data. The algorithm uses conditional mutual information to
-    identify causal relationships between variables across different time lags.
-
-    The core principle is based on the Causation Entropy framework, which quantifies causal
-    relationships using information-theoretic measures. For variables :math:`X_i` and :math:`X_j`
-    with lag :math:`\\tau`, the conditional mutual information is computed as:
-
-    .. math::
-
-        I\!\left(X_j^{(t-\tau)}; X_i^{(t)} \,\middle|\, \mathbf{Z}_i^{(t)}\right)
-        \;=\;
-        H\!\left(X_i^{(t)} \,\middle|\, \mathbf{Z}_i^{(t)}\right)
-        \;-\;
-        H\!\left(X_i^{(t)} \,\middle|\, X_j^{(t-\tau)}, \mathbf{Z}_i^{(t)}\right)
-
-    where :math:`\mathbf{Z}_i^{(t)}` represents the conditioning set for variable :math:`i` at time :math:`t`.
-
-    The algorithm proceeds in two main phases:
-
-    1. **Forward Selection**: Iteratively selects predictors that maximize conditional mutual
-       information with the target variable, conditioned on already selected predictors.
-
-    2. **Backward Elimination**: Removes predictors that do not maintain statistical significance
-       when conditioned on all other selected predictors.
-
-    Statistical significance is assessed via permutation tests, where the null hypothesis assumes
-    no causal relationship exists between variables.
-
-    Parameters
-    ----------
-    data : array-like of shape (T, n) or DataFrame
-        Multivariate time series data where T is the number of time points and n is the number
-        of variables. Variables correspond to columns.
-    method : str, default='standard'
-        Causal discovery algorithm variant. Options:
-
-        - 'standard': Uses initial conditioning set of lagged target variables
-        - 'alternative': No initial conditioning set
-        - 'information_lasso': Information-theoretic variant with LASSO regularization
-        - 'lasso': Pure LASSO-based selection
-    information : str, default='gaussian'
-        Information measure estimator type. Options:
-
-        - 'gaussian': Assumes Gaussian distributions
-        - 'knn': k-nearest neighbor estimator
-        - 'kde': Kernel density estimation
-        - 'geometric_knn': Geometric mean k-NN estimator
-        - 'poisson': Poisson distribution assumption
-    max_lag : int, default=5
-        Maximum time lag to consider in causal relationships. The algorithm examines
-        lags from 1 to max_lag (inclusive).
-    k_means : int, default=5
-        Number of clusters for k-means based estimators (when applicable).
-    alpha_forward : float, default=0.05
-        Significance level for forward selection permutation tests. Lower values
-        require stronger evidence for causal relationships.
-    alpha_backward : float, default=0.05
-        Significance level for backward elimination permutation tests.
-    metric : str, default='euclidean'
-        Distance metric for k-NN based estimators.
-    n_shuffles : int, default=200
-        Maximum number of permutations for statistical significance testing. Higher values
-        provide more accurate p-value estimates but increase computational cost. With early
-        stopping enabled, the actual number may be lower.
-    n_jobs : int, default=-1
-        Number of parallel jobs for computation. -1 uses all available processors.
-    early_stopping : bool, default=True
-        Whether to enable early stopping in permutation tests when statistical significance
-        is clear. Can significantly reduce computation time.
-    min_shuffles : int, default=50
-        Minimum number of shuffles before early stopping can occur in permutation tests.
-    confidence : float, default=0.95
-        Confidence level for early stopping decisions in permutation tests.
-
-    Returns
-    -------
-    G : networkx.MultiDiGraph
-        Multi-directed graph representing the discovered causal network. Nodes correspond to
-        variables and edges represent causal relationships. Multiple edges between the same
-        node pair represent relationships at different time lags. Edge attributes include:
-
-        - 'lag': Time delay :math:`\tau` of the causal relationship
-        - 'cmi': Conditional mutual information value for this edge
-        - 'p_value': Empirical p-value from permutation test
-
-    Raises
-    ------
-    NotImplementedError
-        If an unsupported method or information type is specified.
-    ValueError
-        If the time series is too short for the chosen max_lag.
-
-    Notes
-    -----
-    The algorithm's computational complexity is approximately :math:`O(T \cdot n^2 \cdot \tau_{max} \cdot N_{shuffle})`,
-    where :math:`T` is the time series length, :math:`n` is the number of variables,
-    :math:`\tau_{max}` is the maximum lag, and :math:`N_{shuffle}` is the number of permutations.
-
-    For optimal performance with high-dimensional data, consider:
-
-    - Reducing max_lag for shorter time series
-    - Using 'gaussian' information type for continuous data
-    - Adjusting n_shuffles based on desired statistical precision
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from causationentropy.core.discovery import discover_network
-    >>>
-    >>> # Generate sample time series data
-    >>> T, n = 1000, 3
-    >>> data = np.random.randn(T, n)
-    >>>
-    >>> # Discover causal network
-    >>> G = discover_network(data, max_lag=3, alpha_forward=0.01)
-    >>>
-    >>> # Examine discovered edges
-    >>> for edge in G.edges(data=True):
-    ...     print(f"Source:{edge[0]}  Sink: {edge[1]}, lag={edge[2]['lag']}, cmi:={edge[2]['cmi']},")
-
-    References
-    ----------
-    .. [1] Sun, J., Bollt, E.M. Causation entropy identifies indirect influences, dominance of
-           neighbors and anticipatory couplings. Physica D 267, 49-57 (2014).
-
-    .. [2] Schreiber, T. Measuring information transfer. Physical Review Letters 85, 461 (2000).
     """
     rng = np.random.default_rng(42)
 
@@ -225,6 +98,7 @@ def discover_network(
                 early_stopping,
                 min_shuffles,
                 confidence,
+                kd_tree,
             )
         if method == "alternative":
             S = alternative_optimal_causation_entropy(
@@ -241,6 +115,7 @@ def discover_network(
                 early_stopping,
                 min_shuffles,
                 confidence,
+                kd_tree,
             )
         if method == "information_lasso":
             S = information_lasso_optimal_causation_entropy(X_lagged, Y, rng)
@@ -266,6 +141,7 @@ def discover_network(
                 metric=metric,
                 k=k_means,
                 bandwidth=bandwidth,
+                kd_tree=kd_tree,
             )
 
             # Compute p-value using shuffle test
@@ -284,6 +160,7 @@ def discover_network(
                 early_stopping=early_stopping,
                 min_shuffles=min_shuffles,
                 confidence=confidence,
+                kd_tree=kd_tree,
             )
 
             G.add_edge(
@@ -312,6 +189,7 @@ def standard_optimal_causation_entropy(
     early_stopping=True,
     min_shuffles=50,
     confidence=0.95,
+    kd_tree=True,
 ):
     r"""
     Execute the standard optimal Causation Entropy algorithm with initial conditioning set.
@@ -366,6 +244,7 @@ def standard_optimal_causation_entropy(
         early_stopping,
         min_shuffles,
         confidence,
+        kd_tree,
     )
 
     S = backward(
@@ -382,6 +261,7 @@ def standard_optimal_causation_entropy(
         early_stopping,
         min_shuffles,
         confidence,
+        kd_tree,
     )
 
     return S
@@ -401,6 +281,7 @@ def alternative_optimal_causation_entropy(
     early_stopping=True,
     min_shuffles=50,
     confidence=0.95,
+    kd_tree=True,
 ):
     """
     Execute the alternative optimal Causation Entropy algorithm without initial conditioning.
@@ -445,6 +326,7 @@ def alternative_optimal_causation_entropy(
         early_stopping,
         min_shuffles,
         confidence,
+        kd_tree,
     )
 
     S = backward(
@@ -461,6 +343,7 @@ def alternative_optimal_causation_entropy(
         early_stopping,
         min_shuffles,
         confidence,
+        kd_tree,
     )
 
     return S
@@ -573,6 +456,7 @@ def alternative_forward(
     early_stopping=True,
     min_shuffles=50,
     confidence=0.95,
+    kd_tree=True,
 ):
     r"""
     Forward selection phase of oCSE without initial conditioning set.
@@ -638,6 +522,7 @@ def alternative_forward(
                 metric=metric,
                 k=k_means,
                 bandwidth=bandwidth,
+                kd_tree=kd_tree,
             )
 
         # 2. pick best
@@ -661,6 +546,7 @@ def alternative_forward(
             early_stopping=early_stopping,
             min_shuffles=min_shuffles,
             confidence=confidence,
+            kd_tree=kd_tree,
         )["Pass"]
         if not passed:
             break
@@ -686,6 +572,7 @@ def standard_forward(
     early_stopping=True,
     min_shuffles=50,
     confidence=0.95,
+    kd_tree=True,
 ):
     r"""
     Standard forward selection phase of oCSE with initial conditioning set.
@@ -750,6 +637,7 @@ def standard_forward(
                 metric=metric,
                 k=k_means,
                 bandwidth=bandwidth,
+                kd_tree=kd_tree,
             )
 
         # 2. take the arg‑max
@@ -774,6 +662,7 @@ def standard_forward(
             early_stopping=early_stopping,
             min_shuffles=min_shuffles,
             confidence=confidence,
+            kd_tree=kd_tree,
         )["Pass"]
 
         if not passed:
@@ -802,55 +691,10 @@ def backward(
     early_stopping=True,
     min_shuffles=50,
     confidence=0.95,
+    kd_tree=True,
 ):
     r"""
     Backward elimination phase of optimal Causation Entropy.
-
-    This function performs backward elimination to remove spurious causal relationships
-    identified during forward selection. For each predictor selected in the forward phase,
-    it tests whether the predictor maintains statistical significance when conditioned on
-    all other selected predictors.
-
-    For each predictor :math:`X_j` in the selected set, the test evaluates:
-
-    .. math::
-
-        I(X_j^{(t)}; Y^{(t+\tau)} | \mathbf{S}_{-j}^{(t)}) > \text{threshold}
-
-    where :math:`\mathbf{S}_{-j}^{(t)}` represents all selected predictors except :math:`X_j`.
-
-    Parameters
-    ----------
-    X_full : array-like of shape (T, n)
-        Complete predictor matrix at time t, unchanged throughout the process.
-    Y : array-like of shape (T, 1)
-        Target variable at time t+τ.
-    S_init : list of int
-        Indices of predictor variables selected during the forward phase.
-    rng : numpy.random.Generator
-        Random number generator for permutation order and significance testing.
-    alpha : float, default=0.05
-        Significance level for backward elimination tests.
-    n_shuffles : int, default=200
-        Number of permutation shuffles for statistical testing.
-    information : str, default='gaussian'
-        Information measure estimator type.
-
-    Returns
-    -------
-    S_final : list of int
-        Subset of S_init containing predictors that maintained statistical significance
-        during backward elimination.
-
-    Notes
-    -----
-    Predictors are evaluated in random order to avoid selection bias. A predictor is
-    removed if its conditional mutual information with the target, given all other
-    selected predictors, falls below the significance threshold.
-
-    The backward phase is essential for controlling false positive rates in causal
-    discovery, as forward selection may include predictors that become redundant
-    when considered alongside other selected variables.
     """
     S = copy.deepcopy(S_init)  # working copy
 
@@ -860,7 +704,14 @@ def backward(
 
         Xj = X_full[:, [j]]
         cmij = conditional_mutual_information(
-            Xj, Y, Z, method=information, metric=metric, k=k_means, bandwidth=bandwidth
+            Xj,
+            Y,
+            Z,
+            method=information,
+            metric=metric,
+            k=k_means,
+            bandwidth=bandwidth,
+            kd_tree=kd_tree,
         )
 
         passed = shuffle_test(
@@ -878,6 +729,7 @@ def backward(
             early_stopping=early_stopping,
             min_shuffles=min_shuffles,
             confidence=confidence,
+            kd_tree=kd_tree,
         )["Pass"]
         if not passed:
             S.remove(j)  # prune j
@@ -900,146 +752,83 @@ def shuffle_test(
     early_stopping=True,
     min_shuffles=50,
     confidence=0.95,
+    kd_tree=True,
 ):
     r"""
     Permutation test for conditional mutual information significance.
-
-    This function performs a permutation test to assess the statistical significance of
-    the conditional mutual information I(X;Y|Z). The test generates a null distribution
-    by computing conditional mutual information on permuted versions of the predictor X,
-    while keeping Y and Z unchanged.
-
-    The null hypothesis is that X and Y are conditionally independent given Z:
-
-    .. math::
-
-        H_0: I(X; Y | Z) = 0
-
-    The test statistic follows the distribution:
-
-    .. math::
-
-        \text{CMI}_{\text{null}} \sim \text{Distribution under } H_0
-
-    Statistical significance is assessed by comparing the observed conditional mutual
-    information to the (1-α) percentile of the null distribution.
-
-    Parameters
-    ----------
-    X : array-like of shape (T, k_x)
-        Predictor variable(s) under test. Must be 2-D even when k_x=1.
-    Y : array-like of shape (T, 1)
-        Target variable column.
-    Z : array-like of shape (T, k_z) or None
-        Current conditioning set. If None, tests marginal mutual information.
-    observed_cmi : float
-        Conditional mutual information value computed on original (unshuffled) data.
-    alpha : float, default=0.05
-        Significance level for the test. Lower values require stronger evidence.
-    n_shuffles : int, default=500
-        Maximum number of random permutations to generate for the null distribution.
-        With early stopping enabled, the actual number may be lower.
-    rng : int, numpy.random.Generator, or None
-        Random number generator or seed for reproducible results.
-    information : str, default='gaussian'
-        Information measure estimator type used for conditional mutual information.
-    early_stopping : bool, default=True
-        Whether to enable early stopping when statistical significance is clear.
-    min_shuffles : int, default=50
-        Minimum number of shuffles before early stopping can occur.
-    confidence : float, default=0.95
-        Confidence level for early stopping decision. Higher values require more
-        evidence before stopping early.
-
-    Returns
-    -------
-    result : dict
-        Dictionary containing test results:
-
-        - 'Threshold': float, the (1-α) percentile of the null distribution
-        - 'Value': float, the observed conditional mutual information value
-        - 'Pass': bool, True if observed_cmi >= threshold (statistically significant)
-        - 'P_value': float, empirical p-value (proportion of null values >= observed)
-        - 'n_shuffles_used': int, actual number of shuffles performed (may be less than n_shuffles if early stopping)
-
-    Notes
-    -----
-    The permutation test is based on the assumption that under the null hypothesis,
-    the predictor X is exchangeable with respect to the target Y when conditioned on Z.
-    This provides a non-parametric approach to significance testing that does not
-    require distributional assumptions.
-
-    For computational efficiency, consider reducing n_shuffles for preliminary analyses,
-    though this may reduce the precision of p-value estimates. Early stopping is enabled
-    by default and can significantly reduce computation time when statistical significance
-    is clear, while maintaining statistical validity through adaptive stopping criteria.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from causationentropy.core.discovery import shuffle_test
-    >>>
-    >>> # Generate sample data
-    >>> X = np.random.randn(100, 1)
-    >>> Y = np.random.randn(100, 1)
-    >>> Z = np.random.randn(100, 2)
-    >>> observed = 0.15
-    >>>
-    >>> # Perform permutation test
-    >>> result = shuffle_test(X, Y, Z, observed, alpha=0.05, n_shuffles=1000)
-    >>> print(f"Significant: {result['Pass']}, p-value: {result['P_value']:.3f}")
-    >>> print(f"Used {result['n_shuffles_used']} of {1000} shuffles")
     """
     from scipy import stats
+
+    from causationentropy.core.information.conditional_mutual_information import (
+        cached_detcorr,
+    )
 
     rng = np.random.default_rng(rng)
     null_cmi = []
 
     # Variables for early stopping
     n_shuffles_used = 0
-    early_stop = False
 
-    for i in range(n_shuffles):
-        X_perm = X[rng.permutation(len(X)), :]  # shuffle rows
-        null_val = conditional_mutual_information(
-            X_perm,
-            Y,
-            Z,
-            method=information,
-            metric=metric,
-            k=k_means,
-            bandwidth=bandwidth,
-        )
-        null_cmi.append(null_val)
-        n_shuffles_used = i + 1
+    if information == "gaussian" and Z is not None:
+        # Pre-compute invariant parts for Gaussian case
+        log_det_Z = cached_detcorr(Z)
+        log_det_YZ = cached_detcorr(np.hstack((Y, Z)))
 
-        # Check for early stopping after minimum number of shuffles
-        if early_stopping and n_shuffles_used >= min_shuffles:
-            # Count how many null values are >= observed
-            n_greater_equal = sum(1 for x in null_cmi if x >= observed_cmi)
-            current_p_value = n_greater_equal / n_shuffles_used
+        for i in range(n_shuffles):
+            X_perm = X[rng.permutation(len(X)), :]  # shuffle rows
+            log_det_XZ_perm = cached_detcorr(np.hstack((X_perm, Z)))
+            log_det_XYZ_perm = cached_detcorr(np.hstack((X_perm, Y, Z)))
+            null_val = 0.5 * (
+                log_det_XZ_perm + log_det_YZ - log_det_Z - log_det_XYZ_perm
+            )
+            null_cmi.append(null_val)
+            n_shuffles_used = i + 1
 
-            # Use binomial test to check if we can confidently determine significance
-            # H0: true p-value = alpha (boundary case)
-            # If current_p_value is significantly different from alpha, we can stop early
-
-            if n_shuffles_used >= min_shuffles:
-                # For clearly significant cases (p << alpha)
-                if current_p_value <= alpha / 10:  # Very strong evidence against H0
-                    # Use conservative estimate - need enough evidence
+            # Early stopping logic...
+            if early_stopping and n_shuffles_used >= min_shuffles:
+                n_greater_equal = np.sum(np.array(null_cmi) >= observed_cmi)
+                current_p_value = n_greater_equal / n_shuffles_used
+                if current_p_value <= alpha / 10:
                     binom_p = stats.binom.cdf(n_greater_equal, n_shuffles_used, alpha)
                     if binom_p >= confidence:
-                        early_stop = True
                         break
-
-                # For clearly non-significant cases (p >> alpha)
-                elif current_p_value >= alpha * 3:  # Strong evidence for H0
-                    # Test if p-value is significantly greater than alpha
+                elif current_p_value >= alpha * 3:
                     binom_p = 1 - stats.binom.cdf(
                         n_greater_equal - 1, n_shuffles_used, alpha
                     )
                     if binom_p >= confidence:
-                        early_stop = True
+                        break
+
+    else:
+        # Original implementation for other information methods
+        for i in range(n_shuffles):
+            X_perm = X[rng.permutation(len(X)), :]  # shuffle rows
+            null_val = conditional_mutual_information(
+                X_perm,
+                Y,
+                Z,
+                method=information,
+                metric=metric,
+                k=k_means,
+                bandwidth=bandwidth,
+                kd_tree=kd_tree,
+            )
+            null_cmi.append(null_val)
+            n_shuffles_used = i + 1
+
+            # Early stopping logic...
+            if early_stopping and n_shuffles_used >= min_shuffles:
+                n_greater_equal = np.sum(np.array(null_cmi) >= observed_cmi)
+                current_p_value = n_greater_equal / n_shuffles_used
+                if current_p_value <= alpha / 10:
+                    binom_p = stats.binom.cdf(n_greater_equal, n_shuffles_used, alpha)
+                    if binom_p >= confidence:
+                        break
+                elif current_p_value >= alpha * 3:
+                    binom_p = 1 - stats.binom.cdf(
+                        n_greater_equal - 1, n_shuffles_used, alpha
+                    )
+                    if binom_p >= confidence:
                         break
 
     # Convert to numpy array for final calculations

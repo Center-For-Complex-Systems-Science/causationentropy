@@ -11,44 +11,6 @@ from causationentropy.core.linalg import correlation_log_determinant
 def gaussian_mutual_information(X, Y):
     r"""
     Compute mutual information for multivariate Gaussian variables using log-determinants.
-
-    For multivariate Gaussian random variables, the mutual information has a closed-form
-    expression in terms of the covariance matrices:
-
-    .. math::
-
-        I(X; Y) = \frac{1}{2} \log \frac{|\Sigma_X| |\Sigma_Y|}{|\Sigma_{XY}|}
-
-    where :math:`\Sigma_X`, :math:`\Sigma_Y` are the covariance matrices of X and Y,
-    and :math:`\Sigma_{XY}` is the joint covariance matrix of the concatenated vector [X, Y].
-
-    This implementation uses correlation matrices and their log-determinants for
-    numerical stability.
-
-    Parameters
-    ----------
-    X : array-like of shape (n_samples, n_features_x)
-        First multivariate Gaussian variable.
-    Y : array-like of shape (n_samples, n_features_y)
-        Second multivariate Gaussian variable. Must have the same number of samples as X.
-
-    Returns
-    -------
-    I : float
-        Mutual information in nats (natural units).
-
-    Notes
-    -----
-    This estimator is exact for multivariate Gaussian data and provides the
-    theoretical benchmark for other mutual information estimators.
-
-    The Gaussian assumption implies:
-    - All marginal and joint distributions are multivariate normal
-    - Linear relationships capture all dependencies
-    - Higher-order moments beyond covariance are uninformative
-
-    For non-Gaussian data, this estimator captures only linear dependencies
-    and may underestimate the true mutual information.
     """
 
     SX = correlation_log_determinant(X)
@@ -104,7 +66,7 @@ def kde_mutual_information(X, Y, bandwidth="silverman", kernel="gaussian"):
     return Hx + Hy - Hxy
 
 
-def knn_mutual_information(X, Y, metric="euclidean", k=1):
+def knn_mutual_information(X, Y, metric="euclidean", k=1, kd_tree=True):
     r"""
     Estimate mutual information using k-nearest neighbor (KSG) method.
 
@@ -156,21 +118,34 @@ def knn_mutual_information(X, Y, metric="euclidean", k=1):
     # Import here to avoid circular import
     from causationentropy.core.information.conditional_mutual_information import (
         cached_cdist,
+        tree_knn_distances,
+        tree_neighbors_within_distance,
     )
 
     # construct the joint space
     n = X.shape[0]
     JS = np.column_stack((X, Y))
 
-    # Find the K^th smallest distance in the joint space
-    D = np.sort(cached_cdist(JS, metric=metric), axis=1)[:, k]
-    epsilon = D
+    if kd_tree and n >= 1000:  # Only use trees for larger datasets
+        # Use tree-based approach for significant performance improvement
+        # Find the k-th nearest neighbor distances in joint space
+        distances_js, _indices = tree_knn_distances(JS, k=k, metric=metric)
+        epsilon = distances_js[:, k - 1]  # k-th nearest distance for each point
 
-    # Count neighbors within epsilon in marginal spaces
-    Dx = cached_cdist(X, metric=metric)
-    nx = np.sum(Dx < epsilon[:, np.newaxis], axis=1) - 1
-    Dy = cached_cdist(Y, metric=metric)
-    ny = np.sum(Dy < epsilon[:, np.newaxis], axis=1) - 1
+        # Count neighbors within epsilon in marginal spaces using trees
+        nx = tree_neighbors_within_distance(X, epsilon, metric=metric)
+        ny = tree_neighbors_within_distance(Y, epsilon, metric=metric)
+    else:
+        # Original distance matrix approach
+        # Find the K^th smallest distance in the joint space
+        D = np.sort(cached_cdist(JS, metric=metric), axis=1)[:, k]
+        epsilon = D
+
+        # Count neighbors within epsilon in marginal spaces
+        Dx = cached_cdist(X, metric=metric)
+        nx = np.sum(Dx < epsilon[:, np.newaxis], axis=1) - 1
+        Dy = cached_cdist(Y, metric=metric)
+        ny = np.sum(Dy < epsilon[:, np.newaxis], axis=1) - 1
 
     # KSG Estimation formula
     I1a = digamma(k)
@@ -180,7 +155,7 @@ def knn_mutual_information(X, Y, metric="euclidean", k=1):
     return I1 + I2
 
 
-def geometric_knn_mutual_information(X, Y, metric="euclidean", k=1):
+def geometric_knn_mutual_information(X, Y, metric="euclidean", k=1, kd_tree=True):
     """
     Estimate mutual information using geometric k-nearest neighbor method.
 
@@ -230,6 +205,9 @@ def geometric_knn_mutual_information(X, Y, metric="euclidean", k=1):
         cached_cdist,
     )
 
+    # Note: geometric_knn_entropy currently requires distance matrices
+    # For full tree optimization, geometric_knn_entropy would need to be refactored
+    # to work with tree-based neighbor queries instead of precomputed distance matrices
     Xdist = cached_cdist(X, metric=metric)
     Ydist = cached_cdist(Y, metric=metric)
     XYdist = cached_cdist(np.hstack((X, Y)), metric=metric)

@@ -186,3 +186,227 @@ class TestIntegrationAndEdgeCases:
         result = poisson_entropy(50.0)
         assert np.isfinite(result)
         assert result > 0
+
+
+class TestGeometricKNNEntropyEdgeCases:
+    """Test edge cases and error handling in geometric k-NN entropy."""
+
+    def test_geometric_knn_entropy_zero_distances(self):
+        """Test handling of zero/very small distances (log_distances edge case)."""
+        # Create data with duplicate points to force zero distances
+        X = np.array([
+            [0.0, 0.0],
+            [0.0, 0.0],  # Duplicate point (zero distance)
+            [1.0, 1.0],
+            [2.0, 2.0]
+        ])
+
+        # Calculate distance matrix
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # This should trigger the log_distances.append(-12.0) line
+        result = geometric_knn_entropy(X, Xdist, k=1)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_identical_points(self):
+        """Test with dataset containing multiple identical points."""
+        # Create data where many points are identical
+        X = np.array([
+            [1.0, 1.0],
+            [1.0, 1.0],
+            [1.0, 1.0],
+            [1.0, 1.0],
+            [2.0, 2.0]
+        ])
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # Should handle zero distances gracefully
+        result = geometric_knn_entropy(X, Xdist, k=2)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_singular_matrix(self):
+        """Test handling of singular matrices (SVD exception case)."""
+        # Create data that will lead to singular matrices in SVD
+        # Points all on a line (rank deficient)
+        X = np.array([
+            [0.0, 0.0],
+            [1.0, 1.0],
+            [2.0, 2.0],
+            [3.0, 3.0],
+            [4.0, 4.0]
+        ])
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # This may trigger SVD exception handling
+        result = geometric_knn_entropy(X, Xdist, k=3)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_degenerate_data(self):
+        """Test with extremely degenerate data to trigger various edge cases."""
+        # Create data with very small variations that may cause numerical issues
+        X = np.array([
+            [0.0, 0.0],
+            [1e-15, 1e-15],  # Extremely close to first point
+            [1e-14, 1e-14],  # Also very close
+            [1.0, 0.0],
+            [0.0, 1.0]
+        ])
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # Should handle numerical edge cases
+        result = geometric_knn_entropy(X, Xdist, k=2)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_rank_deficient_neighborhoods(self):
+        """Test data designed to create rank-deficient neighborhood matrices."""
+        # Create data where neighborhoods have very small singular values
+        X = np.array([
+            [0.0, 0.0, 0.0],
+            [1e-13, 0.0, 0.0],  # Very small perturbation
+            [0.0, 1e-13, 0.0],  # Another small perturbation
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0]
+        ])
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # This should trigger the sing_ratio_sum += -12.0 line
+        result = geometric_knn_entropy(X, Xdist, k=3)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    @patch('causationentropy.core.information.entropy.np.linalg.svd')
+    def test_geometric_knn_entropy_svd_failure(self, mock_svd):
+        """Test SVD failure handling using mocking."""
+        # Mock SVD to raise an exception
+        mock_svd.side_effect = np.linalg.LinAlgError("SVD did not converge")
+
+        # Regular data
+        X = np.random.normal(0, 1, (10, 2))
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # Should handle SVD exception gracefully
+        result = geometric_knn_entropy(X, Xdist, k=3)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_infinite_correction(self):
+        """Test handling of non-finite geometric corrections."""
+        # Create a scenario that might produce infinite corrections
+        # Use data with extreme aspect ratios
+        X = np.array([
+            [0.0, 0.0],
+            [1e-100, 0.0],  # Extremely close in one dimension
+            [1e10, 0.0],    # Very far in one dimension
+            [0.0, 1.0],
+            [0.0, -1.0]
+        ])
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # Should handle potential infinite/NaN corrections
+        result = geometric_knn_entropy(X, Xdist, k=3)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_all_edge_cases_combined(self):
+        """Test with data designed to trigger multiple edge cases."""
+        # Complex scenario with multiple potential issues
+        X = np.array([
+            [0.0, 0.0, 0.0],      # Origin
+            [0.0, 0.0, 0.0],      # Duplicate (zero distance)
+            [1e-15, 1e-15, 1e-15], # Nearly zero (small distance)
+            [1e-13, 0.0, 0.0],    # Small singular values
+            [0.0, 1e-13, 0.0],    # Small singular values
+            [0.0, 0.0, 1e-13],    # Small singular values
+            [1.0, 0.0, 0.0],      # Normal point
+            [0.0, 1.0, 0.0],      # Normal point
+        ])
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # Should handle combination of edge cases
+        result = geometric_knn_entropy(X, Xdist, k=4)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_target_line_coverage(self):
+        """Specific test to ensure target error handling lines are covered."""
+        # Test case 1: Force zero distance to trigger log_distances.append(-12.0)
+        X_zero_dist = np.array([
+            [0.0, 0.0],
+            [0.0, 0.0],  # Exact duplicate
+            [1.0, 0.0]
+        ])
+        N = X_zero_dist.shape[0]
+        Xdist_zero = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist_zero[i, j] = l2dist(X_zero_dist[i], X_zero_dist[j])
+
+        result1 = geometric_knn_entropy(X_zero_dist, Xdist_zero, k=1)
+        assert np.isfinite(result1)
+
+        # Test case 2: Force very small singular values to trigger sing_ratio_sum += -12.0
+        X_small_sing = np.array([
+            [0.0, 0.0, 0.0],
+            [1e-14, 0.0, 0.0],  # Very small perturbation
+            [0.0, 1e-14, 0.0],  # Another very small perturbation
+            [1.0, 0.0, 0.0]
+        ])
+        N = X_small_sing.shape[0]
+        Xdist_small = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist_small[i, j] = l2dist(X_small_sing[i], X_small_sing[j])
+
+        result2 = geometric_knn_entropy(X_small_sing, Xdist_small, k=2)
+        assert np.isfinite(result2)

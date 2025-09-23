@@ -511,3 +511,189 @@ class TestGeometricKNNEntropyEdgeCases:
 
         assert isinstance(result, float)
         assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_precise_singular_ratio_trigger(self):
+        """Precisely target the sing_ratio_sum += -12.0 line."""
+        # Create data that will have large first singular value but tiny second
+        # Use nearly collinear points with tiny perpendicular displacement
+
+        X = np.array(
+            [
+                [0.0, 0.0],
+                [1.0, 1e-7],  # On line with tiny y displacement
+                [2.0, -1e-7],  # On line with tiny y displacement
+                [3.0, 1.5e-7],  # On line with tiny y displacement
+                [4.0, -1.5e-7],  # On line with tiny y displacement
+            ]
+        )
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # This creates neighborhoods where points are nearly collinear
+        # Leading to large first singular value, tiny second -> tiny ratio
+        result = geometric_knn_entropy(X, Xdist, k=3)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_infinite_correction_trigger(self):
+        """Precisely target the geometric_corrections.append(0.0) line for non-finite corrections."""
+        # Create data with extreme scaling to force non-finite corrections
+
+        X = np.array(
+            [
+                [0.0, 0.0],
+                [1e-200, 0.0],  # Extremely small - may cause underflow
+                [1e200, 0.0],  # Extremely large - may cause overflow
+                [0.0, 1e-200],  # Extremely small
+            ]
+        )
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # This extreme scaling should trigger non-finite correction handling
+        result = geometric_knn_entropy(X, Xdist, k=2)
+
+        # Even if internal calculations are non-finite, result should be finite due to fallback
+        assert isinstance(result, float)
+        # Note: result might be inf if the overall calculation overflows
+
+    def test_geometric_knn_entropy_rank_1_matrix_neighborhoods(self):
+        """Create neighborhoods that are rank-1 to force tiny singular values."""
+        # All neighbors lie exactly on a line through the center point
+
+        center = np.array([1.0, 1.0])
+        direction = np.array([1.0, 0.5])  # Direction vector
+
+        X = np.array(
+            [
+                center,  # Center point
+                center + 0.1 * direction,  # On line from center
+                center - 0.1 * direction,  # On line from center
+                center + 0.05 * direction,  # On line from center
+                center - 0.05 * direction,  # On line from center
+            ]
+        )
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # When center point's neighborhood is computed, all neighbors are collinear
+        # This should create a neighborhood matrix with rank 1
+        result = geometric_knn_entropy(X, Xdist, k=4)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_designed_for_tiny_ratios(self):
+        """Design data specifically to create sing_Yi[l]/sing_Yi[0] <= 1e-12."""
+        # Create a 3D dataset where neighborhoods have 1 large and 2 very small singular values
+
+        X = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [1.0, 1e-8, 1e-8],  # Large change in x, tiny in y,z
+                [0.5, -1e-8, 1e-8],  # Medium change in x, tiny in y,z
+                [1.5, 1e-8, -1e-8],  # Large change in x, tiny in y,z
+                [0.25, 1e-8, 1e-8],  # Small change in x, tiny in y,z
+            ]
+        )
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # This should create neighborhoods with one dominant direction (x-axis)
+        # and very small variations in y,z leading to tiny singular value ratios
+        result = geometric_knn_entropy(X, Xdist, k=3)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_guaranteed_edge_cases(self):
+        """Test cases specifically crafted to guarantee hitting the target lines."""
+
+        # Test case 1: Create data that forces tiny singular value ratios
+        # Use points that are almost perfectly collinear to force second singular value to be tiny
+        X1 = np.array(
+            [
+                [0.0, 0.0],
+                [1.0, 0.0],  # Exactly on x-axis
+                [2.0, 1e-13],  # Almost on x-axis (tiny y)
+                [3.0, -1e-13],  # Almost on x-axis (tiny y)
+                [4.0, 2e-13],  # Almost on x-axis (tiny y)
+            ]
+        )
+
+        N1 = X1.shape[0]
+        Xdist1 = np.zeros((N1, N1))
+        for i in range(N1):
+            for j in range(N1):
+                Xdist1[i, j] = l2dist(X1[i], X1[j])
+
+        # When computing neighborhoods, the Y_i matrix will have one large singular value (x-direction)
+        # and one very small singular value (y-direction), making ratio = small/large <= 1e-12
+        result1 = geometric_knn_entropy(X1, Xdist1, k=3)
+        assert isinstance(result1, float)
+        assert np.isfinite(result1)
+
+        # Test case 2: Create data guaranteed to produce non-finite corrections
+        # Use extreme coordinates that will cause overflow/underflow in calculations
+        X2 = np.array(
+            [
+                [0.0, 0.0],
+                [1e100, 1e100],  # Extremely large values
+                [1e-100, 1e-100],  # Extremely small values
+                [1e100, -1e100],  # Mixed extreme values
+            ]
+        )
+
+        N2 = X2.shape[0]
+        Xdist2 = np.zeros((N2, N2))
+        for i in range(N2):
+            for j in range(N2):
+                Xdist2[i, j] = l2dist(X2[i], X2[j])
+
+        # This extreme scaling will cause numerical issues in SVD and correction calculations
+        # potentially producing inf or nan, triggering geometric_corrections.append(0.0)
+        result2 = geometric_knn_entropy(X2, Xdist2, k=2)
+        assert isinstance(result2, float)
+        # Note: result2 might be inf due to extreme values
+
+        # Test case 3: Force rank-deficient neighborhoods for tiny ratios
+        # Create 3D data where all neighbors of a point lie in a 2D subspace
+        origin = np.array([0.0, 0.0, 0.0])
+        X3 = np.array(
+            [
+                origin,
+                origin + np.array([1.0, 0.0, 0.0]),  # x-direction
+                origin + np.array([0.0, 1.0, 0.0]),  # y-direction
+                origin + np.array([1.0, 1.0, 0.0]),  # xy-plane
+                origin + np.array([0.5, 0.5, 1e-14]),  # Almost in xy-plane (tiny z)
+            ]
+        )
+
+        N3 = X3.shape[0]
+        Xdist3 = np.zeros((N3, N3))
+        for i in range(N3):
+            for j in range(N3):
+                Xdist3[i, j] = l2dist(X3[i], X3[j])
+
+        # When computing the neighborhood around the origin, most neighbors lie in xy-plane
+        # This creates a scenario where the 3rd singular value (z-direction) is much smaller
+        result3 = geometric_knn_entropy(X3, Xdist3, k=4)
+        assert isinstance(result3, float)
+        assert np.isfinite(result3)

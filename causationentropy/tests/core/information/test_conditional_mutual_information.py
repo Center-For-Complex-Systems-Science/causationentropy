@@ -7,6 +7,7 @@ from causationentropy.core.information.conditional_mutual_information import (
     conditional_mutual_information,
     gaussian_conditional_mutual_information,
     geometric_knn_conditional_mutual_information,
+    poisson_conditional_mutual_information,
 )
 
 
@@ -539,3 +540,130 @@ class TestGeometricKnnConditionalMutualInformation:
         cmi_direct = geometric_knn_conditional_mutual_information(X, Y, Z, k=3)
 
         assert np.isclose(cmi_main, cmi_direct, rtol=1e-15)
+
+
+class TestPoissonConditionalMutualInformation:
+    """Test Poisson conditional mutual information calculation."""
+
+    def test_poisson_cmi_no_conditioning(self):
+        """Test Poisson CMI when Z=None (marginal MI case)."""
+        np.random.seed(42)
+        n = 50
+
+        # Generate Poisson-like count data
+        X = np.random.poisson(lam=2.0, size=(n, 2)).astype(float)
+        Y = np.random.poisson(lam=1.5, size=(n, 1)).astype(float)
+
+        # Test the Z=None code path
+        cmi = poisson_conditional_mutual_information(X, Y, Z=None)
+
+        assert isinstance(cmi, float)
+        assert not np.isnan(cmi)
+        assert np.isfinite(cmi)
+
+    def test_poisson_cmi_with_conditioning(self):
+        """Test Poisson CMI with conditioning variable Z."""
+        np.random.seed(42)
+        n = 60
+
+        # Generate Poisson-like count data
+        X = np.random.poisson(lam=1.0, size=(n, 1)).astype(float)
+        Y = np.random.poisson(lam=1.5, size=(n, 1)).astype(float)
+        Z = np.random.poisson(lam=2.0, size=(n, 1)).astype(float)
+
+        cmi = poisson_conditional_mutual_information(X, Y, Z)
+
+        assert isinstance(cmi, float)
+        assert not np.isnan(cmi)
+        assert np.isfinite(cmi)
+
+    def test_poisson_cmi_multivariate(self):
+        """Test Poisson CMI with multivariate inputs."""
+        np.random.seed(42)
+        n = 40
+
+        # Generate multivariate Poisson-like count data
+        X = np.random.poisson(lam=1.0, size=(n, 2)).astype(float)
+        Y = np.random.poisson(lam=1.5, size=(n, 2)).astype(float)
+        Z = np.random.poisson(lam=2.0, size=(n, 1)).astype(float)
+
+        cmi = poisson_conditional_mutual_information(X, Y, Z)
+
+        assert isinstance(cmi, float)
+        assert not np.isnan(cmi)
+        assert np.isfinite(cmi)
+
+    def test_poisson_cmi_identical_variables(self):
+        """Test Poisson CMI with identical X and Y."""
+        np.random.seed(42)
+        n = 50
+
+        X = np.random.poisson(lam=2.0, size=(n, 1)).astype(float)
+        Y = X.copy()  # Identical
+        Z = np.random.poisson(lam=1.0, size=(n, 1)).astype(float)
+
+        # Test both code paths
+        cmi_no_z = poisson_conditional_mutual_information(X, Y, Z=None)
+        cmi_with_z = poisson_conditional_mutual_information(X, Y, Z)
+
+        assert isinstance(cmi_no_z, float)
+        assert isinstance(cmi_with_z, float)
+        assert not np.isnan(cmi_no_z)
+        assert not np.isnan(cmi_with_z)
+
+    def test_poisson_cmi_via_main_function(self):
+        """Test Poisson CMI through the main conditional_mutual_information function."""
+        np.random.seed(42)
+        n = 50
+
+        X = np.random.poisson(lam=1.5, size=(n, 1)).astype(float)
+        Y = np.random.poisson(lam=2.0, size=(n, 1)).astype(float)
+        Z = np.random.poisson(lam=1.0, size=(n, 1)).astype(float)
+
+        # Call through main interface
+        cmi_main = conditional_mutual_information(X, Y, Z, method="poisson")
+
+        # Call directly
+        cmi_direct = poisson_conditional_mutual_information(X, Y, Z)
+
+        assert np.isclose(cmi_main, cmi_direct, rtol=1e-15)
+
+    def test_poisson_cmi_edge_cases(self):
+        """Test Poisson CMI edge cases."""
+        np.random.seed(42)
+
+        # Test with small sample size
+        n = 10
+        X = np.random.poisson(lam=1.0, size=(n, 1)).astype(float)
+        Y = np.random.poisson(lam=1.0, size=(n, 1)).astype(float)
+        Z = np.random.poisson(lam=1.0, size=(n, 1)).astype(float)
+
+        # Should work with small samples
+        cmi_no_z = poisson_conditional_mutual_information(X, Y, Z=None)
+        cmi_with_z = poisson_conditional_mutual_information(X, Y, Z)
+
+        assert isinstance(cmi_no_z, (float, np.floating))
+        assert isinstance(cmi_with_z, (float, np.floating))
+
+    def test_poisson_cmi_count_data_properties(self):
+        """Test Poisson CMI with realistic count data properties."""
+        np.random.seed(42)
+        n = 80
+
+        # Create count data with known dependencies
+        base_rate = np.random.poisson(lam=3.0, size=(n, 1)).astype(float)
+        X = base_rate + np.random.poisson(lam=1.0, size=(n, 1)).astype(float)
+        Y = base_rate + np.random.poisson(lam=1.0, size=(n, 1)).astype(float)
+        Z = np.random.poisson(lam=2.0, size=(n, 1)).astype(float)
+
+        # Test both paths with realistic count data
+        cmi_no_z = poisson_conditional_mutual_information(X, Y, Z=None)
+        cmi_with_z = poisson_conditional_mutual_information(X, Y, Z)
+
+        assert isinstance(cmi_no_z, float)
+        assert isinstance(cmi_with_z, float)
+        assert not np.isnan(cmi_no_z)
+        assert not np.isnan(cmi_with_z)
+
+        # X and Y should have positive MI since they share base_rate
+        assert cmi_no_z > 0

@@ -67,6 +67,8 @@ network = discover_network(
 )
 ```
 
+This implementation of this algorithm runs in `O(n^2 T log T)` where `N` is the number of variables and `T` is the length of the time series. Application of this algorithm without optimizations is computationally intensive. When running this algorithm, please be patient. Optimizations of the algorithm are planned for a later release that leverage singular value decomposition and KD-Trees. However, these optimizations are not part of the original algorithm.\
+
 ### Synthetic Data Example
 
 ```python

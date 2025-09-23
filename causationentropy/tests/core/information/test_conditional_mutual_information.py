@@ -690,6 +690,7 @@ class TestKDEConditionalMutualInformation:
         from causationentropy.core.information.mutual_information import (
             kde_mutual_information,
         )
+
         mi = kde_mutual_information(X, Y)
 
         assert isinstance(cmi, float)
@@ -782,6 +783,7 @@ class TestKNNConditionalMutualInformation:
         from causationentropy.core.information.mutual_information import (
             knn_mutual_information,
         )
+
         mi = knn_mutual_information(X, Y, k=3)
 
         assert isinstance(cmi, float)

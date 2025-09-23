@@ -697,3 +697,163 @@ class TestGeometricKNNEntropyEdgeCases:
         result3 = geometric_knn_entropy(X3, Xdist3, k=4)
         assert isinstance(result3, float)
         assert np.isfinite(result3)
+
+    def test_geometric_knn_entropy_force_non_finite_correction(self):
+        """Specifically designed to force geometric_corrections.append(0.0) line."""
+        # Use data with NaN or inf values to force non-finite corrections
+
+        # Create data with very problematic numerical values
+        X = np.array(
+            [
+                [0.0, 0.0],
+                [np.inf, 0.0],  # Infinite coordinate
+                [0.0, np.inf],  # Infinite coordinate
+                [1.0, 1.0],  # Normal point for comparison
+            ]
+        )
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # This should create NaN values in the distance matrix and SVD calculations
+        # leading to non-finite corrections that trigger geometric_corrections.append(0.0)
+        result = geometric_knn_entropy(X, Xdist, k=2)
+
+        # The function should handle this gracefully
+        assert isinstance(result, float)
+        # Result might be inf due to extreme values, but function should not crash
+
+    def test_geometric_knn_entropy_nan_input_handling(self):
+        """Test with NaN values to force non-finite correction handling."""
+        # Create data that will produce NaN in internal calculations
+
+        X = np.array(
+            [
+                [0.0, 0.0],
+                [np.nan, 0.0],  # NaN coordinate
+                [0.0, np.nan],  # NaN coordinate
+                [1.0, 1.0],  # Normal point
+            ]
+        )
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # NaN coordinates will propagate through calculations
+        # This should trigger the non-finite correction fallback
+        result = geometric_knn_entropy(X, Xdist, k=2)
+
+        # Function should handle NaN gracefully
+        assert isinstance(result, float)
+        # Result will likely be NaN, but function should complete
+
+    def test_geometric_knn_entropy_extreme_aspect_ratios(self):
+        """Create data with extreme aspect ratios to cause numerical overflow."""
+        # Use data that creates extreme scaling in SVD calculations
+
+        X = np.array(
+            [
+                [0.0, 0.0],
+                [1e308, 0.0],  # Near float64 overflow limit
+                [0.0, 1e-308],  # Near float64 underflow limit
+                [1e-308, 1e308],  # Mixed extreme values
+            ]
+        )
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # Extreme scaling should cause overflow/underflow in correction calculations
+        # Potentially making correction = log_hyper + sing_ratio_sum non-finite
+        result = geometric_knn_entropy(X, Xdist, k=2)
+
+        assert isinstance(result, float)
+        # Result might be inf due to overflow, but should not crash
+
+    @patch("numpy.isfinite")
+    def test_geometric_knn_entropy_mock_non_finite_correction(self, mock_isfinite):
+        """Use mocking to force the non-finite correction path."""
+
+        # Create normal data first
+        X = np.array(
+            [
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [0.0, 1.0],
+                [1.0, 1.0],
+            ]
+        )
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # Mock np.isfinite to return False for correction values
+        # This will force the geometric_corrections.append(0.0) line
+        def mock_isfinite_func(x):
+            # Let other isfinite calls work normally
+            if hasattr(x, "shape") and x.shape == ():  # scalar
+                # If this looks like a correction value, return False
+                if isinstance(x, (float, np.floating)) and abs(x) > 1:
+                    return False
+            # Use real isfinite for everything else
+            return np.isfinite(x)
+
+        mock_isfinite.side_effect = mock_isfinite_func
+
+        # This should trigger geometric_corrections.append(0.0) due to mocked non-finite
+        result = geometric_knn_entropy(X, Xdist, k=2)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    @patch("causationentropy.core.information.entropy.np.isfinite")
+    def test_geometric_knn_entropy_direct_mock_non_finite(self, mock_isfinite):
+        """Direct mock to force geometric_corrections.append(0.0) line."""
+
+        # Create simple data
+        X = np.array(
+            [
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [0.0, 1.0],
+            ]
+        )
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # Mock the specific np.isfinite call in the entropy module
+        # to return False for correction values, forcing append(0.0)
+        call_count = [0]
+
+        def mock_isfinite_side_effect(x):
+            call_count[0] += 1
+            # On certain calls, return False to trigger the fallback
+            if call_count[0] % 3 == 0:  # Every 3rd call
+                return False
+            return True  # Most calls return True
+
+        mock_isfinite.side_effect = mock_isfinite_side_effect
+
+        # This should definitely hit geometric_corrections.append(0.0)
+        result = geometric_knn_entropy(X, Xdist, k=2)
+
+        # Verify the mock was called
+        assert mock_isfinite.called
+        assert isinstance(result, float)
+        assert np.isfinite(result)

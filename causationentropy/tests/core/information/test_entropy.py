@@ -187,6 +187,37 @@ class TestIntegrationAndEdgeCases:
         assert np.isfinite(result)
         assert result > 0
 
+    def test_poisson_entropy_exception_path(self):
+        """Test the exception handling path in poisson_entropy: except: est = -np.sum(est_a)."""
+        # The exception occurs when np.sum(est_a, axis=0) fails
+        # We can force this by manipulating the internal array P to have incompatible dimensions
+
+        # Patch the function at the exact point where the exception occurs
+        original_sum = np.sum
+        exception_triggered = False
+
+        def patched_sum(a, axis=None):
+            nonlocal exception_triggered
+            # When we see the specific call that tries axis=0 on est_a
+            if axis == 0 and not exception_triggered:
+                exception_triggered = True
+                # Force an exception to trigger the except path
+                raise ValueError("axis 0 is out of bounds")
+            return original_sum(a, axis=axis)
+
+        with patch(
+            "causationentropy.core.information.entropy.np.sum", side_effect=patched_sum
+        ):
+            # This should trigger the except: est = -np.sum(est_a) path
+            result = poisson_entropy(1.0)
+
+            # Verify the exception path was taken
+            assert exception_triggered, "Exception path was not triggered"
+
+            # Should still return a valid result via the exception handling
+            assert isinstance(result, (float, np.floating))
+            assert np.isfinite(result)
+
 
 class TestGeometricKNNEntropyEdgeCases:
     """Test edge cases and error handling in geometric k-NN entropy."""
@@ -779,8 +810,7 @@ class TestGeometricKNNEntropyEdgeCases:
         assert isinstance(result, float)
         # Result might be inf due to overflow, but should not crash
 
-    @patch("numpy.isfinite")
-    def test_geometric_knn_entropy_mock_non_finite_correction(self, mock_isfinite):
+    def test_geometric_knn_entropy_mock_non_finite_correction(self):
         """Use mocking to force the non-finite correction path."""
 
         # Create normal data first
@@ -799,6 +829,14 @@ class TestGeometricKNNEntropyEdgeCases:
             for j in range(N):
                 Xdist[i, j] = l2dist(X[i], X[j])
 
+        # Import the real isfinite function directly from the module
+        import builtins
+        real_isfinite = builtins.__dict__.get('__numpy_isfinite__', None)
+        if real_isfinite is None:
+            # Store a reference to the real numpy isfinite before mocking
+            import numpy as np_real
+            real_isfinite = np_real.isfinite
+
         # Mock np.isfinite to return False for correction values
         # This will force the geometric_corrections.append(0.0) line
         def mock_isfinite_func(x):
@@ -807,13 +845,22 @@ class TestGeometricKNNEntropyEdgeCases:
                 # If this looks like a correction value, return False
                 if isinstance(x, (float, np.floating)) and abs(x) > 1:
                     return False
-            # Use real isfinite for everything else
-            return np.isfinite(x)
+            # Use a direct finite check to avoid recursion
+            try:
+                # A number is finite if it's not inf and not nan
+                # We can check this by comparing x to itself (nan != nan)
+                # and by checking if it's less than infinity
+                if x != x:  # NaN check
+                    return False
+                if abs(x) == float('inf'):  # Inf check
+                    return False
+                return True
+            except:
+                return True
 
-        mock_isfinite.side_effect = mock_isfinite_func
-
-        # This should trigger geometric_corrections.append(0.0) due to mocked non-finite
-        result = geometric_knn_entropy(X, Xdist, k=2)
+        with patch("numpy.isfinite", side_effect=mock_isfinite_func):
+            # This should trigger geometric_corrections.append(0.0) due to mocked non-finite
+            result = geometric_knn_entropy(X, Xdist, k=2)
 
         assert isinstance(result, float)
         assert np.isfinite(result)

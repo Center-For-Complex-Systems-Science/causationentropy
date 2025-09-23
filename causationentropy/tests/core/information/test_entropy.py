@@ -831,10 +831,12 @@ class TestGeometricKNNEntropyEdgeCases:
 
         # Import the real isfinite function directly from the module
         import builtins
-        real_isfinite = builtins.__dict__.get('__numpy_isfinite__', None)
+
+        real_isfinite = builtins.__dict__.get("__numpy_isfinite__", None)
         if real_isfinite is None:
             # Store a reference to the real numpy isfinite before mocking
             import numpy as np_real
+
             real_isfinite = np_real.isfinite
 
         # Mock np.isfinite to return False for correction values
@@ -852,7 +854,7 @@ class TestGeometricKNNEntropyEdgeCases:
                 # and by checking if it's less than infinity
                 if x != x:  # NaN check
                     return False
-                if abs(x) == float('inf'):  # Inf check
+                if abs(x) == float("inf"):  # Inf check
                     return False
                 return True
             except:

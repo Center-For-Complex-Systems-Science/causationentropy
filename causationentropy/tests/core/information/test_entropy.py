@@ -406,3 +406,108 @@ class TestGeometricKNNEntropyEdgeCases:
 
         result2 = geometric_knn_entropy(X_small_sing, Xdist_small, k=2)
         assert np.isfinite(result2)
+
+    def test_geometric_knn_entropy_extreme_singular_ratios(self):
+        """Test to specifically trigger sing_ratio_sum += -12.0 line."""
+        # Create data with extreme singular value ratios to force ratio <= 1e-12
+        X = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [1.000000001, 1e-15, 1e-15],  # Very small perturbations
+                [0.999999999, 1e-15, 1e-15],  # Very small perturbations
+                [1.0000000005, 1e-16, 1e-16],  # Even smaller perturbations
+                [0.0, 1.0, 0.0],
+            ]
+        )
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # This should trigger sing_ratio_sum += -12.0 when ratio <= 1e-12
+        result = geometric_knn_entropy(X, Xdist, k=3)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_non_finite_corrections(self):
+        """Test to specifically trigger geometric_corrections.append(0.0) for non-finite values."""
+        # Create data that might produce infinite or NaN corrections
+        X = np.array(
+            [
+                [0.0, 0.0],
+                [1e-100, 0.0],  # Extremely small value
+                [1e100, 0.0],  # Extremely large value
+                [0.0, 1e-100],  # Extremely small value
+                [0.0, 1e100],  # Extremely large value
+            ]
+        )
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # This should trigger geometric_corrections.append(0.0) for non-finite corrections
+        result = geometric_knn_entropy(X, Xdist, k=3)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_pathological_matrix(self):
+        """Test with pathological matrix to force both edge cases."""
+        # Create data designed to hit both specific lines
+        X = np.array(
+            [
+                [1.0, 1.0, 1.0],
+                [1.0 + 1e-16, 1.0 + 1e-16, 1.0 + 1e-16],  # Virtually identical
+                [1.0 + 1e-15, 1.0 + 1e-15, 1.0 + 1e-15],  # Virtually identical
+                [0.0, 0.0, 0.0],  # Origin
+                [1e-100, 1e-100, 1e-100],  # Near origin
+            ]
+        )
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # Should trigger multiple edge cases
+        result = geometric_knn_entropy(X, Xdist, k=4)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)
+
+    def test_geometric_knn_entropy_force_ratio_edge_case(self):
+        """Test specifically designed to force ratio <= 1e-12 condition."""
+        # Create a matrix that will have very small singular value ratios
+        # when neighborhoods are formed
+        base_point = np.array([1.0, 1.0])
+
+        X = np.array(
+            [
+                base_point,
+                base_point
+                + np.array([1e-14, 0]),  # Tiny perturbation in first dimension
+                base_point
+                + np.array([0, 1e-14]),  # Tiny perturbation in second dimension
+                base_point + np.array([1e-13, 1e-14]),  # Mixed tiny perturbations
+                np.array([2.0, 2.0]),  # Distant point
+            ]
+        )
+
+        N = X.shape[0]
+        Xdist = np.zeros((N, N))
+        for i in range(N):
+            for j in range(N):
+                Xdist[i, j] = l2dist(X[i], X[j])
+
+        # This should create neighborhoods with very small singular value ratios
+        result = geometric_knn_entropy(X, Xdist, k=3)
+
+        assert isinstance(result, float)
+        assert np.isfinite(result)

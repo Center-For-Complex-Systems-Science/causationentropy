@@ -5,7 +5,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from causationentropy.core.discovery import discover_network, lasso_optimal_causation_entropy
+from causationentropy.core.discovery import (
+    discover_network,
+    lasso_optimal_causation_entropy,
+)
 
 
 class TestDiscoverNetwork:
@@ -582,7 +585,9 @@ class TestLassoOptimalCausationEntropy:
 
         # Test different criteria (should only affect LassoLarsIC branch, but test for completeness)
         for criterion in ["aic", "bic"]:
-            result = lasso_optimal_causation_entropy(X, Y, rng, criterion=criterion, max_lambda=20)
+            result = lasso_optimal_causation_entropy(
+                X, Y, rng, criterion=criterion, max_lambda=20
+            )
             assert isinstance(result, list)
 
         # Test different max_lambda values

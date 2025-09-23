@@ -1,0 +1,21 @@
+# CITATION.cff
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the following metadata."
+title: "CausationEntropy: A Python Library for Causal Discovery"
+authors:
+  - family-names: "Slote"
+    given-names: "Kevin"
+    orcid: "https://orcid.org/0009-0008-3167-3992"
+  - family-names: "Fish"
+    given-names: "Jeremie"
+    orcid: "https://orcid.org/0000-0002-1236-742X"
+  - family-names: "Bollt"
+    given-names: "Erik"
+    orcid: "https://orcid.org/0000-0001-7083-7592"
+doi: "10.5281/zenodo.17047565"
+url: "https://github.com/Center-For-Complex-Systems-Science/causationentropy"
+repository-code: "https://github.com/Center-For-Complex-Systems-Science/causationentropy"
+version: "0.1.0"
+date-released: "2025-09-23"
+license: "MIT"
+type: software

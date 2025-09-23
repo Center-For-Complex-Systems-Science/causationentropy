@@ -7,6 +7,8 @@ from causationentropy.core.information.conditional_mutual_information import (
     conditional_mutual_information,
     gaussian_conditional_mutual_information,
     geometric_knn_conditional_mutual_information,
+    kde_conditional_mutual_information,
+    knn_conditional_mutual_information,
     poisson_conditional_mutual_information,
 )
 
@@ -667,3 +669,206 @@ class TestPoissonConditionalMutualInformation:
 
         # X and Y should have positive MI since they share base_rate
         assert cmi_no_z > 0
+
+
+class TestKDEConditionalMutualInformation:
+    """Test KDE conditional mutual information calculation."""
+
+    def test_kde_cmi_no_conditioning(self):
+        """Test KDE CMI when Z=None (marginal MI case)."""
+        np.random.seed(42)
+        n = 50
+
+        # Generate data for KDE estimation
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+
+        # Test the Z=None code path
+        cmi = kde_conditional_mutual_information(X, Y, Z=None)
+
+        # Compare with direct mutual information call
+        from causationentropy.core.information.mutual_information import (
+            kde_mutual_information,
+        )
+        mi = kde_mutual_information(X, Y)
+
+        assert isinstance(cmi, float)
+        assert not np.isnan(cmi)
+        assert np.isfinite(cmi)
+        # Should be equal since Z=None reduces to mutual information
+        assert np.isclose(cmi, mi, rtol=1e-10)
+
+    def test_kde_cmi_no_conditioning_multivariate(self):
+        """Test KDE CMI with multivariate data when Z=None."""
+        np.random.seed(42)
+        n = 40
+
+        X = np.random.normal(0, 1, (n, 2))
+        Y = np.random.normal(0, 1, (n, 1))
+
+        # Test Z=None path with multivariate X
+        cmi = kde_conditional_mutual_information(X, Y, Z=None, bandwidth=0.5)
+
+        assert isinstance(cmi, float)
+        assert not np.isnan(cmi)
+        assert np.isfinite(cmi)
+
+    def test_kde_cmi_no_conditioning_parameters(self):
+        """Test KDE CMI Z=None path with different parameters."""
+        np.random.seed(42)
+        n = 30
+
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+
+        # Test with different bandwidth
+        cmi1 = kde_conditional_mutual_information(X, Y, Z=None, bandwidth="silverman")
+        cmi2 = kde_conditional_mutual_information(X, Y, Z=None, bandwidth=0.8)
+
+        # Test with different kernel
+        cmi3 = kde_conditional_mutual_information(X, Y, Z=None, kernel="tophat")
+
+        for cmi in [cmi1, cmi2, cmi3]:
+            assert isinstance(cmi, float)
+            assert not np.isnan(cmi)
+            assert np.isfinite(cmi)
+
+    def test_kde_cmi_with_conditioning(self):
+        """Test KDE CMI with conditioning variable Z."""
+        np.random.seed(42)
+        n = 30
+
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+        Z = np.random.normal(0, 1, (n, 1))
+
+        cmi = kde_conditional_mutual_information(X, Y, Z)
+
+        assert isinstance(cmi, float)
+        assert not np.isnan(cmi)
+        assert np.isfinite(cmi)
+
+    def test_kde_cmi_via_main_function(self):
+        """Test KDE CMI through the main conditional_mutual_information function."""
+        np.random.seed(42)
+        n = 40
+
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+
+        # Test Z=None through main interface
+        cmi_main = conditional_mutual_information(X, Y, None, method="kde")
+        cmi_direct = kde_conditional_mutual_information(X, Y, Z=None)
+
+        assert np.isclose(cmi_main, cmi_direct, rtol=1e-15)
+
+
+class TestKNNConditionalMutualInformation:
+    """Test k-NN conditional mutual information calculation."""
+
+    def test_knn_cmi_no_conditioning(self):
+        """Test k-NN CMI when Z=None (marginal MI case)."""
+        np.random.seed(42)
+        n = 50
+
+        # Generate data for k-NN estimation
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+
+        # Test the Z=None code path
+        cmi = knn_conditional_mutual_information(X, Y, Z=None, k=3)
+
+        # Compare with direct mutual information call
+        from causationentropy.core.information.mutual_information import (
+            knn_mutual_information,
+        )
+        mi = knn_mutual_information(X, Y, k=3)
+
+        assert isinstance(cmi, float)
+        assert not np.isnan(cmi)
+        assert np.isfinite(cmi)
+        # Should be equal since Z=None reduces to mutual information
+        assert np.isclose(cmi, mi, rtol=1e-10)
+
+    def test_knn_cmi_no_conditioning_multivariate(self):
+        """Test k-NN CMI with multivariate data when Z=None."""
+        np.random.seed(42)
+        n = 60
+
+        X = np.random.normal(0, 1, (n, 2))
+        Y = np.random.normal(0, 1, (n, 2))
+
+        # Test Z=None path with multivariate data
+        cmi = knn_conditional_mutual_information(X, Y, Z=None, k=5)
+
+        assert isinstance(cmi, float)
+        assert not np.isnan(cmi)
+        assert np.isfinite(cmi)
+
+    def test_knn_cmi_no_conditioning_parameters(self):
+        """Test k-NN CMI Z=None path with different parameters."""
+        np.random.seed(42)
+        n = 40
+
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+
+        # Test with different k values
+        cmi1 = knn_conditional_mutual_information(X, Y, Z=None, k=1)
+        cmi2 = knn_conditional_mutual_information(X, Y, Z=None, k=3)
+        cmi3 = knn_conditional_mutual_information(X, Y, Z=None, k=5)
+
+        # Test with different metrics
+        cmi4 = knn_conditional_mutual_information(X, Y, Z=None, metric="euclidean")
+        cmi5 = knn_conditional_mutual_information(X, Y, Z=None, metric="cityblock")
+
+        for cmi in [cmi1, cmi2, cmi3, cmi4, cmi5]:
+            assert isinstance(cmi, float)
+            assert not np.isnan(cmi)
+            assert np.isfinite(cmi)
+
+    def test_knn_cmi_with_conditioning(self):
+        """Test k-NN CMI with conditioning variable Z."""
+        np.random.seed(42)
+        n = 50
+
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+        Z = np.random.normal(0, 1, (n, 1))
+
+        cmi = knn_conditional_mutual_information(X, Y, Z, k=3)
+
+        assert isinstance(cmi, float)
+        assert not np.isnan(cmi)
+        assert np.isfinite(cmi)
+
+    def test_knn_cmi_via_main_function(self):
+        """Test k-NN CMI through the main conditional_mutual_information function."""
+        np.random.seed(42)
+        n = 50
+
+        X = np.random.normal(0, 1, (n, 1))
+        Y = np.random.normal(0, 1, (n, 1))
+
+        # Test Z=None through main interface
+        cmi_main = conditional_mutual_information(X, Y, None, method="knn", k=3)
+        cmi_direct = knn_conditional_mutual_information(X, Y, Z=None, k=3)
+
+        assert np.isclose(cmi_main, cmi_direct, rtol=1e-15)
+
+    def test_knn_cmi_dependent_variables_no_conditioning(self):
+        """Test k-NN CMI with dependent variables when Z=None."""
+        np.random.seed(42)
+        n = 60
+
+        # Create dependent variables
+        X = np.random.normal(0, 1, (n, 1))
+        noise = 0.1 * np.random.normal(0, 1, (n, 1))
+        Y = 0.7 * X + noise  # Y depends on X
+
+        cmi = knn_conditional_mutual_information(X, Y, Z=None, k=3)
+
+        assert isinstance(cmi, float)
+        assert cmi > 0  # Should be positive due to dependence
+        assert not np.isnan(cmi)
+        assert np.isfinite(cmi)

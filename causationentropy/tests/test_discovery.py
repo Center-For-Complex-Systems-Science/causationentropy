@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from causationentropy.core.discovery import discover_network
+from causationentropy.core.discovery import discover_network, lasso_optimal_causation_entropy
 
 
 class TestDiscoverNetwork:
@@ -491,3 +491,135 @@ class TestDiscoverNetwork:
                 assert d["cmi"] > 0, f"Causal edge has non-positive CMI: {d['cmi']}"
         else:
             pytest.skip("No X0->X1 edges found - test setup may need adjustment")
+
+
+class TestLassoOptimalCausationEntropy:
+    """Test LASSO-based variable selection for causal discovery."""
+
+    def test_lasso_optimal_causation_entropy_small_sample(self):
+        """Test LASSO function when X.shape[0] <= n + 1 (triggers standard Lasso)."""
+        # Create small sample data to trigger the else branch: X.shape[0] <= n + 1
+        # If n = 3 features, and X.shape[0] = 4, then 4 <= 3 + 1 = 4 (True)
+        np.random.seed(42)
+        n_features = 3
+        n_samples = 4  # n_samples <= n_features + 1
+
+        X = np.random.normal(0, 1, (n_samples, n_features))
+        Y = np.random.normal(0, 1, (n_samples, 1))
+        rng = np.random.default_rng(42)
+
+        # This should trigger: lasso = Lasso(max_iter=max_lambda).fit(X, Y.flatten())
+        result = lasso_optimal_causation_entropy(X, Y, rng, max_lambda=50)
+
+        assert isinstance(result, list)
+        assert all(isinstance(idx, (int, np.integer)) for idx in result)
+        assert all(0 <= idx < n_features for idx in result)
+
+    def test_lasso_optimal_causation_entropy_large_sample(self):
+        """Test LASSO function when X.shape[0] > n + 1 (triggers LassoLarsIC)."""
+        # Create large sample data to trigger the if branch: X.shape[0] > n + 1
+        np.random.seed(42)
+        n_features = 3
+        n_samples = 10  # n_samples > n_features + 1
+
+        X = np.random.normal(0, 1, (n_samples, n_features))
+        Y = np.random.normal(0, 1, (n_samples, 1))
+        rng = np.random.default_rng(42)
+
+        # This should trigger: lasso = LassoLarsIC(criterion=criterion, max_iter=max_lambda).fit(X, Y.flatten())
+        result = lasso_optimal_causation_entropy(X, Y, rng, max_lambda=50)
+
+        assert isinstance(result, list)
+        assert all(isinstance(idx, (int, np.integer)) for idx in result)
+        assert all(0 <= idx < n_features for idx in result)
+
+    def test_lasso_optimal_causation_entropy_boundary_condition(self):
+        """Test LASSO function at the boundary condition X.shape[0] = n + 1."""
+        # Test the exact boundary condition
+        np.random.seed(42)
+        n_features = 5
+        n_samples = n_features + 1  # Exactly at the boundary
+
+        X = np.random.normal(0, 1, (n_samples, n_features))
+        Y = np.random.normal(0, 1, (n_samples, 1))
+        rng = np.random.default_rng(42)
+
+        # At boundary, X.shape[0] = n + 1, so X.shape[0] > n + 1 is False
+        # This should trigger the LassoLarsIC branch
+        result = lasso_optimal_causation_entropy(X, Y, rng, max_lambda=30)
+
+        assert isinstance(result, list)
+        assert all(isinstance(idx, (int, np.integer)) for idx in result)
+        assert all(0 <= idx < n_features for idx in result)
+
+    def test_lasso_optimal_causation_entropy_with_sparsity(self):
+        """Test LASSO with data designed to have sparse solutions."""
+        # Create data where only some features are relevant
+        np.random.seed(42)
+        n_features = 4
+        n_samples = 3  # Small sample to trigger standard Lasso
+
+        X = np.random.normal(0, 1, (n_samples, n_features))
+        # Make Y depend strongly on first feature only
+        Y = (2.0 * X[:, 0] + 0.1 * np.random.normal(0, 1, n_samples)).reshape(-1, 1)
+        rng = np.random.default_rng(42)
+
+        result = lasso_optimal_causation_entropy(X, Y, rng, max_lambda=100)
+
+        assert isinstance(result, list)
+        # Should ideally select feature 0 (though LASSO may behave differently with small samples)
+        assert all(isinstance(idx, (int, np.integer)) for idx in result)
+
+    def test_lasso_optimal_causation_entropy_parameters(self):
+        """Test LASSO function with different parameter values."""
+        np.random.seed(42)
+        n_features = 2
+        n_samples = 2  # Small sample to trigger standard Lasso
+
+        X = np.random.normal(0, 1, (n_samples, n_features))
+        Y = np.random.normal(0, 1, (n_samples, 1))
+        rng = np.random.default_rng(42)
+
+        # Test different criteria (should only affect LassoLarsIC branch, but test for completeness)
+        for criterion in ["aic", "bic"]:
+            result = lasso_optimal_causation_entropy(X, Y, rng, criterion=criterion, max_lambda=20)
+            assert isinstance(result, list)
+
+        # Test different max_lambda values
+        for max_lambda in [10, 50, 100]:
+            result = lasso_optimal_causation_entropy(X, Y, rng, max_lambda=max_lambda)
+            assert isinstance(result, list)
+
+    def test_lasso_optimal_causation_entropy_empty_result(self):
+        """Test LASSO when no features are selected."""
+        # Create data where LASSO might select no features
+        np.random.seed(42)
+        n_features = 3
+        n_samples = 3
+
+        # Pure noise - features uncorrelated with target
+        X = np.random.normal(0, 1, (n_samples, n_features))
+        Y = np.random.normal(10, 1, (n_samples, 1))  # Different scale, no relationship
+        rng = np.random.default_rng(42)
+
+        result = lasso_optimal_causation_entropy(X, Y, rng, max_lambda=5)
+
+        assert isinstance(result, list)
+        # Result might be empty if no features are selected
+        assert all(isinstance(idx, (int, np.integer)) for idx in result)
+
+    def test_lasso_optimal_causation_entropy_single_feature(self):
+        """Test LASSO with single feature."""
+        np.random.seed(42)
+        n_features = 1
+        n_samples = 1  # n_samples <= n_features + 1
+
+        X = np.random.normal(0, 1, (n_samples, n_features))
+        Y = np.random.normal(0, 1, (n_samples, 1))
+        rng = np.random.default_rng(42)
+
+        # Should trigger standard Lasso branch
+        result = lasso_optimal_causation_entropy(X, Y, rng, max_lambda=10)
+
+        assert isinstance(result, list)
+        assert all(0 <= idx < n_features for idx in result)

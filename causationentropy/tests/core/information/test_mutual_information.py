@@ -231,6 +231,39 @@ class TestGeometricKNNMutualInformation:
             assert isinstance(mi, float)
             assert not np.isnan(mi)
 
+    @patch("causationentropy.core.information.mutual_information.geometric_knn_entropy")
+    def test_geometric_knn_mi_non_finite_handling(self, mock_entropy):
+        """Test that non-finite MI values are handled gracefully by returning 0.0."""
+        # Create simple test data
+        X = np.array([[1.0], [2.0], [3.0]])
+        Y = np.array([[4.0], [5.0], [6.0]])
+
+        # Test case 1: One entropy is NaN
+        mock_entropy.side_effect = [np.nan, 1.0, 2.0]  # H(X), H(Y), H(X,Y)
+        mi = geometric_knn_mutual_information(X, Y, k=1)
+        assert mi == 0.0  # Should return 0.0 for non-finite MI
+
+        # Test case 2: One entropy is infinite
+        mock_entropy.side_effect = [2.0, np.inf, 1.0]  # H(X), H(Y), H(X,Y)
+        mi = geometric_knn_mutual_information(X, Y, k=1)
+        assert mi == 0.0  # Should return 0.0 for non-finite MI
+
+        # Test case 3: Joint entropy is NaN leading to NaN MI
+        mock_entropy.side_effect = [1.0, 1.0, np.nan]  # H(X), H(Y), H(X,Y)
+        mi = geometric_knn_mutual_information(X, Y, k=1)
+        assert mi == 0.0  # Should return 0.0 for non-finite MI
+
+        # Test case 4: Combination that produces negative infinity
+        mock_entropy.side_effect = [1.0, 1.0, np.inf]  # H(X), H(Y), H(X,Y)
+        mi = geometric_knn_mutual_information(X, Y, k=1)
+        assert mi == 0.0  # Should return 0.0 for non-finite MI (-inf)
+
+        # Test case 5: Normal finite case (should not trigger fallback)
+        mock_entropy.side_effect = [2.0, 1.5, 3.0]  # H(X), H(Y), H(X,Y)
+        mi = geometric_knn_mutual_information(X, Y, k=1)
+        assert mi == 0.5  # Normal calculation: 2.0 + 1.5 - 3.0 = 0.5
+        assert np.isfinite(mi)
+
 
 class TestMutualInformationProperties:
     """Test mathematical properties of mutual information."""

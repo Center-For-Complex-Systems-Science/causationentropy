@@ -113,6 +113,9 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "--cov=causationentropy --cov-report=html --cov-report=term-missing"
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
 
 [tool.black]
 line-length = 88

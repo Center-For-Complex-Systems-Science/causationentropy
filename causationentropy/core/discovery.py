@@ -135,10 +135,6 @@ def discover_network(
     >>>
     >>> # Discover causal network
     >>> G = discover_network(data, max_lag=3, alpha_forward=0.01)
-    >>>
-    >>> # Examine discovered edges
-    >>> for edge in G.edges(data=True):
-    ...     print(f"Source:{edge[0]}  Sink: {edge[1]}, lag={edge[2]['lag']}, cmi:={edge[2]['cmi']},")
 
     References
     ----------

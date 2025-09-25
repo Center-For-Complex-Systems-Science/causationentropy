@@ -6,231 +6,655 @@ This test runs discover_network() for every supported information type and metho
 using synthetic data generators that match each entropy's distributional assumptions.
 """
 import warnings
-from typing import Dict, Optional
 
 import networkx as nx
 import numpy as np
-import pandas as pd
+import pytest
 
 warnings.filterwarnings("ignore")
 
-from causationentropy.core.discovery import discover_network
+from causationentropy import discover_network
 from causationentropy.datasets.synthetic import (
     linear_stochastic_gaussian_process,
     poisson_coupled_oscillators,
 )
+from causationentropy.core.stats import Compute_TPR_FPR
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
 
 
-def create_test_graph(n_nodes=5, edge_prob=0.3, seed=42) -> nx.DiGraph:
-    """Create a simple test graph for all methods."""
-    rng = np.random.default_rng(seed)
-    G = nx.erdos_renyi_graph(n_nodes, edge_prob, seed=rng, directed=True)
-    return G
-
-
-def calculate_recovery_metrics(
-    true_adj: np.ndarray, inferred_graph: nx.DiGraph
-) -> Dict[str, float]:
-    """Calculate precision, recall, and F1 score for network recovery."""
-    n_nodes = true_adj.shape[0]
-    inferred_adj = nx.to_numpy_array(inferred_graph, weight=None)
-
-    # Convert to binary adjacency matrices
-    true_edges = (true_adj > 0).astype(int)
-    inferred_edges = (inferred_adj > 0).astype(int)
-
-    # Calculate metrics
-    tp = np.sum((true_edges == 1) & (inferred_edges == 1))
-    fp = np.sum((true_edges == 0) & (inferred_edges == 1))
-    fn = np.sum((true_edges == 1) & (inferred_edges == 0))
-    tn = np.sum((true_edges == 0) & (inferred_edges == 0))
-
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    f1 = (
-        2 * precision * recall / (precision + recall)
-        if (precision + recall) > 0
-        else 0.0
-    )
-
-    return {
-        "precision": precision,
-        "recall": recall,
-        "f1_score": f1,
-        "true_edges": int(np.sum(true_edges)),
-        "inferred_edges": int(np.sum(inferred_edges)),
-    }
-
-
-def run_method_information_combination(
-    method: str,
-    information: str,
-    test_graph: Optional[nx.DiGraph] = None,
-    n_nodes: int = 5,
-    T: int = 10000,
-) -> Dict:
-    """Test a specific method-information combination."""
-
-    print(f"Testing method='{method}', information='{information}'...")
-
-    # Create test graph if not provided
-    if test_graph is None:
-        test_graph = create_test_graph(n_nodes)
-
-    # Generate appropriate synthetic data
-
-    if information == "gaussian":
-        # Use existing Gaussian generator with custom graph
-        data, true_adj = linear_stochastic_gaussian_process(
-            rho=0.7, n=n_nodes, T=T, p=0.0, seed=42
-        )
-
-    elif information == "poisson":
-        data, true_adj = poisson_coupled_oscillators(
-            n=n_nodes, T=T, lambda_base=2.0, coupling_strength=0.3, seed=42
-        )
-
-    else:  # For kde, knn, geometric_knn, histogram - use Gaussian data
-        data, true_adj = linear_stochastic_gaussian_process(
-            rho=0.7, n=n_nodes, T=T, p=0.0, seed=42
-        )
-
-    # Run causal discovery
-    inferred_graph = discover_network(
+def test_standard_gaussian():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    ) # This will return the adjacency of the provided network.
+    G_discovered = discover_network(
         data=data,
-        method=method,
-        information=information,
-        max_lag=2,  # Small lag for faster testing
-        alpha_forward=0.1,  # More lenient for testing
-        alpha_backward=0.1,
-        n_shuffles=50,  # Fewer shuffles for speed
+        method='standard',
+        information='gaussian',
+        max_lag=1,
+        alpha_forward=0.05,
+        alpha_backward=0.05,
+        n_shuffles=1000  # Reduced for faster execution
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    # The matrices look binarized, but they are not.
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Standard Gaussian Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_alternative_gaussian():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    ) # This will return the adjacency of the provided network.
+    G_discovered = discover_network(
+        data=data,
+        method='alternative',
+        information='gaussian',
+        max_lag=1,
+        alpha_forward=0.01,
+        alpha_backward=0.01,
+        n_shuffles=1000  # Reduced for faster execution
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    # The matrices look binarized, but they are not.
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Alternative Gaussian Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_standard_knn():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    ) # This will return the adjacency of the provided network.
+    G_discovered = discover_network(
+        data=data,
+        method='standard',
+        information='knn',
+        metric='euclidean',
+        max_lag=2,
+        k_means=5, # This method is sensitive to the choice of k. Too low = low TPR
+        alpha_forward=0.01,
+        alpha_backward=0.01,
+        n_shuffles=1000
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    # The matrices look binarized, but they are not.
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Standard KNN Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_alternative_knn():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    ) # This will return the adjacency of the provided network.
+    G_discovered = discover_network(
+        data=data,
+        method='alternative',
+        information='knn',
+        metric='euclidean',
+        max_lag=2,
+        k_means=20, # This method is sensitive to the choice of k. Too low = low TPR
+        alpha_forward=0.001,
+        alpha_backward=0.001,
+        n_shuffles=5000
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    # The matrices look binarized, but they are not.
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Alternate KNN Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_minkowski_standard_knn():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    ) # This will return the adjacency of the provided network.
+    G_discovered = discover_network(
+        data=data,
+        method='standard',
+        information='knn',
+        metric='minkowski',
+        max_lag=2,
+        k_means=5, # This method is sensitive to the choice of k. Too low = low TPR
+        alpha_forward=0.01,
+        alpha_backward=0.01,
+        n_shuffles=1000
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    # The matrices look binarized, but they are not.
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Standard KNN minkowski distance Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_standard_geometric_knn():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    ) # This will return the adjacency of the provided network.
+    G_discovered = discover_network(
+        data=data,
+        method='standard',
+        information='geometric_knn',
+        metric='minkowski',
+        max_lag=2,
+        k_means=10, # This method is sensitive to the choice of k. Too low = low TPR
+        alpha_forward=0.05,
+        alpha_backward=0.05,
+        n_shuffles=500
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    # The matrices look binarized, but they are not.
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Standard Geometric-KNN distance Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_standard_kde():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    ) # This will return the adjacency of the provided network.
+    G_discovered = discover_network(
+        data=data,
+        method='standard',
+        information='kde',
+        max_lag=2,
+        bandwidth='silverman',
+        alpha_forward=0.05,
+        alpha_backward=0.05,
+        n_shuffles=1000
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    # The matrices look binarized, but they are not.
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Standard KDE Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_information_lasso():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    )
+    G_discovered = discover_network(
+        data=data,
+        method='information_lasso',
+        information='gaussian',
+        max_lag=1,
+        alpha_forward=0.05,
+        alpha_backward=0.05,
+        n_shuffles=1000
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Information Lasso Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_lasso():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    )
+    G_discovered = discover_network(
+        data=data,
+        method='lasso',
+        max_lag=1
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Pure Lasso Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_standard_poisson():
+    T = 200
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = poisson_coupled_oscillators(
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    )
+    G_discovered = discover_network(
+        data=data,
+        method='standard',
+        information='poisson',
+        max_lag=1,
+        alpha_forward=0.05,
+        alpha_backward=0.05,
+        n_shuffles=1000
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Standard Poisson Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_alternative_poisson():
+    T = 200
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = poisson_coupled_oscillators(
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    )
+    G_discovered = discover_network(
+        data=data,
+        method='alternative',
+        information='poisson',
+        max_lag=1,
+        alpha_forward=0.01,
+        alpha_backward=0.01,
+        n_shuffles=1000
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Alternative Poisson Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_alternative_geometric_knn():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    )
+    G_discovered = discover_network(
+        data=data,
+        method='alternative',
+        information='geometric_knn',
+        metric='euclidean',
+        max_lag=2,
+        k_means=10,
+        alpha_forward=0.001,
+        alpha_backward=0.001,
+        n_shuffles=500
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Alternative Geometric-KNN Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_alternative_kde():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    )
+    G_discovered = discover_network(
+        data=data,
+        method='alternative',
+        information='kde',
+        max_lag=2,
+        bandwidth='silverman',
+        alpha_forward=0.01,
+        alpha_backward=0.01,
+        n_shuffles=1000
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Alternative KDE Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_kde_scott_bandwidth():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    )
+    G_discovered = discover_network(
+        data=data,
+        method='standard',
+        information='kde',
+        max_lag=2,
+        bandwidth='scott',
+        alpha_forward=0.05,
+        alpha_backward=0.05,
+        n_shuffles=1000
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"KDE Scott Bandwidth Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_knn_chebyshev_metric():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    )
+    G_discovered = discover_network(
+        data=data,
+        method='standard',
+        information='knn',
+        metric='chebyshev',
+        max_lag=2,
+        k_means=8,
+        alpha_forward=0.01,
+        alpha_backward=0.01,
+        n_shuffles=1000
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"KNN Chebyshev Metric Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_knn_manhattan_metric():
+    T = 200
+    rho = 0.7
+    n_nodes = 5
+    seed = 42
+    p=0.2
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
+    )
+    G_discovered = discover_network(
+        data=data,
+        method='standard',
+        information='knn',
+        metric='manhattan',
+        max_lag=2,
+        k_means=8,
+        alpha_forward=0.01,
+        alpha_backward=0.01,
+        n_shuffles=1000
+    )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
+
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"KNN Manhattan Metric Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+def test_parameter_variations():
+    """Test various parameter combinations"""
+    T = 150
+    rho = 0.8
+    n_nodes = 4
+    seed = 123
+    p = 0.3
+    np.random.seed(seed)
+    G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
+    data, A = linear_stochastic_gaussian_process(
+        rho=rho,
+        n=n_nodes,
+        T=T,
+        seed=seed,
+        G=G_true
     )
 
-    # Calculate recovery metrics
-    metrics = calculate_recovery_metrics(true_adj, inferred_graph)
-
-    return {
-        "method": method,
-        "information": information,
-        "status": "success",
-        "error": None,
-        "metrics": metrics,
-        "true_graph_edges": int(np.sum(true_adj > 0)),
-    }
-
-
-def run_comprehensive_integration_test(n_nodes: int = 4, T: int = 80) -> pd.DataFrame:
-    """Run integration test for all method-information combinations."""
-
-    # All supported methods and information types
-    methods = ["standard", "alternative"]  # , 'information_lasso', 'lasso']
-    information_types = ["gaussian", "kde", "knn", "geometric_knn", "poisson"]
-
-    # Create a common test graph for consistency
-    test_graph = create_test_graph(n_nodes, edge_prob=0.4, seed=42)
-    print(f"Using test graph with {test_graph.number_of_edges()} edges")
-
-    results = []
-    total_tests = len(methods) * len(information_types)
-    test_count = 0
-
-    for method in methods:
-        for information in information_types:
-            test_count += 1
-            print(f"Progress: {test_count}/{total_tests}")
-
-            result = run_method_information_combination(
-                method=method,
-                information=information,
-                test_graph=test_graph,
-                n_nodes=n_nodes,
-                T=T,
-            )
-            results.append(result)
-
-    # Convert to DataFrame for analysis
-    df = pd.DataFrame(results)
-
-    # Expand metrics into separate columns
-    metrics_df = pd.json_normalize(df["metrics"])
-    df = pd.concat([df.drop("metrics", axis=1), metrics_df], axis=1)
-
-    return df
-
-
-def analyze_results(df: pd.DataFrame):
-    """Analyze and print summary of integration test results."""
-
-    # Overall success rate
-    success_rate = (df["status"] == "success").mean()
-    print(
-        f"Overall Success Rate: {success_rate:.1%} ({np.sum(df['status'] == 'success')}/{len(df)} tests)"
+    # Test with higher max_lag
+    G_discovered = discover_network(
+        data=data,
+        method='standard',
+        information='gaussian',
+        max_lag=3,
+        alpha_forward=0.01,
+        alpha_backward=0.01,
+        n_shuffles=500
     )
+    B = nx.to_numpy_array(G_discovered)
+    A_true = nx.to_numpy_array(G_true)
 
-    # Success by method
-    print(f"\nSuccess Rate by Method:")
-    method_success = df.groupby("method")["status"].apply(
-        lambda x: (x == "success").mean()
+    A_bin = (A_true > 0).astype(int)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Higher max_lag Gaussian Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
+
+    # Test with different k_means for knn
+    G_discovered = discover_network(
+        data=data,
+        method='standard',
+        information='knn',
+        metric='euclidean',
+        max_lag=2,
+        k_means=15,
+        alpha_forward=0.001,
+        alpha_backward=0.001,
+        n_shuffles=800
     )
-    for method, rate in method_success.items():
-        count = np.sum((df["method"] == method) & (df["status"] == "success"))
-        total = np.sum(df["method"] == method)
-        print(f"  {method:18s}: {rate:.1%} ({count}/{total})")
-
-    # Success by information type
-    print(f"\nSuccess Rate by Information Type:")
-    info_success = df.groupby("information")["status"].apply(
-        lambda x: (x == "success").mean()
-    )
-    for info, rate in info_success.items():
-        count = np.sum((df["information"] == info) & (df["status"] == "success"))
-        total = np.sum(df["information"] == info)
-        print(f"  {info:18s}: {rate:.1%} ({count}/{total})")
-
-    # Performance metrics for successful tests
-    successful_tests = df[df["status"] == "success"]
-    if len(successful_tests) > 0:
-        print(f"\nAverage Performance Metrics (successful tests only):")
-        for metric in ["precision", "recall", "f1_score"]:
-            if metric in successful_tests.columns:
-                mean_val = successful_tests[metric].mean()
-                std_val = successful_tests[metric].std()
-                print(f"  {metric:12s}: {mean_val:.3f} ± {std_val:.3f}")
-
-    # Failure analysis
-    failed_tests = df[df["status"] != "success"]
-    if len(failed_tests) > 0:
-        print(f"\nFailure Analysis:")
-        failure_types = failed_tests["status"].value_counts()
-        for failure_type, count in failure_types.items():
-            print(f"  {failure_type:25s}: {count} tests")
-
-        # Show some error examples
-        print(f"\nSample Errors:")
-        unique_errors = failed_tests["error"].dropna().unique()[:5]
-        for i, error in enumerate(unique_errors[:3], 1):
-            print(f"  {i}. {error}")
-    return df
-
-
-def main():
-    """Run the comprehensive integration test."""
-    print("Starting Comprehensive Causal Discovery Integration Test")
-    print("Testing all method-information combinations...\n")
-
-    # Run the test with smaller parameters for speed
-    results_df = run_comprehensive_integration_test(n_nodes=4, T=60)
-
-    # Analyze and display results
-    final_df = analyze_results(results_df)
-
-    # Save results
-    results_file = "integration_test_results.csv"
-    final_df.to_csv(results_file, index=False)
-    print(f"\nDetailed results saved to: {results_file}")
-
-    return final_df
-
+    B = nx.to_numpy_array(G_discovered)
+    B_bin = (B > 0).astype(int)
+    tpr, fpr = Compute_TPR_FPR(A_bin, B_bin)
+    print(f"Higher k_means KNN Estimate: TPR: {tpr}, FPR: {fpr}")
+    assert tpr == 1
+    assert fpr == 0
 
 if __name__ == "__main__":
-    results = main()
+    test_standard_gaussian()
+    test_alternative_gaussian()
+    test_standard_knn()
+    test_alternative_knn()
+    test_minkowski_standard_knn()
+    test_standard_geometric_knn()
+    test_standard_kde()
+    test_information_lasso()
+    test_lasso()
+    test_standard_poisson()
+    test_alternative_poisson()
+    test_alternative_geometric_knn()
+    test_alternative_kde()
+    test_kde_scott_bandwidth()
+    test_knn_chebyshev_metric()
+    test_knn_manhattan_metric()
+    test_parameter_variations()

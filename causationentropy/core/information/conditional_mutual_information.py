@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.spatial.distance import cdist
+from scipy.special import digamma
 
 from causationentropy.core.information.entropy import (
     geometric_knn_entropy,
@@ -136,8 +137,7 @@ def kde_conditional_mutual_information(
 
     return I
 
-
-def knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=1):
+def knn_conditional_mutual_information(X, Y, Z, metric='minkowski', k=1):
     """
     Estimate conditional mutual information using k-nearest neighbor method.
 
@@ -164,7 +164,7 @@ def knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=1):
         Second variable.
     Z : array-like of shape (n_samples, n_features_z) or None
         Conditioning variable. If None, computes marginal mutual information.
-    metric : str, default='euclidean'
+    metric : str, default='minkowski'
         Distance metric for k-NN calculations.
     k : int, default=1
         Number of nearest neighbors.
@@ -191,14 +191,31 @@ def knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=1):
     if Z is None:
         return knn_mutual_information(
             X, Y, metric=metric, k=k
-        )  # np.max([self.MutualInfo_KNN(X,self.Y),0])
+        )
     else:
-        XY = np.concatenate((X, Y), axis=1)
-        MIXYZ = knn_mutual_information(XY, Z, metric=metric, k=k)
-        MIXY = knn_mutual_information(X, Y, metric=metric, k=k)
+        # XY = np.concatenate((X, Y), axis=1)
+        # MIXYZ = knn_mutual_information(XY, Z, metric=metric, k=k)
+        # MIXY = knn_mutual_information(X, Y, metric=metric, k=k)
+        #
+        # return MIXY - MIXYZ
+        JS = np.column_stack((X, Y, Z))
+        # Find the K-th smallest distance in the joint space
+        if metric == "euclidean":
+            D = np.sort(cdist(JS, JS, metric=metric), axis=1)[:, k]
+        else:
+            D = np.sort(cdist(JS, JS, metric=metric, p=k + 1), axis=1)[:, k]
+        epsilon = D
+        # Count neighbors within epsilon in marginal spaces
+        Dxz = cdist(np.column_stack((X, Z)), np.column_stack((X, Z)), metric=metric)
+        nxz = np.sum(Dxz < epsilon[:, None], axis=1) - 1
+        Dyz = cdist(np.column_stack((Y, Z)), np.column_stack((Y, Z)), metric=metric)
+        nyz = np.sum(Dyz < epsilon[:, None], axis=1) - 1
+        Dz = cdist(Z, Z, metric=metric)
+        nz = np.sum(Dz < epsilon[:, None], axis=1) - 1
 
-        return MIXY - MIXYZ
-
+        # VP Estimation formula
+        I = digamma(k) - np.mean(digamma(nxz + 1) + digamma(nyz + 1) - digamma(nz + 1))
+        return I
 
 def geometric_knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=1):
     """
@@ -430,7 +447,6 @@ def conditional_mutual_information(
     - **k-NN**: Robust for moderate dimensions, adapts to local density
     - **Geometric k-NN**: Effective for manifold data with intrinsic structure
     - **Poisson**: Specifically for discrete count data
-    - **Histogram**: Simple baseline, sensitive to binning
 
     **Computational Complexity:**
     - Gaussian: O(n³) for matrix operations

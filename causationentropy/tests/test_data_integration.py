@@ -14,11 +14,11 @@ import pytest
 warnings.filterwarnings("ignore")
 
 from causationentropy import discover_network
+from causationentropy.core.stats import Compute_TPR_FPR
 from causationentropy.datasets.synthetic import (
     linear_stochastic_gaussian_process,
     poisson_coupled_oscillators,
 )
-from causationentropy.core.stats import Compute_TPR_FPR
 
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
@@ -29,24 +29,20 @@ def test_standard_gaussian():
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
-    ) # This will return the adjacency of the provided network.
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
+    )  # This will return the adjacency of the provided network.
     G_discovered = discover_network(
         data=data,
-        method='standard',
-        information='gaussian',
+        method="standard",
+        information="gaussian",
         max_lag=1,
         alpha_forward=0.05,
         alpha_backward=0.05,
-        n_shuffles=1000  # Reduced for faster execution
+        n_shuffles=1000,  # Reduced for faster execution
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -59,29 +55,26 @@ def test_standard_gaussian():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_alternative_gaussian():
     T = 200
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
-    ) # This will return the adjacency of the provided network.
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
+    )  # This will return the adjacency of the provided network.
     G_discovered = discover_network(
         data=data,
-        method='alternative',
-        information='gaussian',
+        method="alternative",
+        information="gaussian",
         max_lag=1,
         alpha_forward=0.01,
         alpha_backward=0.01,
-        n_shuffles=1000  # Reduced for faster execution
+        n_shuffles=1000,  # Reduced for faster execution
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -94,31 +87,28 @@ def test_alternative_gaussian():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_standard_knn():
     T = 200
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
-    ) # This will return the adjacency of the provided network.
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
+    )  # This will return the adjacency of the provided network.
     G_discovered = discover_network(
         data=data,
-        method='standard',
-        information='knn',
-        metric='euclidean',
+        method="standard",
+        information="knn",
+        metric="euclidean",
         max_lag=2,
-        k_means=5, # This method is sensitive to the choice of k. Too low = low TPR
+        k_means=5,  # This method is sensitive to the choice of k. Too low = low TPR
         alpha_forward=0.01,
         alpha_backward=0.01,
-        n_shuffles=1000
+        n_shuffles=1000,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -131,31 +121,28 @@ def test_standard_knn():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_alternative_knn():
     T = 200
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
-    ) # This will return the adjacency of the provided network.
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
+    )  # This will return the adjacency of the provided network.
     G_discovered = discover_network(
         data=data,
-        method='alternative',
-        information='knn',
-        metric='euclidean',
+        method="alternative",
+        information="knn",
+        metric="euclidean",
         max_lag=2,
-        k_means=20, # This method is sensitive to the choice of k. Too low = low TPR
+        k_means=20,  # This method is sensitive to the choice of k. Too low = low TPR
         alpha_forward=0.001,
         alpha_backward=0.001,
-        n_shuffles=5000
+        n_shuffles=5000,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -168,31 +155,28 @@ def test_alternative_knn():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_minkowski_standard_knn():
     T = 200
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
-    ) # This will return the adjacency of the provided network.
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
+    )  # This will return the adjacency of the provided network.
     G_discovered = discover_network(
         data=data,
-        method='standard',
-        information='knn',
-        metric='minkowski',
+        method="standard",
+        information="knn",
+        metric="minkowski",
         max_lag=2,
-        k_means=5, # This method is sensitive to the choice of k. Too low = low TPR
+        k_means=5,  # This method is sensitive to the choice of k. Too low = low TPR
         alpha_forward=0.01,
         alpha_backward=0.01,
-        n_shuffles=1000
+        n_shuffles=1000,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -205,31 +189,28 @@ def test_minkowski_standard_knn():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_standard_geometric_knn():
     T = 200
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
-    ) # This will return the adjacency of the provided network.
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
+    )  # This will return the adjacency of the provided network.
     G_discovered = discover_network(
         data=data,
-        method='standard',
-        information='geometric_knn',
-        metric='minkowski',
+        method="standard",
+        information="geometric_knn",
+        metric="minkowski",
         max_lag=2,
-        k_means=10, # This method is sensitive to the choice of k. Too low = low TPR
+        k_means=10,  # This method is sensitive to the choice of k. Too low = low TPR
         alpha_forward=0.05,
         alpha_backward=0.05,
-        n_shuffles=500
+        n_shuffles=500,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -242,30 +223,27 @@ def test_standard_geometric_knn():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_standard_kde():
     T = 200
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
-    ) # This will return the adjacency of the provided network.
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
+    )  # This will return the adjacency of the provided network.
     G_discovered = discover_network(
         data=data,
-        method='standard',
-        information='kde',
+        method="standard",
+        information="kde",
         max_lag=2,
-        bandwidth='silverman',
+        bandwidth="silverman",
         alpha_forward=0.05,
         alpha_backward=0.05,
-        n_shuffles=1000
+        n_shuffles=1000,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -278,29 +256,26 @@ def test_standard_kde():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_information_lasso():
     T = 200
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
     )
     G_discovered = discover_network(
         data=data,
-        method='information_lasso',
-        information='gaussian',
+        method="information_lasso",
+        information="gaussian",
         max_lag=1,
         alpha_forward=0.05,
         alpha_backward=0.05,
-        n_shuffles=1000
+        n_shuffles=1000,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -312,26 +287,19 @@ def test_information_lasso():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_lasso():
     T = 200
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
     )
-    G_discovered = discover_network(
-        data=data,
-        method='lasso',
-        max_lag=1
-    )
+    G_discovered = discover_network(data=data, method="lasso", max_lag=1)
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
 
@@ -342,27 +310,23 @@ def test_lasso():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_standard_poisson():
     T = 200
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
-    data, A = poisson_coupled_oscillators(
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
-    )
+    data, A = poisson_coupled_oscillators(n=n_nodes, T=T, seed=seed, G=G_true)
     G_discovered = discover_network(
         data=data,
-        method='standard',
-        information='poisson',
+        method="standard",
+        information="poisson",
         max_lag=1,
         alpha_forward=0.05,
         alpha_backward=0.05,
-        n_shuffles=1000
+        n_shuffles=1000,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -374,27 +338,23 @@ def test_standard_poisson():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_alternative_poisson():
     T = 200
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
-    data, A = poisson_coupled_oscillators(
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
-    )
+    data, A = poisson_coupled_oscillators(n=n_nodes, T=T, seed=seed, G=G_true)
     G_discovered = discover_network(
         data=data,
-        method='alternative',
-        information='poisson',
+        method="alternative",
+        information="poisson",
         max_lag=1,
         alpha_forward=0.01,
         alpha_backward=0.01,
-        n_shuffles=1000
+        n_shuffles=1000,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -406,31 +366,28 @@ def test_alternative_poisson():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_alternative_geometric_knn():
     T = 200
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
     )
     G_discovered = discover_network(
         data=data,
-        method='alternative',
-        information='geometric_knn',
-        metric='euclidean',
+        method="alternative",
+        information="geometric_knn",
+        metric="euclidean",
         max_lag=2,
         k_means=10,
         alpha_forward=0.001,
         alpha_backward=0.001,
-        n_shuffles=500
+        n_shuffles=500,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -442,30 +399,27 @@ def test_alternative_geometric_knn():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_alternative_kde():
     T = 200
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
     )
     G_discovered = discover_network(
         data=data,
-        method='alternative',
-        information='kde',
+        method="alternative",
+        information="kde",
         max_lag=2,
-        bandwidth='silverman',
+        bandwidth="silverman",
         alpha_forward=0.01,
         alpha_backward=0.01,
-        n_shuffles=1000
+        n_shuffles=1000,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -477,30 +431,27 @@ def test_alternative_kde():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_kde_scott_bandwidth():
     T = 200
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
     )
     G_discovered = discover_network(
         data=data,
-        method='standard',
-        information='kde',
+        method="standard",
+        information="kde",
         max_lag=2,
-        bandwidth='scott',
+        bandwidth="scott",
         alpha_forward=0.05,
         alpha_backward=0.05,
-        n_shuffles=1000
+        n_shuffles=1000,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -512,31 +463,28 @@ def test_kde_scott_bandwidth():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_knn_chebyshev_metric():
     T = 200
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
     )
     G_discovered = discover_network(
         data=data,
-        method='standard',
-        information='knn',
-        metric='chebyshev',
+        method="standard",
+        information="knn",
+        metric="chebyshev",
         max_lag=2,
         k_means=8,
         alpha_forward=0.01,
         alpha_backward=0.01,
-        n_shuffles=1000
+        n_shuffles=1000,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -548,31 +496,28 @@ def test_knn_chebyshev_metric():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_knn_manhattan_metric():
     T = 200
     rho = 0.7
     n_nodes = 5
     seed = 42
-    p=0.2
+    p = 0.2
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
     )
     G_discovered = discover_network(
         data=data,
-        method='standard',
-        information='knn',
-        metric='manhattan',
+        method="standard",
+        information="knn",
+        metric="manhattan",
         max_lag=2,
         k_means=8,
         alpha_forward=0.01,
         alpha_backward=0.01,
-        n_shuffles=1000
+        n_shuffles=1000,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -584,6 +529,7 @@ def test_knn_manhattan_metric():
     assert tpr == 1
     assert fpr == 0
 
+
 def test_parameter_variations():
     """Test various parameter combinations"""
     T = 150
@@ -594,22 +540,18 @@ def test_parameter_variations():
     np.random.seed(seed)
     G_true = nx.erdos_renyi_graph(n_nodes, p, seed=seed, directed=True)
     data, A = linear_stochastic_gaussian_process(
-        rho=rho,
-        n=n_nodes,
-        T=T,
-        seed=seed,
-        G=G_true
+        rho=rho, n=n_nodes, T=T, seed=seed, G=G_true
     )
 
     # Test with higher max_lag
     G_discovered = discover_network(
         data=data,
-        method='standard',
-        information='gaussian',
+        method="standard",
+        information="gaussian",
         max_lag=3,
         alpha_forward=0.01,
         alpha_backward=0.01,
-        n_shuffles=500
+        n_shuffles=500,
     )
     B = nx.to_numpy_array(G_discovered)
     A_true = nx.to_numpy_array(G_true)
@@ -624,14 +566,14 @@ def test_parameter_variations():
     # Test with different k_means for knn
     G_discovered = discover_network(
         data=data,
-        method='standard',
-        information='knn',
-        metric='euclidean',
+        method="standard",
+        information="knn",
+        metric="euclidean",
         max_lag=2,
         k_means=15,
         alpha_forward=0.001,
         alpha_backward=0.001,
-        n_shuffles=800
+        n_shuffles=800,
     )
     B = nx.to_numpy_array(G_discovered)
     B_bin = (B > 0).astype(int)
@@ -639,6 +581,7 @@ def test_parameter_variations():
     print(f"Higher k_means KNN Estimate: TPR: {tpr}, FPR: {fpr}")
     assert tpr == 1
     assert fpr == 0
+
 
 if __name__ == "__main__":
     test_standard_gaussian()

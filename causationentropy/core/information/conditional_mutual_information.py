@@ -137,7 +137,8 @@ def kde_conditional_mutual_information(
 
     return I
 
-def knn_conditional_mutual_information(X, Y, Z, metric='minkowski', k=1):
+
+def knn_conditional_mutual_information(X, Y, Z, metric="minkowski", k=1):
     """
     Estimate conditional mutual information using k-nearest neighbor method.
 
@@ -189,9 +190,7 @@ def knn_conditional_mutual_information(X, Y, Z, metric='minkowski', k=1):
            Physical Review E 69, 066138 (2004).
     """
     if Z is None:
-        return knn_mutual_information(
-            X, Y, metric=metric, k=k
-        )
+        return knn_mutual_information(X, Y, metric=metric, k=k)
     else:
         # XY = np.concatenate((X, Y), axis=1)
         # MIXYZ = knn_mutual_information(XY, Z, metric=metric, k=k)
@@ -216,6 +215,7 @@ def knn_conditional_mutual_information(X, Y, Z, metric='minkowski', k=1):
         # VP Estimation formula
         I = digamma(k) - np.mean(digamma(nxz + 1) + digamma(nyz + 1) - digamma(nz + 1))
         return I
+
 
 def geometric_knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=1):
     """

@@ -512,7 +512,7 @@ def test_knn_manhattan_metric():
         data=data,
         method="standard",
         information="knn",
-        metric="manhattan",
+        metric="cityblock", # scipy cdist uses cityblock for manhattan distance.
         max_lag=2,
         k_means=8,
         alpha_forward=0.01,

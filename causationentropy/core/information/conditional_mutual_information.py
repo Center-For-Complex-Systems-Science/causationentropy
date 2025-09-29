@@ -192,11 +192,7 @@ def knn_conditional_mutual_information(X, Y, Z, metric="minkowski", k=1):
     if Z is None:
         return knn_mutual_information(X, Y, metric=metric, k=k)
     else:
-        # XY = np.concatenate((X, Y), axis=1)
-        # MIXYZ = knn_mutual_information(XY, Z, metric=metric, k=k)
-        # MIXY = knn_mutual_information(X, Y, metric=metric, k=k)
-        #
-        # return MIXY - MIXYZ
+
         JS = np.column_stack((X, Y, Z))
         # Find the K-th smallest distance in the joint space
         if metric == "euclidean":

@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 from scipy.spatial.distance import cdist
 from scipy.special import digamma
@@ -230,6 +232,7 @@ def geometric_knn_mutual_information(X, Y, metric="euclidean", k=1):
 
     # Safety check: return 0 if result is NaN or infinite
     if not np.isfinite(mi):
+        warnings.warn("NaN result in geometric_knn_mutual_information. Returning 0.0")
         return 0.0
 
     return mi

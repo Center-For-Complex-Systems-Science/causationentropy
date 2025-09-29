@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import scipy
 from scipy.special import gamma, i0, i1
@@ -177,7 +179,8 @@ def geometric_knn_entropy(X, Xdist, k=1):
     H_X += d / N * np.sum(log_distances)
 
     # Compute geometric correction term with safety checks
-    geometric_corrections = []
+    successful_corrections = []
+    failed_count = 0
     for i in range(N):
         Y_i = X[np.append([i], Xknn[i, :]), :] - np.mean(
             X[np.append([i], Xknn[i, :]), :], axis=0
@@ -209,15 +212,22 @@ def geometric_knn_entropy(X, Xdist, k=1):
 
             correction = log_hyper + sing_ratio_sum
             if np.isfinite(correction):
-                geometric_corrections.append(correction)
+                successful_corrections.append(correction)
             else:
-                geometric_corrections.append(0.0)  # Fallback for non-finite values
+                failed_count += 1
 
         except (np.linalg.LinAlgError, ValueError):
-            # Handle SVD failures gracefully
-            geometric_corrections.append(0.0)
+            failed_count += 1
 
-    H_X += (1 / N) * np.sum(geometric_corrections)
+    if failed_count > 0:
+        warnings.warn(
+            f"Geometric correction failed for {failed_count}/{N} points. "
+            f"Entropy estimate may be biased."
+        )
+
+    if successful_corrections:
+        H_X += np.mean(successful_corrections)
+
     return H_X
 
 

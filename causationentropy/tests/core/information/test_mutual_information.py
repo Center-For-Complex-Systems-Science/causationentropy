@@ -264,6 +264,20 @@ class TestGeometricKNNMutualInformation:
         assert mi == 0.5  # Normal calculation: 2.0 + 1.5 - 3.0 = 0.5
         assert np.isfinite(mi)
 
+    @patch("causationentropy.core.information.mutual_information.geometric_knn_entropy")
+    def test_geometric_knn_mi_nan_warning(self, mock_entropy):
+        """Test that a warning is issued when geometric_knn_mutual_information returns NaN."""
+        # Create simple test data
+        X = np.array([[1.0], [2.0], [3.0]])
+        Y = np.array([[4.0], [5.0], [6.0]])
+
+        # Mock entropy to produce NaN MI
+        mock_entropy.side_effect = [np.nan, 1.0, 2.0]  # H(X), H(Y), H(X,Y)
+
+        with pytest.warns(UserWarning, match="NaN result in geometric_knn_mutual_information"):
+            mi = geometric_knn_mutual_information(X, Y, k=1)
+            assert mi == 0.0
+
 
 class TestMutualInformationProperties:
     """Test mathematical properties of mutual information."""

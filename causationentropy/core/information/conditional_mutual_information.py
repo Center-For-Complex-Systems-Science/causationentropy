@@ -195,10 +195,10 @@ def knn_conditional_mutual_information(X, Y, Z, metric="minkowski", k=1):
 
         JS = np.column_stack((X, Y, Z))
         # Find the K-th smallest distance in the joint space
-        if metric == "euclidean":
-            D = np.sort(cdist(JS, JS, metric=metric), axis=1)[:, k]
-        else:
+        if metric == "minkowski":
             D = np.sort(cdist(JS, JS, metric=metric, p=k + 1), axis=1)[:, k]
+        else:
+            D = np.sort(cdist(JS, JS, metric=metric), axis=1)[:, k]
         epsilon = D
         # Count neighbors within epsilon in marginal spaces
         Dxz = cdist(np.column_stack((X, Z)), np.column_stack((X, Z)), metric=metric)

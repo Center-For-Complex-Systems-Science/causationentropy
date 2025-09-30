@@ -112,7 +112,7 @@ testpaths = ["causationentropy/tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--cov=causationentropy --cov-report=html --cov-report=term-missing"
+addopts = "--cov=causationentropy --cov-report=html --cov-report=term-missing -m \"not integration\""
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]

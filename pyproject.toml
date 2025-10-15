@@ -102,7 +102,6 @@ Documentation = "https://causationentropy.readthedocs.io/en/latest/"  # when liv
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["causationentropy*"]
-exclude = ["tests*"]
 
 [tool.setuptools.package-data]
 causationentropy = ["datasets/data/*", "*.json", "*.yaml"]

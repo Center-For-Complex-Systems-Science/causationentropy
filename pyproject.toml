@@ -73,6 +73,7 @@ dev = [
     "isort>=5.0",
     "mypy>=0.900",
     "pre-commit>=2.15.0",
+    "tigramite>=5.0.0",
 ]
 docs = [
     "sphinx>=4.0",

@@ -616,10 +616,8 @@ causationentropy/
 │       └── test_your_method.py               # Comprehensive tests
 ├── examples/
 │   └── your_method_example.py                # Usage example
-├── notebooks/
-│   └── your_method_tutorial.ipynb            # Tutorial notebook
-└── papers/                                   # Add your paper PDF here
-    └── your_method.pdf
+└── notebooks/
+    └── your_method_tutorial.ipynb            # Tutorial notebook
 ```
 
 ## Getting Help
@@ -637,4 +635,4 @@ Student and researcher contributions are highlighted in:
 - Release notes
 - Academic citations when appropriate
 
-Your contributions to causal discovery research are valuable - thank you for advancing the field! 🎓
+Your contributions to causal discovery research are valuable. Thank you for advancing the field! 🎓

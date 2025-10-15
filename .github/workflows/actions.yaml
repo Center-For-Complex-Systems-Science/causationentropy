@@ -17,13 +17,15 @@ jobs:
         uses: actions/setup-python@v4
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
 
-      - name: Install Library
-        run: pip install -e .
+      - name: List installed packages
+        run: pip list
 
       - name: Run tests
-        run: pytest -m "not integration" --cov --cov-branch --cov-report=xml
+        run: python -m pytest causationentropy/tests/ -m "not integration" --cov=causationentropy --cov-branch --cov-report=xml -v
 
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v5

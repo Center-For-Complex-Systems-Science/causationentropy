@@ -123,6 +123,7 @@ sphinxcontrib-serializinghtml==2.0.0
 stack-data==0.6.3
 terminado==0.18.1
 threadpoolctl==3.6.0
+tigramite>=5.0.0
 tinycss2==1.4.0
 tornado==6.5.1
 traitlets==5.14.3

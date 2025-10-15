@@ -28,8 +28,8 @@ The typical workflow for adding new methods:
 
 1. **Clone and setup**:
    ```bash
-   git clone https://github.com/kslote1/causalentropy.git
-   cd causalentropy
+   git clone https://github.com/Center-For-Complex-Systems-Science/causationentropy.git
+   cd causationentropy
    python -m venv venv
    source venv/bin/activate  # Windows: venv\Scripts\activate
    pip install -e .[dev,docs,plotting]
@@ -37,36 +37,56 @@ The typical workflow for adding new methods:
 
 2. **Verify installation**:
    ```bash
-   pytest causalentropy/tests/
+   pytest causationentropy/tests/
    ```
 
 ## Implementing New Methods
 
+### Code Style Requirement: No **kwargs
+
+**CRITICAL**: This codebase does NOT use `**kwargs` or `*args` in function signatures. All parameters must be explicitly defined with proper type hints. This is a strict requirement that:
+
+- Ensures type checking works correctly with mypy
+- Makes the API self-documenting and clear
+- Prevents parameter passing errors
+- Improves IDE autocomplete and documentation generation
+
+When adding new methods, always spell out every parameter explicitly in the function signature. Do not use variable-length argument patterns.
+
 ### Step 1: Information Theory Estimators
 
-All information-theoretic measures go in `causalentropy/core/information/`. 
+All information-theoretic measures go in `causationentropy/core/information/`.
 
 #### Adding New Entropy Estimators
 
-Create or modify `causalentropy/core/information/entropy.py`:
+Create or modify `causationentropy/core/information/entropy.py`:
 
 ```python
-def your_entropy_estimator(x: np.ndarray, **kwargs) -> float:
+def your_entropy_estimator(
+    x: np.ndarray,
+    bandwidth: str = "silverman",
+    k: int = 5,
+    metric: str = "euclidean"
+) -> float:
     """
     Compute entropy using your method.
-    
+
     Parameters
     ----------
     x : np.ndarray, shape (n_samples, n_features)
         Input data.
-    **kwargs : dict
-        Method-specific parameters.
-        
+    bandwidth : str, default='silverman'
+        Bandwidth parameter for KDE-based methods.
+    k : int, default=5
+        Number of neighbors for k-NN based methods.
+    metric : str, default='euclidean'
+        Distance metric for k-NN methods.
+
     Returns
     -------
     float
         Entropy estimate.
-        
+
     References
     ----------
     .. [1] Your paper citation here
@@ -84,31 +104,41 @@ ENTROPY_ESTIMATORS = {
 
 #### Adding Mutual Information Estimators
 
-Modify `causalentropy/core/information/mutual_information.py`:
+Modify `causationentropy/core/information/mutual_information.py`:
 
 ```python
-def your_mutual_information(x: np.ndarray, y: np.ndarray, **kwargs) -> float:
+def your_mutual_information(
+    x: np.ndarray,
+    y: np.ndarray,
+    bandwidth: str = "silverman",
+    k: int = 5,
+    metric: str = "euclidean"
+) -> float:
     """
     Compute mutual information I(X; Y) using your method.
-    
+
     Parameters
     ----------
     x : np.ndarray, shape (n_samples,)
         First variable.
     y : np.ndarray, shape (n_samples,)
         Second variable.
-    **kwargs : dict
-        Method-specific parameters.
-        
+    bandwidth : str, default='silverman'
+        Bandwidth parameter for KDE-based methods.
+    k : int, default=5
+        Number of neighbors for k-NN based methods.
+    metric : str, default='euclidean'
+        Distance metric for k-NN methods.
+
     Returns
     -------
     float
         Mutual information estimate.
-        
+
     Notes
     -----
     Implementation details about your method.
-    
+
     References
     ----------
     .. [1] Your publication reference
@@ -126,34 +156,40 @@ MI_ESTIMATORS = {
 
 #### Adding Conditional Mutual Information
 
-Modify `causalentropy/core/information/conditional_mutual_information.py`:
+Modify `causationentropy/core/information/conditional_mutual_information.py`:
 
 ```python
 def your_conditional_mi(
-    x: np.ndarray, 
-    y: np.ndarray, 
-    z: np.ndarray, 
-    **kwargs
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+    bandwidth: str = "silverman",
+    k: int = 5,
+    metric: str = "euclidean"
 ) -> float:
     """
     Compute conditional mutual information I(X; Y | Z) using your method.
-    
+
     Parameters
     ----------
     x : np.ndarray, shape (n_samples,)
         First variable.
-    y : np.ndarray, shape (n_samples,)  
+    y : np.ndarray, shape (n_samples,)
         Second variable.
     z : np.ndarray, shape (n_samples, n_conditions)
         Conditioning variables.
-    **kwargs : dict
-        Method-specific parameters.
-        
+    bandwidth : str, default='silverman'
+        Bandwidth parameter for KDE-based methods.
+    k : int, default=5
+        Number of neighbors for k-NN based methods.
+    metric : str, default='euclidean'
+        Distance metric for k-NN methods.
+
     Returns
     -------
     float
         Conditional mutual information estimate.
-        
+
     References
     ----------
     .. [1] Your method paper
@@ -172,96 +208,182 @@ CMI_ESTIMATORS = {
 
 ### Step 2: Causal Discovery Algorithm
 
-Create your discovery method in `causalentropy/core/discovery.py` or a new file:
+Create your discovery method in `causationentropy/core/discovery.py` or a new file.
+
+**IMPORTANT**: Do NOT use `**kwargs` in your function signatures. All parameters must be explicitly defined. This is a core principle of the codebase to ensure type safety and API clarity.
 
 ```python
-def your_discovery_method(
-    data: Union[np.ndarray, pd.DataFrame],
-    information: str = "your_method",
-    max_lag: int = 5,
-    alpha: float = 0.05,
-    **kwargs
-) -> nx.DiGraph:
+def your_optimal_causation_entropy(
+    X: np.ndarray,
+    Y: np.ndarray,
+    rng: np.random.Generator,
+    alpha_forward: float = 0.05,
+    alpha_backward: float = 0.05,
+    n_shuffles: int = 200,
+    information: str = "gaussian",
+    metric: str = "euclidean",
+    k_means: int = 5,
+    bandwidth: str = "silverman",
+) -> list:
     """
-    Discover causal network using your algorithm.
-    
+    Execute your custom optimal causation entropy variant.
+
+    This function should implement your causal discovery algorithm following the
+    oCSE framework. It receives lagged predictor matrix X and target variable Y,
+    and returns indices of selected predictors.
+
     Parameters
     ----------
-    data : array-like, shape (n_samples, n_variables)
-        Time series data.
-    information : str, default="your_method"
-        Information estimator to use.
-    max_lag : int, default=5
-        Maximum time lag to consider.
-    alpha : float, default=0.05
-        Significance level for statistical tests.
-    **kwargs : dict
-        Additional algorithm parameters.
-        
+    X : array-like of shape (T, n_features)
+        Lagged predictor matrix where n_features = n_variables * max_lag.
+    Y : array-like of shape (T, 1)
+        Target variable column.
+    rng : numpy.random.Generator
+        Random number generator for reproducible results.
+    alpha_forward : float, default=0.05
+        Significance level for forward selection phase.
+    alpha_backward : float, default=0.05
+        Significance level for backward elimination phase.
+    n_shuffles : int, default=200
+        Number of permutations for statistical testing.
+    information : str, default='gaussian'
+        Information measure estimator type.
+    metric : str, default='euclidean'
+        Distance metric for k-NN estimators.
+    k_means : int, default=5
+        Number of neighbors for k-NN estimators.
+    bandwidth : str, default='silverman'
+        Bandwidth for KDE estimators.
+
     Returns
     -------
-    nx.DiGraph
-        Discovered causal network.
-        
+    S : list of int
+        Indices of selected predictor variables from X that have causal
+        relationships with Y.
+
     Notes
     -----
-    Detailed description of your algorithm:
-    1. Step 1 of your method
-    2. Step 2 of your method
-    3. etc.
-    
+    Your algorithm should:
+    1. Implement forward selection to identify candidate predictors
+    2. Apply backward elimination to remove spurious relationships
+    3. Use permutation tests via shuffle_test() for statistical significance
+    4. Return only the indices of significant predictors
+
     Examples
     --------
     >>> import numpy as np
-    >>> data = np.random.normal(0, 1, (100, 3))
-    >>> network = your_discovery_method(data)
-    
+    >>> X = np.random.randn(100, 15)  # 100 samples, 15 lagged features
+    >>> Y = np.random.randn(100, 1)
+    >>> rng = np.random.default_rng(42)
+    >>> S = your_optimal_causation_entropy(X, Y, rng)
+    >>> print(f"Selected {len(S)} predictors")
+
     References
     ----------
     .. [1] Your algorithm paper
     """
-    # Algorithm implementation
-    network = nx.DiGraph()
-    
-    # Your discovery logic here
-    # Use the information estimators you implemented above
-    
-    return network
+    # Your algorithm implementation
+    # Example structure:
+
+    # Forward selection phase
+    S = your_forward_selection(X, Y, rng, alpha_forward, n_shuffles,
+                                information, metric, k_means, bandwidth)
+
+    # Backward elimination phase
+    S = your_backward_elimination(X, Y, S, rng, alpha_backward, n_shuffles,
+                                   information, metric, k_means, bandwidth)
+
+    return S
 ```
 
 ### Step 3: Integration with Main Interface
 
-Modify the main `discover_network` function in `causalentropy/core/discovery.py`:
+**IMPORTANT**: When integrating your method into `discover_network`, you must explicitly specify all parameters. The codebase does NOT use `**kwargs` - all parameters must be spelled out explicitly. This ensures type safety and makes the API clear.
+
+Modify the main `discover_network` function in `causationentropy/core/discovery.py`:
 
 ```python
 def discover_network(
     data: Union[np.ndarray, pd.DataFrame],
     method: str = 'standard',  # Add your method name here
     information: str = "gaussian",
-    **kwargs
-) -> nx.DiGraph:
+    max_lag: int = 5,
+    alpha_forward: float = 0.05,
+    alpha_backward: float = 0.05,
+    metric: str = "euclidean",
+    bandwidth: str = "silverman",
+    k_means: int = 5,
+    n_shuffles: int = 200,
+    n_jobs: int = -1,
+) -> nx.MultiDiGraph:
     """Main discovery interface."""
-    
-    # Add your method to the dispatcher
-    if method == 'standard':
-        return _discover_standard(data, information, **kwargs)
-    elif method == 'hawkes':
-        return discover_network_hawkes(data, **kwargs)
-    elif method == 'your_method':  # Add this
-        return your_discovery_method(data, information, **kwargs)
-    else:
-        raise ValueError(f"Unknown method: {method}")
+
+    rng = np.random.default_rng(42)
+
+    # Validate method
+    if method not in ["standard", "alternative", "information_lasso", "lasso", "your_method"]:
+        raise NotImplementedError(f"discover_network: method={method} not supported.")
+
+    # Process data and create lagged features
+    # ... (data preprocessing code here)
+
+    # Method dispatcher - handles each method inline
+    for i in range(n):  # Loop over each target variable
+        Y = Y_all[:, [i]]
+
+        if method == 'standard':
+            # Standard oCSE: create initial conditioning set from lagged target
+            Z_init = []
+            for tau in range(1, max_lag + 1):
+                Z_init.append(series[max_lag - tau : T - tau, i])
+            Z_init = np.column_stack(Z_init)
+            S = standard_optimal_causation_entropy(
+                X_lagged, Y, Z_init, rng,
+                alpha_forward, alpha_backward, n_shuffles,
+                information, metric, k_means, bandwidth
+            )
+        elif method == 'alternative':
+            # Alternative oCSE: no initial conditioning set
+            S = alternative_optimal_causation_entropy(
+                X_lagged, Y, rng,
+                alpha_forward, alpha_backward, n_shuffles,
+                information, metric, k_means, bandwidth
+            )
+        elif method == 'information_lasso':
+            # Information-theoretic LASSO variant
+            S = information_lasso_optimal_causation_entropy(X_lagged, Y, rng)
+        elif method == 'lasso':
+            # Pure LASSO-based selection
+            S = lasso_optimal_causation_entropy(X_lagged, Y, rng)
+        elif method == 'your_method':
+            # Your custom method - explicitly pass all needed parameters
+            S = your_optimal_causation_entropy(
+                X_lagged, Y, rng,
+                alpha_forward, alpha_backward, n_shuffles,
+                information, metric, k_means, bandwidth
+            )
+
+        # Add edges to graph for selected predictors
+        # ... (edge creation code here)
+
+    return G
 ```
+
+**Key Points:**
+- No `**kwargs` - all parameters must be explicitly defined in the function signature
+- Each method receives the specific parameters it needs, spelled out completely
+- This ensures type checking works correctly and makes the API self-documenting
 
 ### Step 4: Testing Your Implementation
 
-Create comprehensive tests in `causalentropy/tests/`:
+Create comprehensive tests in `causationentropy/tests/`:
 
 ```python
-# causalentropy/tests/test_your_method.py
+# causationentropy/tests/test_your_method.py
 import pytest
 import numpy as np
 import pandas as pd
+import networkx as nx
 from causationentropy.core.discovery import your_discovery_method
 from causationentropy.core.information.entropy import your_entropy_estimator
 
@@ -271,37 +393,46 @@ class TestYourMethod:
         # Test with known data
         x = np.random.normal(0, 1, (100, 2))
         entropy = your_entropy_estimator(x)
-        
+
         assert entropy > 0  # Entropy should be positive
         assert np.isfinite(entropy)  # Should be finite
-    
+
     def test_discovery_method(self):
         """Test your discovery method."""
         # Create synthetic data with known structure
         n_samples, n_vars = 100, 3
         data = np.random.normal(0, 1, (n_samples, n_vars))
-        
+
         # Run discovery
         network = your_discovery_method(data)
-        
+
         # Basic validity checks
         assert network.number_of_nodes() == n_vars
-        assert isinstance(network, nx.DiGraph)
-    
+        assert isinstance(network, nx.MultiDiGraph)
+
+        # Check edge attributes
+        for u, v, data in network.edges(data=True):
+            assert 'lag' in data
+            assert 'cmi' in data
+            assert 'p_value' in data
+            assert data['lag'] >= 1  # Lags should be positive
+            assert 0 <= data['p_value'] <= 1  # Valid p-value range
+
     def test_integration(self):
         """Test integration with main interface."""
-        from causationentropy import discover_network
-        
+        from causationentropy.core.discovery import discover_network
+
         data = pd.DataFrame(np.random.normal(0, 1, (50, 3)))
         network = discover_network(data, method='your_method')
-        
+
         assert hasattr(network, 'nodes')
         assert hasattr(network, 'edges')
+        assert isinstance(network, nx.MultiDiGraph)
 ```
 
 Run your tests:
 ```bash
-pytest causalentropy/tests/test_your_method.py -v
+pytest causationentropy/tests/test_your_method.py -v
 ```
 
 ## Code Style and Standards
@@ -358,11 +489,11 @@ def your_algorithm(data: np.ndarray, alpha: float = 0.05) -> nx.DiGraph:
 
 Run these before submitting:
 ```bash
-black causalentropy/          # Code formatting
-isort causalentropy/          # Import sorting  
-flake8 causalentropy/         # Linting
-mypy causalentropy/           # Type checking
-pytest --cov=causalentropy    # Test with coverage
+black causationentropy/          # Code formatting
+isort causationentropy/          # Import sorting
+flake8 causationentropy/         # Linting
+mypy causationentropy/           # Type checking (allowed to fail)
+pytest --cov=causationentropy    # Test with coverage
 ```
 
 ## Submitting for Publication
@@ -374,10 +505,22 @@ pytest --cov=causalentropy    # Test with coverage
    # examples/your_method_example.py
    """
    Example demonstrating Your Novel Method for causal discovery.
-   
+
    This example shows how to use YNM on both synthetic and real data,
-   comparing results with existing methods.
+   comparing results with existing methods like standard oCSE.
    """
+   import numpy as np
+   from causationentropy.core.discovery import discover_network
+   from causationentropy.datasets.synthetic import logistic_dynamics
+
+   # Generate synthetic data
+   data, true_adjacency = logistic_dynamics()
+
+   # Run your method
+   network = discover_network(data, method='your_method', max_lag=3)
+
+   # Compare with standard oCSE
+   network_standard = discover_network(data, method='standard', max_lag=3)
    ```
 
 2. **Add a detailed notebook**:
@@ -394,19 +537,48 @@ pytest --cov=causalentropy    # Test with coverage
    ```python
    def your_algorithm(data):
        """
-       Time complexity: O(n^2 * p^2) where n=samples, p=variables
-       Space complexity: O(n * p)
+       Time complexity: O(T * n^2 * τ_max * n_shuffles) where:
+           - T = number of time points
+           - n = number of variables
+           - τ_max = maximum lag
+           - n_shuffles = number of permutations
+       Space complexity: O(T * n * τ_max)
+
+       Note: The oCSE algorithm is computationally intensive - users should
+       be patient when running on large datasets.
        """
    ```
 
 4. **Benchmark against existing methods**:
    ```python
-   # causalentropy/tests/test_benchmarks.py
+   # causationentropy/tests/test_benchmarks.py
+   import time
+   import numpy as np
+   from causationentropy.core.discovery import discover_network
+   from causationentropy.datasets.synthetic import logistic_dynamics
+
    def test_method_comparison():
        """Compare your method with standard approaches."""
        # Generate synthetic data with ground truth
-       # Run multiple methods
+       data, true_adjacency = logistic_dynamics()
+
+       # Run multiple methods and compare
+       methods = ['standard', 'alternative', 'your_method']
+       results = {}
+
+       for method in methods:
+           start_time = time.time()
+           network = discover_network(data, method=method, max_lag=3)
+           elapsed_time = time.time() - start_time
+
+           results[method] = {
+               'num_edges': network.number_of_edges(),
+               'runtime': elapsed_time,
+               'network': network
+           }
+
        # Compare accuracy, runtime, etc.
+       print(f"Results: {results}")
    ```
 
 ### Publication Checklist
@@ -425,20 +597,28 @@ Before submitting your work:
 ### Repository Structure for Your Method
 
 ```
-causalentropy/
-├── causalentropy/core/information/
-│   ├── entropy.py                    # Add your entropy estimator
-│   ├── mutual_information.py         # Add your MI estimator  
-│   └── conditional_mutual_information.py # Add your CMI estimator
-├── causalentropy/core/
-│   └── discovery.py                  # Add your discovery method
-├── causalentropy/tests/
-│   └── test_your_method.py           # Comprehensive tests
+causationentropy/
+├── causationentropy/
+│   ├── core/
+│   │   ├── information/
+│   │   │   ├── entropy.py                    # Add your entropy estimator
+│   │   │   ├── mutual_information.py         # Add your MI estimator
+│   │   │   └── conditional_mutual_information.py # Add your CMI estimator
+│   │   ├── discovery.py                      # Add your discovery method
+│   │   ├── stats.py                          # Statistical utilities
+│   │   ├── linalg.py                         # Linear algebra utilities
+│   │   └── plotting.py                       # Visualization tools
+│   ├── datasets/
+│   │   └── synthetic.py                      # Synthetic data generators
+│   ├── graph/
+│   │   └── utils.py                          # Graph conversion utilities
+│   └── tests/
+│       └── test_your_method.py               # Comprehensive tests
 ├── examples/
-│   └── your_method_example.py        # Usage example
+│   └── your_method_example.py                # Usage example
 ├── notebooks/
-│   └── your_method_tutorial.ipynb    # Tutorial notebook
-└── papers/                           # Add your paper PDF here
+│   └── your_method_tutorial.ipynb            # Tutorial notebook
+└── papers/                                   # Add your paper PDF here
     └── your_method.pdf
 ```
 

@@ -1,5 +1,8 @@
 # Read the Docs configuration file
 # See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+#
+# NOTE: This file is located in docs/.readthedocs.yaml
+# All paths below are relative to the repository root, not the docs directory
 
 # Required
 version: 2
@@ -20,4 +23,6 @@ sphinx:
 python:
   install:
     - requirements: docs/requirements.txt
+    - method: pip
+      path: .
         

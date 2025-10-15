@@ -47,7 +47,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -e .[dev]
-        pip install tigramite>=5.0.0
     
     - name: Lint with flake8
       run: |
@@ -70,7 +69,7 @@ jobs:
     
     - name: Test with pytest
       run: |
-        pytest causationentropy/tests/ --cov=causationentropy --cov-report=xml --cov-report=term-missing -v
+        pytest --cov=causationentropy --cov-report=xml --cov-report=term-missing -v
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3

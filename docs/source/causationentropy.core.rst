@@ -57,6 +57,8 @@ Linear algebra utilities for information-theoretic computations.
    :undoc-members:
 
 .. autofunction:: causationentropy.core.linalg.correlation_log_determinant
+.. autofunction:: causationentropy.core.linalg.subnetwork
+.. autofunction:: causationentropy.core.linalg.companion_matrix
 
 causationentropy.core.plotting module
 ----------------------------------

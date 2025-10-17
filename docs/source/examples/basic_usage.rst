@@ -17,7 +17,7 @@ Simple Example
    # Discover causal network
    network = discover_network(data, method='standard', max_lag=5)
 
-.. figure:: ../_static/images/diagrams/basic_flow.png
+.. figure:: ../_static/images/basic_flow.png
    :alt: Basic workflow diagram
    :width: 600px
    :align: center

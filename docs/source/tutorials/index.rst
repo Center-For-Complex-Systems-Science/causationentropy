@@ -20,7 +20,7 @@ For interactive examples, check out our Jupyter notebooks:
 
    notebooks/*
 Create examples/basic_usage.rst:
-rst===========
+
 Basic Usage
 ===========
 
@@ -31,35 +31,17 @@ Simple Example
 
 .. code-block:: python
 
-   import numpy as np
-   from causationentropy import OptimalCausalEntropy
-   
-   # Generate sample data
-   data = np.random.randn(100, 3)
-   
-   # Initialize the model
-   oce = OptimalCausalEntropy()
-   
-   # Fit the model
-   oce.fit(data)
-   
-   # Get results
-   entropy = oce.compute_entropy()
-   print(f"Causal entropy: {entropy}")
+   from causationentropy import discover_network
+
+   # Load your time series data (variables as columns, time as rows)
+   data = pd.read_csv('your_data.csv')
+
+   # Discover causal network
+   network = discover_network(data, method='standard', max_lag=5)
 
 .. figure:: ../_static/images/diagrams/basic_flow.png
    :alt: Basic workflow diagram
    :width: 600px
    :align: center
    
-   Basic workflow of the Causation Entropy method
-
-Expected Output
-===============
-
-The output should look like this:
-
-.. code-block:: text
-
-   Causal entropy: 2.347
-   Convergence achieved in 15 iterations
+   The `discover_network` method returns a NetworkX MultiDiGraph object.

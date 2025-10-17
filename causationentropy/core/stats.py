@@ -85,8 +85,11 @@ def Compute_TPR_FPR(A, B):
 
     .. math::
 
-        \text{TPR} = \frac{\text{TP}}{\text{TP} + \text{FN}} = \frac{\text{TP}}{P}
-        \text{FPR} = \frac{\text{FP}}{\text{FP} + \text{TN}} = \frac{\text{FP}}{N}
+       \text{TPR} = \frac{\text{TP}}{\text{TP} + \text{FN}} = \frac{\text{TP}}{P}
+
+    .. math::
+
+       \text{FPR} = \frac{\text{FP}}{\text{FP} + \text{TN}} = \frac{\text{FP}}{N}
 
     where:
     - TP: True positives (correctly predicted edges)

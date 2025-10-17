@@ -44,7 +44,6 @@ Basic usage:
    :hidden:
 
    tutorials/index
-   examples/index
 
 .. toctree::
    :maxdepth: 2

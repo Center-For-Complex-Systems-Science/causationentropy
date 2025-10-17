@@ -2,7 +2,7 @@
 ### Added
 - All math code parsed to new API
 
-## [1.1.0] - 2025-10-01
+## [1.0.0] - 2025-10-01
 ### Added
 - Full test coverage.
 - Full API design
@@ -11,3 +11,4 @@
 ### Added
 - Added support for converting causal networks to pandas DataFrames.
 - Added utility for importing and processing Tigramite network structures.
+- Added companion matrix calculation for better FPR/TPR calculations.

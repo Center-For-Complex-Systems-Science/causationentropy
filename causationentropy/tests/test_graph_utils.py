@@ -198,6 +198,44 @@ class TestGraphUtils(unittest.TestCase):
                 found = True
         self.assertTrue(found)
 
+    def test_non_binarize_with_possible_directed(self):
+        """Test binarize=False with '-?>' link type (line 181)."""
+        graph = np.full((3, 3, 2), "", dtype="<U3")
+        graph[0, 1, 0] = "-?>"
+        graph[1, 2, 1] = "-?>"
+
+        results = {
+            "graph": graph,
+            "val_matrix": np.ones((3, 3, 2)) * 0.6,
+            "p_matrix": np.ones((3, 3, 2)) * 0.04,
+        }
+
+        G = pcmci_to_networkx(results, binarize=False)
+
+        # '-?>' at [0,1,0] should create possible directed edge
+        self.assertTrue(G.has_edge(0, 1))
+        edges_0_1 = G.get_edge_data(0, 1)
+        found_lag_0 = False
+        for edge_data in edges_0_1.values():
+            if edge_data["lag"] == 0 and edge_data["link_type"] == "possible_directed":
+                self.assertEqual(edge_data["val"], 0.6)
+                self.assertEqual(edge_data["p_value"], 0.04)
+                self.assertNotIn("significant", edge_data)
+                found_lag_0 = True
+        self.assertTrue(found_lag_0)
+
+        # '-?>' at [1,2,1] should create possible directed edge
+        self.assertTrue(G.has_edge(1, 2))
+        edges_1_2 = G.get_edge_data(1, 2)
+        found_lag_1 = False
+        for edge_data in edges_1_2.values():
+            if edge_data["lag"] == 1 and edge_data["link_type"] == "possible_directed":
+                self.assertEqual(edge_data["val"], 0.6)
+                self.assertEqual(edge_data["p_value"], 0.04)
+                self.assertNotIn("significant", edge_data)
+                found_lag_1 = True
+        self.assertTrue(found_lag_1)
+
     def test_pcmci_to_networkx_tau_zero_has_scalar_edge_metrics(self):
         np.random.seed(123)
         data = np.random.randn(300, 3)

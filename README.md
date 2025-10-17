@@ -37,6 +37,12 @@ cd causationentropy
 pip install -e .
 ```
 
+##### Run the tests
+
+```bash
+python -m pytest causationentropy/tests/ --cov=causationentropy --cov-report=xml --cov-report=term-missing -v
+```
+
 ## Quick Start
 
 ### Basic Usage

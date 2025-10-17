@@ -83,7 +83,7 @@ def Compute_TPR_FPR(A, B):
     This function evaluates the performance of a predicted network (B) against
     a ground truth network (A) by computing standard classification metrics:
 
-    .. math::
+    . math::
 
         \text{TPR} = \frac{\text{TP}}{\text{TP} + \text{FN}} = \frac{\text{TP}}{P}
 

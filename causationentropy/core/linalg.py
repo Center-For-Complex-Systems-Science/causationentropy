@@ -1,5 +1,3 @@
-from typing import List, Optional, Tuple
-
 import networkx as nx
 import numpy as np
 
@@ -97,3 +95,6 @@ def correlation_log_determinant(A, epsilon=1e-10):
         return -1000.0  # Large negative value for singular matrices
 
     return logdet
+
+def companion_matrix(network: nx.MultiDiGraph):
+    pass

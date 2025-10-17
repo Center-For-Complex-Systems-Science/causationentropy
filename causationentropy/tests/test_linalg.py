@@ -324,12 +324,12 @@ class TestSubnetwork:
         H = subnetwork(G, lag=1)
 
         edge_data_01 = H.get_edge_data(0, 1)
-        assert edge_data_01['cmi'] == 0.5
-        assert edge_data_01['p_value'] == 0.01
+        assert edge_data_01["cmi"] == 0.5
+        assert edge_data_01["p_value"] == 0.01
 
         edge_data_12 = H.get_edge_data(1, 2)
-        assert edge_data_12['cmi'] == 0.3
-        assert edge_data_12['p_value'] == 0.05
+        assert edge_data_12["cmi"] == 0.3
+        assert edge_data_12["p_value"] == 0.05
 
     def test_subnetwork_empty_lag(self):
         """Test extraction when no edges exist at specified lag."""
@@ -372,16 +372,16 @@ class TestSubnetwork:
     def test_subnetwork_preserves_node_attributes(self):
         """Test that node attributes are preserved."""
         G = nx.MultiDiGraph()
-        G.add_node(0, name='X0', variable='temperature')
-        G.add_node(1, name='X1', variable='pressure')
+        G.add_node(0, name="X0", variable="temperature")
+        G.add_node(1, name="X1", variable="pressure")
         G.add_edge(0, 1, lag=1, cmi=0.5, p_value=0.01)
 
         H = subnetwork(G, lag=1)
 
-        assert H.nodes[0]['name'] == 'X0'
-        assert H.nodes[0]['variable'] == 'temperature'
-        assert H.nodes[1]['name'] == 'X1'
-        assert H.nodes[1]['variable'] == 'pressure'
+        assert H.nodes[0]["name"] == "X0"
+        assert H.nodes[0]["variable"] == "temperature"
+        assert H.nodes[1]["name"] == "X1"
+        assert H.nodes[1]["variable"] == "pressure"
 
     def test_subnetwork_bidirectional_edges(self):
         """Test extraction of bidirectional edges at same lag."""
@@ -403,8 +403,8 @@ class TestSubnetwork:
         H = subnetwork(G, lag=1)
 
         edge_data = H.get_edge_data(0, 1)
-        assert edge_data['cmi'] == 0.0  # Default value
-        assert edge_data['p_value'] == 1.0  # Default value
+        assert edge_data["cmi"] == 0.0  # Default value
+        assert edge_data["p_value"] == 1.0  # Default value
 
     def test_subnetwork_large_graph(self):
         """Test with larger graph."""
@@ -424,14 +424,14 @@ class TestSubnetwork:
     def test_subnetwork_string_node_names(self):
         """Test with string node names instead of integers."""
         G = nx.MultiDiGraph()
-        G.add_edge('X0', 'X1', lag=1, cmi=0.5, p_value=0.01)
-        G.add_edge('X1', 'X2', lag=1, cmi=0.3, p_value=0.05)
+        G.add_edge("X0", "X1", lag=1, cmi=0.5, p_value=0.01)
+        G.add_edge("X1", "X2", lag=1, cmi=0.3, p_value=0.05)
 
         H = subnetwork(G, lag=1)
 
         assert H.number_of_nodes() == 3
-        assert H.has_edge('X0', 'X1')
-        assert H.has_edge('X1', 'X2')
+        assert H.has_edge("X0", "X1")
+        assert H.has_edge("X1", "X2")
 
     def test_subnetwork_empty_graph(self):
         """Test with empty graph."""
@@ -537,7 +537,7 @@ class TestCompanionMatrix:
         C = companion_matrix(G)
 
         # Should be numpy.ndarray, not scipy.sparse
-        assert type(C).__module__ == 'numpy'
+        assert type(C).__module__ == "numpy"
         assert isinstance(C, np.ndarray)
 
     def test_companion_matrix_all_zeros_blocks(self):
@@ -572,9 +572,9 @@ class TestCompanionMatrix:
     def test_companion_matrix_string_nodes(self):
         """Test with string node names."""
         G = nx.MultiDiGraph()
-        G.add_node('X0')
-        G.add_node('X1')
-        G.add_edge('X0', 'X1', lag=1, cmi=0.5, p_value=0.01)
+        G.add_node("X0")
+        G.add_node("X1")
+        G.add_edge("X0", "X1", lag=1, cmi=0.5, p_value=0.01)
 
         C = companion_matrix(G)
 
@@ -635,7 +635,7 @@ class TestCompanionMatrix:
         for k in range(1, max_lag):
             r0 = k * n_nodes
             c0 = (k - 1) * n_nodes
-            identity_block = C[r0:r0 + n_nodes, c0:c0 + n_nodes]
+            identity_block = C[r0 : r0 + n_nodes, c0 : c0 + n_nodes]
             assert np.allclose(identity_block, np.eye(n_nodes))
 
     def test_companion_matrix_bidirectional_edges(self):
@@ -710,6 +710,6 @@ class TestSubnetworkAndCompanionMatrixIntegration:
 
             # Extract the corresponding block from companion matrix
             start_col = (lag - 1) * n
-            block = C[0:n, start_col:start_col + n]
+            block = C[0:n, start_col : start_col + n]
 
             assert np.allclose(block, adj), f"Lag {lag} block doesn't match"

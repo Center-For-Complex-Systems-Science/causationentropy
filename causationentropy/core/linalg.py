@@ -140,10 +140,11 @@ def subnetwork(G: nx.MultiDiGraph, lag: int) -> nx.DiGraph:
     H.add_nodes_from(G.nodes(data=True))
     for u, v, k, data in G.edges(keys=True, data=True):
         if data.get("lag") == lag:
-            cmi = data.get('cmi', 0.0)
-            p_value = data.get('p_value', 1.0)
+            cmi = data.get("cmi", 0.0)
+            p_value = data.get("p_value", 1.0)
             H.add_edge(u, v, cmi=cmi, p_value=p_value)
     return H
+
 
 def companion_matrix(G: nx.MultiDiGraph) -> np.ndarray:
     r"""
@@ -198,7 +199,7 @@ def companion_matrix(G: nx.MultiDiGraph) -> np.ndarray:
     (6, 6)
     """
     # Get max lag from all edges
-    max_lag = max((data.get('lag', 0) for _, _, data in G.edges(data=True)), default=0)
+    max_lag = max((data.get("lag", 0) for _, _, data in G.edges(data=True)), default=0)
 
     if max_lag == 0:
         return np.zeros((0, 0))
@@ -213,12 +214,12 @@ def companion_matrix(G: nx.MultiDiGraph) -> np.ndarray:
         H = subnetwork(G, lag)
         A_by_lag = nx.adjacency_matrix(H).toarray()
         start_col = (lag - 1) * n_nodes
-        C[0:n_nodes, start_col:start_col + n_nodes] = A_by_lag
+        C[0:n_nodes, start_col : start_col + n_nodes] = A_by_lag
 
     # Fill in block diagonal identity matrices for temporal shift structure
     for k in range(1, max_lag):
         r0 = k * n_nodes
         c0 = (k - 1) * n_nodes
-        C[r0:r0 + n_nodes, c0:c0 + n_nodes] = np.eye(n_nodes)
+        C[r0 : r0 + n_nodes, c0 : c0 + n_nodes] = np.eye(n_nodes)
 
     return C

@@ -97,4 +97,10 @@ def correlation_log_determinant(A, epsilon=1e-10):
     return logdet
 
 def companion_matrix(network: nx.MultiDiGraph):
+    """
+
+
+    """
+    # for i, j, cmi, p_value, in network.edges(data=True):
+
     pass

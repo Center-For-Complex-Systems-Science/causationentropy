@@ -67,7 +67,7 @@ Basic usage:
    :caption: Links
    :hidden:
 
-   GitHub Repository <https://github.com/yourusername/causationentropy>
+   GitHub Repository <https://github.com/Center-For-Complex-Systems-Science/causationentropy>
    PyPI Package <https://pypi.org/project/causationentropy>
 
 Please Cite
@@ -78,7 +78,7 @@ If you use Causation Entropy in your work, please cite:
 .. code-block:: bibtex
 
    @misc{slote2025causationentropy,
-     author  = {Slote, Kevin and Fish Jeremie and Bollt, Erirk},
+     author  = {Slote, Kevin and Fish, Jeremie and Bollt, Eirk},
      title   = {CausationEntropy: A Python Library for Causal Discovery},
      url     = {https://github.com/kslote1/causationentropy},
      doi     = {10.5281/zenodo.17047565}

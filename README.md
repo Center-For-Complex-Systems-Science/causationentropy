@@ -102,8 +102,7 @@ discovered = discover_network(data)
 - **Statistical Rigor**: Permutation-based significance testing with comprehensive test coverage
 - **Synthetic Data**: Built-in generators for testing and validation
 - **Visualization**: Network plotting and analysis tools
-- **Performance**: Optimized implementations with parallel processing support
-
+- 
 ## Mathematical Foundation
 
 The algorithm uses **conditional mutual information** to quantify causal relationships:
@@ -125,7 +124,7 @@ The algorithm implements a two-phase approach:
 - **[API Reference](https://causationentropy.readthedocs.io/en/latest/api/)**: Complete function and class documentation
 - **[User Guide](https://causationentropy.readthedocs.io/en/latest/user_guide/)**: Detailed tutorials and examples
 - **[Theory](https://causationentropy.readthedocs.io/en/latest/theory/)**: Mathematical background and algorithms
-- **Examples**: Check the ``notebooks/` directory
+- **Examples**: Check the `notebooks/` directory
 - **Research Papers**: See the `theory glossary` in the [documentation](https://causationentropy.readthedocs.io/en/latest/theory/index.html)
 
 ### Local Documentation

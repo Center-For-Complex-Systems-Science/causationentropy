@@ -114,65 +114,6 @@ Power depends on:
 Total cost is :math:`O((B+1) \cdot C_{\text{estimator}})$ where :math:`C_{\text{estimator}}$ 
 is the cost of computing one conditional mutual information estimate.
 
-Multiple Testing Corrections
-============================
-
-The Multiple Testing Problem
----------------------------
-
-In causal discovery, we typically test :math:`m$ hypotheses simultaneously:
-
-.. math::
-
-   H_{0,k}: I(X_{j_k}^{(t-\tau_k)}; X_i^{(t)} | \mathbf{Z}_i^{(t)}) = 0, \quad k = 1, \ldots, m
-
-**Family-Wise Error Rate (FWER):**
-
-.. math::
-
-   \text{FWER} = P(\text{at least one false rejection}) = P\left(\bigcup_{k \in \mathcal{H}_0} \{p_k \leq \alpha\}\right)
-
-**False Discovery Rate (FDR):**
-
-.. math::
-
-   \text{FDR} = \mathbb{E}\left[\frac{V}{\max(R, 1)}\right]
-
-where :math:`V$ is the number of false rejections and :math:`R$ is the total number of rejections.
-
-Bonferroni Correction
---------------------
-
-**Method:** Reject :math:`H_{0,k}$ if :math:`p_k \leq \alpha/m$
-
-**Properties:**
-- Controls FWER exactly: :math:`\text{FWER} \leq \alpha$
-- Conservative (low power) when :math:`m$ is large
-- Appropriate when few true relationships exist
-
-**Application in oCSE:**
-Use when testing a small number of pre-specified relationships or 
-when strong FWER control is required.
-
-False Discovery Rate Control
----------------------------
-
-**Benjamini-Hochberg Procedure:**
-1. Order p-values: :math:`p_{(1)} \leq p_{(2)} \leq \cdots \leq p_{(m)}$
-2. Find largest :math:`k$ such that :math:`p_{(k)} \leq \frac{k}{m}\alpha$
-3. Reject :math:`H_{0,(1)}, \ldots, H_{0,(k)}$
-
-**Adaptive FDR:**
-Estimate the proportion of true nulls :math:`\pi_0$:
-
-.. math::
-
-   \hat{\pi}_0 = \frac{\#\{p_i > \lambda\}}{m(1-\lambda)}
-
-Then use threshold: :math:`p_{(k)} \leq \frac{k}{m\hat{\pi}_0}\alpha$
-
-**By-Stage Methods:**
-Control FDR at each stage of forward/backward selection.
 
 Sequential Testing in oCSE
 ==========================
@@ -413,10 +354,6 @@ Sample Size Requirements
      - n ≥ 200
      - n ≥ 1000
      - Not recommended
-   * - Histogram
-     - n ≥ 500
-     - n ≥ 2000
-     - Not recommended
 
 Significance Level Selection
 ---------------------------
@@ -480,8 +417,6 @@ Computational Improvements
 
 1. **Parallel Testing:** Efficient parallel algorithms for permutation tests
 2. **Approximate Methods:** Fast approximate significance testing
-3. **Online Methods:** Sequential testing for streaming data
-4. **GPU Acceleration:** Hardware acceleration for large-scale problems
 
 Conclusion
 =========

@@ -10,10 +10,10 @@ Causation Entropy Documentation
    :align: center
 
 Welcome to the Causation Entropy documentation! This library provides tools for
-analyzing causal relationships using entropy-based methods.
+analyzing causal relationships using information-theory based methods.
 
 .. note::
-   This is an active project. Check our `GitHub repository <https://github.com/kslote1/causationentropy>`_ 
+   This is an active project. Check our `GitHub repository <https://github.com/Center-For-Complex-Systems-Science/causationentropy>`_
    for the latest updates.
 
 Quick Start
@@ -53,6 +53,10 @@ Basic usage:
    api/network_discovery
    api/information
    api/datasets
+ │ api/linalg                                                                                          │
+ │ api/plotting                                                                                        │
+ │ api/stats                                                                                           │
+
 
 .. toctree::
    :maxdepth: 2
@@ -77,9 +81,9 @@ If you use Causation Entropy in your work, please cite:
 .. code-block:: bibtex
 
    @misc{slote2025causationentropy,
-     author  = {Slote, Kevin and Fish, Jeremie and Bollt, Eirk},
+     author  = {Slote, Kevin and Fish, Jeremie and Bollt, Erik},
      title   = {CausationEntropy: A Python Library for Causal Discovery},
-     url     = {https://github.com/kslote1/causationentropy},
+     url     = {https://github.com/Center-For-Complex-Systems-Science/causationentropy},
      doi     = {10.5281/zenodo.17047565}
    }
 

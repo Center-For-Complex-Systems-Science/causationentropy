@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
+import networkx as nx
 
 from causationentropy.core.stats import auc
+from causationentropy.core.linalg import companion_matrix
 
 
 def roc_curve(TPRs, FPRs):
@@ -102,3 +104,6 @@ def roc_curve(TPRs, FPRs):
         fontsize=12,
         bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
     )
+
+def plot_causal_network(G: nx.MultiDiGraph):
+    expanded_adjacecny = companion_matrix(G)

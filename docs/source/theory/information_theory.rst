@@ -234,11 +234,6 @@ Estimator Comparison
      - High
      - O(n²)
      - Smooth densities
-   * - Histogram
-     - High
-     - Low
-     - O(n)
-     - Discrete/mixed data
 
 Advanced Information Measures
 ============================
@@ -331,7 +326,6 @@ Bias and Variance Tradeoffs
 
 **Bias Sources:**
 - Finite sample effects
-- Discretization (histogram methods)
 - Boundary effects (KDE)
 - Model assumptions (Gaussian)
 
@@ -424,23 +418,12 @@ Emerging Methods
 ---------------
 
 1. **Deep Learning Estimators:** Neural networks for entropy estimation
-2. **Causal Information Theory:** Information measures for causal inference
-3. **Quantum Information:** Extensions to quantum systems
-4. **Online Estimation:** Streaming entropy estimation
 5. **Robust Estimation:** Methods resilient to model misspecification
-
-Open Problems
-------------
-
-1. **Optimal Estimation:** Minimax rates for information measure estimation
-2. **High-Dimensional Theory:** Consistency in :math:`p >> n` regimes
-3. **Causal Identifiability:** When does information identify causation?
-4. **Computational Efficiency:** Faster algorithms for large-scale problems
 
 Conclusion
 =========
 
-Information theory provides the mathematical foundation for the Causation Entropy 
+Information theory provides the mathematical foundation for the Optimal Causation Entropy
 framework. Understanding entropy, mutual information, and their estimation is crucial 
 for effective application of these methods. Key takeaways:
 

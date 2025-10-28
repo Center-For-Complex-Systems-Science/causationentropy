@@ -24,10 +24,7 @@ Coupled Oscillators
 ~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: causationentropy.datasets.synthetic.poisson_coupled_oscillators
-.. autofunction:: causationentropy.datasets.synthetic.negative_binomial_coupled_oscillators
-.. autofunction:: causationentropy.datasets.synthetic.hawkes_coupled_processes
-.. autofunction:: causationentropy.datasets.synthetic.von_mises_coupled_oscillators
-.. autofunction:: causationentropy.datasets.synthetic.laplace_coupled_oscillators
+
 
 Module contents
 ---------------

@@ -150,6 +150,9 @@ def companion_matrix(G: nx.MultiDiGraph) -> np.ndarray:
     r"""
     Construct the block companion matrix for a causal network.
 
+    The purpose of this method is to store the causal graph in a structure that this
+    library prefers and is not necessarily the graph theoretical construction.
+
     The companion matrix is a block-structured matrix used in vector autoregression (VAR)
     and dynamical systems analysis:
 

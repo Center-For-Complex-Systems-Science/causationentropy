@@ -53,9 +53,9 @@ Basic usage:
    api/network_discovery
    api/information
    api/datasets
- │ api/linalg                                                                                          │
- │ api/plotting                                                                                        │
- │ api/stats                                                                                           │
+   api/linalg
+   api/plotting
+   api/stats
 
 
 .. toctree::

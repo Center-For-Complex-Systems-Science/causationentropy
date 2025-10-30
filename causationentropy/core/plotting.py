@@ -1,14 +1,13 @@
+import itertools
 import math
 import random
-import itertools
-from typing import List, Dict, Tuple
+from collections import defaultdict
+from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from matplotlib.colors import Normalize
-from collections import defaultdict
-
 from matplotlib.font_manager import FontProperties
 from matplotlib.patches import Patch
 
@@ -92,6 +91,7 @@ def _edge_length_variance(G: nx.Graph, order: List) -> float:
     arr = np.array(lengths, dtype=float)
     return float(np.var(arr) / (np.mean(arr) + 1e-9))
 
+
 def _connected_angle_penalty(G: nx.Graph, order: List, min_frac: float = 0.0) -> float:
     # Encourage connected nodes to not be nearly adjacent (tiny angles),
     # which reduces hairballing near labels.
@@ -109,11 +109,13 @@ def _connected_angle_penalty(G: nx.Graph, order: List, min_frac: float = 0.0) ->
         m += 1
     return s / max(m, 1)
 
+
 def _label_collision_proxy(order: List, min_sep: int = 0) -> int:
     # Simple proxy: penalize runs of nodes being too close is not needed on a unit circle,
     # but if you later map label boxes, replace this with precise bbox overlap checks.
     # Here we keep 0 to avoid overfitting; left as hook.
     return 0
+
 
 def _objective(G: nx.Graph, order: List, w=(1.0, 0.2, 0.05, 0.0)) -> float:
     # Lower is better
@@ -122,6 +124,7 @@ def _objective(G: nx.Graph, order: List, w=(1.0, 0.2, 0.05, 0.0)) -> float:
     ang_pen = _connected_angle_penalty(G, order)
     coll = _label_collision_proxy(order)
     return w[0] * crossings + w[1] * var_len + w[2] * ang_pen + w[3] * coll
+
 
 def optimize_circular_order(
     G: nx.Graph,
@@ -161,6 +164,7 @@ def optimize_circular_order(
                 best, best_score = cur, score
     return best
 
+
 def roc_curve(TPRs, FPRs):
     """
     Plot Receiver Operating Characteristic (ROC) curve.
@@ -172,7 +176,7 @@ def roc_curve(TPRs, FPRs):
 
     The ROC curve is defined by the parametric equations:
 
-    .. math:: 
+    .. math::
 
         \\text{TPR}(t) = \\frac{\\text{TP}(t)}{\\text{TP}(t) + \\text{FN}(t)} = \\frac{\\text{TP}(t)}{P}
 
@@ -221,16 +225,16 @@ def roc_curve(TPRs, FPRs):
     >>> import numpy as np
     >>> import matplotlib.pyplot as plt
     >>> from causationentropy.core.plotting import roc_curve
-    >>> 
+    >>>
     >>> # Perfect classifier example
     >>> tpr_perfect = [0, 1, 1]
     >>> fpr_perfect = [0, 0, 1]
-    >>> 
+    >>>
     >>> plt.figure(figsize=(8, 6))
     >>> roc_curve(tpr_perfect, fpr_perfect)
     >>> plt.legend(['Perfect Classifier'])
     >>> plt.show()
-    >>> 
+    >>>
     >>> # Random classifier comparison
     >>> tpr_random = [0, 0.5, 1]
     >>> fpr_random = [0, 0.5, 1]

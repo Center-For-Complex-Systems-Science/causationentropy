@@ -8,6 +8,8 @@ import networkx as nx
 import numpy as np
 from matplotlib.colors import Normalize
 from collections import defaultdict
+
+from matplotlib.font_manager import FontProperties
 from matplotlib.patches import Patch
 
 from causationentropy.core.stats import auc
@@ -19,7 +21,8 @@ def _communities_seed_order(G: nx.Graph) -> List:
         comms = list(
             nx.algorithms.community.greedy_modularity_communities(G.to_undirected())
         )
-    except Exception:
+    except Exception as e:
+        print(f"Error finding communities: {e}")
         comms = [set(G.nodes())]
     # Order communities by size, and nodes inside by degree (descending)
     order = []
@@ -60,8 +63,6 @@ def _edge_crossings_for_order(G: nx.Graph, order: List) -> int:
         if u == v:
             continue
         a, b = idx[u], idx[v]
-        if a == b:
-            continue
         if a > b:
             a, b = b, a
         edges.append((a, b))
@@ -141,8 +142,6 @@ def optimize_circular_order(
         # Propose a move: swap two nodes or reverse a block
         if block_moves and N >= 6 and random.random() < 0.5:
             i, j = sorted(random.sample(range(N), 2))
-            if i == j:
-                continue
             # reverse a block [i, j]
             cur[i : j + 1] = reversed(cur[i : j + 1])
         else:
@@ -274,7 +273,10 @@ def plot_causal_network(
     node_linewidth: float = 5.0,
     edge_width_range: Tuple[float, float] = (1.0, 8.0),
     arrowsize: int = 30,
+    stats_fontsize: int = 16,
     label_fontsize: int = 16,
+    legend_fontsize: int = 10,
+    colorbar_fontsize: int = 14,
     title_fontsize: int = 24,
     colormaps: List[str] = None,
     colorblind_safe: bool = False,
@@ -497,8 +499,6 @@ def plot_causal_network(
     # Draw edges for each lag
     for i, lag in enumerate(sorted_lags):
         edges = edge_data[lag]
-        if not edges:
-            continue
 
         cmis = np.array([e[2] for e in edges])
         p_values = np.array([e[3] if e[3] is not None else 1.0 for e in edges])
@@ -558,8 +558,6 @@ def plot_causal_network(
     # Create legend for lag groups
     legend_elements = []
     for i, lag in enumerate(sorted_lags):
-        if not edge_data[lag]:
-            continue
         colormap = plt.cm.get_cmap(colormaps[i % len(colormaps)])
         color = colormap(0.7)
         legend_elements.append(
@@ -569,11 +567,11 @@ def plot_causal_network(
     ax.legend(
         handles=legend_elements,
         loc="upper right",
-        fontsize=14,
+        fontsize=legend_fontsize,
         title="Lag Groups",
-        title_fontsize=16,
+        title_fontsize=legend_fontsize,
         framealpha=0.9,
-        prop={"weight": "bold"},
+        prop={"weight": "bold", "size": legend_fontsize},
     )
 
     # Add colorbar showing CMI scale if requested
@@ -589,10 +587,13 @@ def plot_causal_network(
             "Conditional Mutual Information (CMI)",
             rotation=270,
             labelpad=25,
-            fontsize=14,
+            fontsize=colorbar_fontsize,
             fontweight="bold",
         )
-        cbar.ax.tick_params(labelsize=12)
+
+        font_props = FontProperties(weight="bold", size=colorbar_fontsize / 2)
+        for tick in cbar.ax.get_yticklabels():
+            tick.set_fontproperties(font_props)
 
     # Add network statistics box if requested
     if show_statistics:
@@ -606,7 +607,7 @@ def plot_causal_network(
             0.98,
             stats_text,
             transform=ax.transAxes,
-            fontsize=12,
+            fontsize=stats_fontsize,
             verticalalignment="top",
             bbox=dict(
                 boxstyle="round,pad=0.5",

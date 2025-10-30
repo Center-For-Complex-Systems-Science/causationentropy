@@ -45,10 +45,12 @@ python -m pytest causationentropy/tests/ --cov=causationentropy --cov-report=xml
 
 ## Quick Start
 
+See our Quick Start colab notebook: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](
+https://colab.research.google.com/github/Center-For-Complex-Systems-Science/causationentropy/blob/main/notebooks/Quickstart.ipynb)
 ### Basic Usage
 
+Get the relationships as a data frame:
 ```python
-import numpy as np
 import pandas as pd
 from causationentropy import discover_network
 from causationentropy.graph import network_to_dataframe
@@ -62,11 +64,25 @@ df = network_to_dataframe(network)
 df.head()
 ```
 
+Plot the causal network:
+```python
+from causationentropy import discover_network
+from causationentropy.core.plotting import plot_causal_network
+
+# Load your time series data (variables as columns, time as rows)
+data = pd.read_csv('data.csv')
+
+# Discover causal network
+network = discover_network(data, method='standard', max_lag=5)
+fig, ax = plot_causal_network(network, save_path="network.png")
+```
 **Note:** This implementation of this algorithm runs in `O(n^2 T log T)` where `N` is the number of variables and `T` is the length of the time series. Application of this algorithm without optimizations is computationally intensive. When running this algorithm, please be patient. Optimizations of the algorithm are planned for a later release that leverage singular value decomposition and KD-Trees. However, these optimizations are not part of the original algorithm. Adding additional lags also contributes to additional performance degradations.
 
 ### Advanced Configuration
 
 ```python
+from causationentropy import discover_network
+
 # Configure discovery parameters
 network = discover_network(
     data,
@@ -83,6 +99,7 @@ network = discover_network(
 
 ```python
 from causationentropy.datasets import synthetic
+from causationentropy import discover_network
 
 # Generate synthetic causal time series
 data, true_network = synthetic.linear_stochastic_gaussian_process(

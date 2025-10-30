@@ -87,6 +87,11 @@ def poisson_coupled_oscillators(
         Time series of Poisson counts
     A : array (n, n)
         True adjacency matrix
+
+    References
+    ------
+    [1] Xanthi Pedeli, Dimitris Karlis, Some properties of multivariate INAR(1) processes,
+    Computational Statistics & Data Analysis. (2013)
     """
     rng = np.random.default_rng(seed)
     if G is None:

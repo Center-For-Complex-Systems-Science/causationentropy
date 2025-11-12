@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "causationentropy"
-version = "1.0.0"
+version = "1.1.0"
 authors = [
     {name = "Kevin Slote", email = "kslote1@gmail.com"},
 ]
@@ -62,6 +62,7 @@ dependencies = [
     "networkx>=2.6.0",
     "matplotlib>=3.4.0",
     "tqdm>=4.60.0",
+    "tigramite>=5.0.0",
 ]
 
 [project.optional-dependencies]
@@ -93,7 +94,7 @@ all = [
 [project.urls]
 Homepage = "https://github.com/Center-For-Complex-Systems-Science/causationentropy"
 Repository = "https://github.com/Center-For-Complex-Systems-Science/causationentropy"
-Documentation = "https://causationentropy.readthedocs.io/en/latest/"  # when live
+Documentation = "https://causationentropy.readthedocs.io/en/latest/"
 "Bug Tracker" = "https://github.com/Center-For-Complex-Systems-Science/causationentropy/issues"
 
 #[project.scripts]

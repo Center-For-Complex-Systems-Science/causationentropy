@@ -69,14 +69,16 @@ def gaussian_conditional_mutual_information(X, Y, Z=None):
 
     def _detcorr(A):
         C = np.corrcoef(A.T)
-        return float(C) if np.ndim(C) == 0 else np.linalg.slogdet(C)[1]
+        # For 1D input, corrcoef returns scalar 1.0, and log(1.0) = 0.0
+        return 0.0 if np.ndim(C) == 0 else np.linalg.slogdet(C)[1]
 
     SZ = _detcorr(Z)
     SXZ = _detcorr(np.hstack((X, Z)))
     SYZ = _detcorr(np.hstack((Y, Z)))
     SXYZ = _detcorr(np.hstack((X, Y, Z)))
 
-    return 0.5 * (SXZ + SYZ - SZ - SXYZ)
+    cmi = 0.5 * (SXZ + SYZ - SZ - SXYZ)
+    return cmi
 
 
 def kde_conditional_mutual_information(
@@ -272,7 +274,8 @@ def geometric_knn_conditional_mutual_information(X, Y, Z, metric="euclidean", k=
     HXZ = geometric_knn_entropy(np.hstack((X, Z)), XZdist, k)
     HYZ = geometric_knn_entropy(np.hstack((Y, Z)), YZdist, k)
     HXYZ = geometric_knn_entropy(np.hstack((X, Y, Z)), XYZdist, k)
-    return HXZ + HYZ - HXYZ - HZ
+    cmi = HXZ + HYZ - HXYZ - HZ
+    return cmi
 
 
 def poisson_conditional_mutual_information(X, Y, Z):
@@ -365,7 +368,8 @@ def poisson_conditional_mutual_information(X, Y, Z):
         HXZ = poisson_joint_entropy(S_est2)
         H_YZ = HYZ - HZ
         H_XYZ = HXYZ - HXZ
-        return H_XYZ - H_YZ
+        cmi = H_XYZ - H_YZ
+        return cmi
 
 
 def conditional_mutual_information(
@@ -473,21 +477,21 @@ def conditional_mutual_information(
     >>> print(f"k-NN CMI: {cmi_knn:.3f}")
     """
     if method == "gaussian":
-        return gaussian_conditional_mutual_information(X, Y, Z)
+        cmi = gaussian_conditional_mutual_information(X, Y, Z)
 
     elif method == "kde" or method == "kernel_density":
-        return kde_conditional_mutual_information(
+        cmi = kde_conditional_mutual_information(
             X, Y, Z, bandwidth=bandwidth, kernel=kernel
         )
 
     elif method == "knn":
-        return knn_conditional_mutual_information(X, Y, Z, metric=metric, k=k)
+        cmi = knn_conditional_mutual_information(X, Y, Z, metric=metric, k=k)
 
     elif method == "geometric_knn":
-        return geometric_knn_conditional_mutual_information(X, Y, Z, metric=metric, k=k)
+        cmi = geometric_knn_conditional_mutual_information(X, Y, Z, metric=metric, k=k)
 
     elif method == "poisson":
-        return poisson_conditional_mutual_information(X, Y, Z)
+        cmi = poisson_conditional_mutual_information(X, Y, Z)
 
     else:
         supported_methods = [
@@ -501,3 +505,10 @@ def conditional_mutual_information(
         raise ValueError(
             f"Method '{method}' unavailable. Supported methods: {supported_methods}"
         )
+
+    # Ensure non-negativity: CMI is theoretically always >= 0,
+    # but finite sample estimation can produce small negative values.
+    # Only clamp finite values; preserve NaN/inf for error handling.
+    if np.isfinite(cmi):
+        return max(0.0, cmi)
+    return cmi

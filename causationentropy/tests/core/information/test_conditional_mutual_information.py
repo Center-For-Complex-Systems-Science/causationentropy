@@ -856,7 +856,14 @@ class TestKNNConditionalMutualInformation:
         cmi_main = conditional_mutual_information(X, Y, None, method="knn", k=3)
         cmi_direct = knn_conditional_mutual_information(X, Y, Z=None, k=3)
 
-        assert np.isclose(cmi_main, cmi_direct, rtol=1e-15)
+        # Both should be non-negative (or non-finite)
+        assert cmi_main >= 0.0 or not np.isfinite(cmi_main)
+        # Direct call returns raw value, main interface clamps it
+        assert np.isclose(
+            cmi_main,
+            max(0.0, cmi_direct) if np.isfinite(cmi_direct) else cmi_direct,
+            rtol=1e-15,
+        )
 
     def test_knn_cmi_dependent_variables_no_conditioning(self):
         """Test k-NN CMI with dependent variables when Z=None."""

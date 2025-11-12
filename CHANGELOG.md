@@ -7,9 +7,10 @@
 - Full test coverage.
 - Full API design
 
-## [1.1.0] - 2025-10-15
+## [1.1.0] - 2025-11-12
 ### Added
 - Added support for converting causal networks to pandas DataFrames.
 - Added utility for importing and processing Tigramite network structures.
 - Added companion matrix calculation for better FPR/TPR calculations.
 - Added plot_causal_network function that implements some automated graph layout algorithms to plot causal networks.
+- Enforce non-negative conditional mututal information and non-negative mutual information.

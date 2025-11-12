@@ -55,7 +55,8 @@ def gaussian_mutual_information(X, Y):
     SY = correlation_log_determinant(Y)
     SXY = correlation_log_determinant(np.hstack((X, Y)))
 
-    return 0.5 * (SX + SY - SXY)
+    mi = 0.5 * (SX + SY - SXY)
+    return mi
 
 
 def kde_mutual_information(X, Y, bandwidth="silverman", kernel="gaussian"):
@@ -101,7 +102,8 @@ def kde_mutual_information(X, Y, bandwidth="silverman", kernel="gaussian"):
     Hy = kde_entropy(Y, bandwidth=bandwidth, kernel=kernel)
     Hxy = kde_entropy(XY, bandwidth=bandwidth, kernel=kernel)
 
-    return Hx + Hy - Hxy
+    mi = Hx + Hy - Hxy
+    return mi
 
 
 def knn_mutual_information(X, Y, metric="euclidean", k=1):
@@ -172,7 +174,8 @@ def knn_mutual_information(X, Y, metric="euclidean", k=1):
     I1b = digamma(n)
     I1 = I1a + I1b
     I2 = -np.mean(digamma(nx + 1) + digamma(ny + 1))
-    return I1 + I2
+    mi = I1 + I2
+    return mi
 
 
 def geometric_knn_mutual_information(X, Y, metric="euclidean", k=1):
@@ -235,4 +238,5 @@ def geometric_knn_mutual_information(X, Y, metric="euclidean", k=1):
         warnings.warn("NaN result in geometric_knn_mutual_information. Returning 0.0")
         return 0.0
 
-    return mi
+    # Ensure non-negativity
+    return max(0.0, mi)

@@ -58,10 +58,6 @@ Permutation Testing
 Theoretical Foundation
 ---------------------
 
-**Exchangeability Principle:**
-Under :math:`H_0: X \perp Y | Z`, the joint distribution of :math:`(X,Y,Z)` 
-is invariant to permutations of :math:`X$ given :math:`Z$.
-
 **Permutation Distribution:**
 Generate :math:`B$ permutations :math:`\{X^{(b)}\}_{b=1}^B$ and compute:
 

@@ -10,6 +10,11 @@
 
 A Python library for discovering causal networks from time series data using **Optimal Causation Entropy (oCSE)**.
 
+## Quick Start
+
+See our Quick Start colab notebook: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](
+https://colab.research.google.com/github/Center-For-Complex-Systems-Science/causationentropy/blob/main/notebooks/Quickstart.ipynb)
+
 ## Overview
 
 CausationEntropy implements state-of-the-art information-theoretic methods for causal discovery from multivariate time series. The library provides robust algorithms that can identify causal relationships while controlling for confounding variables and false discoveries.
@@ -43,10 +48,6 @@ pip install -e .
 python -m pytest causationentropy/tests/ --cov=causationentropy --cov-report=xml --cov-report=term-missing -v
 ```
 
-## Quick Start
-
-See our Quick Start colab notebook: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](
-https://colab.research.google.com/github/Center-For-Complex-Systems-Science/causationentropy/blob/main/notebooks/Quickstart.ipynb)
 ### Basic Usage
 
 Get the relationships as a data frame:

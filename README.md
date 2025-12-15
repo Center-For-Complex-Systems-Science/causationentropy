@@ -55,7 +55,7 @@ python -m pytest causationentropy/tests/ --cov=causationentropy --cov-report=xml
 
 ### Basic Usage
 
-Get the relationships as a data frame:
+Get the relationships as a Pandas data frame:
 ```python
 import pandas as pd
 from causationentropy import discover_network

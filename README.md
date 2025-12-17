@@ -107,11 +107,11 @@ network = discover_network(
 from causationentropy.datasets import synthetic
 from causationentropy import discover_network
 
+rho = 0.7
 # Generate synthetic causal time series
 data, true_network = synthetic.linear_stochastic_gaussian_process(
-    n_variables=5, 
-    n_samples=1000, 
-    sparsity=0.3
+    rho,
+    n=5, 
 )
 
 # Discover network

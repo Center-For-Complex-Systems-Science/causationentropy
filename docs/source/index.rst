@@ -29,7 +29,7 @@ Basic usage:
 
 .. code-block:: python
 
-   from causationentropy.core.discovery import discover_network
+   from causationentropy import discover_network
    import numpy as np
    
    # Generate synthetic data

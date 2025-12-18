@@ -38,6 +38,17 @@ Basic usage:
    # Discover causal network
    network = discover_network(data, method='standard', information='gaussian')
 
+Nice plots:
+
+Our goal is to produce a library that produces nice publication ready plots!
+
+Here is an example:
+
+.. image:: _static/images/network.png
+   :alt: Causation Entropy Logo
+   :width: 200px
+   :align: center
+
 .. toctree::
    :maxdepth: 2
    :caption: User Guide

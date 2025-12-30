@@ -125,7 +125,6 @@ def kde_conditional_mutual_information(
     if Z is None:
         I = kde_mutual_information(X, Y, bandwidth=bandwidth, kernel=kernel)
     else:
-
         XZ = np.hstack((X, Z))
         YZ = np.hstack((Y, Z))
         XYZ = np.hstack((X, Y, Z))
@@ -194,7 +193,6 @@ def knn_conditional_mutual_information(X, Y, Z, metric="minkowski", k=1):
     if Z is None:
         return knn_mutual_information(X, Y, metric=metric, k=k)
     else:
-
         JS = np.column_stack((X, Y, Z))
         # Find the K-th smallest distance in the joint space
         if metric == "minkowski":

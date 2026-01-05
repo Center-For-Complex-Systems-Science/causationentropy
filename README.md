@@ -92,7 +92,7 @@ from causationentropy import discover_network
 # Configure discovery parameters
 network = discover_network(
     data,
-    method='standard',          # 'standard', 'alternative', 'information_lasso', or 'lasso'
+    method='standard',          # 'standard', 'alternative', base lines: 'information_lasso', or 'lasso'
     information='gaussian',     # 'gaussian', 'knn', 'kde', 'geometric_knn', or 'poisson'
     max_lag=5,                  # Maximum time lag to consider
     alpha_forward=0.05,         # Forward selection significance

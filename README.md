@@ -17,7 +17,7 @@ https://colab.research.google.com/github/Center-For-Complex-Systems-Science/caus
 
 ## Overview
 
-CausationEntropy implements state-of-the-art information-theoretic methods for causal discovery from multivariate time series. The library provides robust algorithms that can identify causal relationships while controlling for confounding variables and false discoveries.
+CausationEntropy implements state-of-the-art information-theoretic methods for causal discovery from multivariate time series. The library provides robust algorithms that can identify causal relationships.
 
 ### What it does
 

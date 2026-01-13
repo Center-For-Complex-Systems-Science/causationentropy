@@ -82,7 +82,7 @@ data = pd.read_csv('data.csv')
 network = discover_network(data, method='standard', max_lag=5)
 fig, ax = plot_causal_network(network, save_path="network.png")
 ```
-**Note:** This implementation of this algorithm runs in `O(n^2 T log T)` where `N` is the number of variables and `T` is the length of the time series. Application of this algorithm without optimizations is computationally intensive. When running this algorithm, please be patient. Optimizations of the algorithm are planned for a later release that leverage singular value decomposition and KD-Trees. However, these optimizations are not part of the original algorithm. Adding additional lags also contributes to additional performance degradations.
+**Note:** Application of this algorithm without optimizations is computationally intensive. When running this algorithm, please be patient. Optimizations of the algorithm are planned for a later release that leverage singular value decomposition and KD-Trees. However, these optimizations are not part of the original algorithm. Adding additional lags also contributes to additional performance degradations.
 
 ### Advanced Configuration
 

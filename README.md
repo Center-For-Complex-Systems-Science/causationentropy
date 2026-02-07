@@ -125,7 +125,7 @@ discovered = discover_network(data)
 - **Statistical Rigor**: Permutation-based significance testing with comprehensive test coverage
 - **Synthetic Data**: Built-in generators for testing and validation
 - **Visualization**: Network plotting and analysis tools
-- 
+  
 ## Mathematical Foundation
 
 The algorithm uses **conditional mutual information** to quantify causal relationships:

@@ -133,6 +133,8 @@ extend-exclude = '''
   | \.venv
   | build
   | dist
+  | benchmarks
+  | case_studies
 )/
 '''
 

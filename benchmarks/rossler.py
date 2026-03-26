@@ -18,6 +18,7 @@ from tigramite.independence_tests.parcorr import ParCorr
 # User Library Imports
 from causationentropy import discover_network
 from causationentropy.graph import pcmci_to_networkx
+from causationentropy.core.linalg import companion_matrix
 from causationentropy.datasets.synthetic import (
     generate_graph_topology,
     simulate_rossler,
@@ -49,33 +50,24 @@ def suppress_stdout():
 # =============================================================================
 
 
-def extract_node_adjacency_from_basis_oce_rossler(
+def extract_node_graph_from_basis_oce_rossler(
     graph_nx, n, basis_map, var_names, coupling_on="x"
 ):
     """
     For OCE graph (string nodes):
-      nodes are var_names strings.
-    We infer edge j -> i if coupling variable c_{i<-j} predicts d(s_i)/dt variable.
-
-    If coupling_on == "x": look at edges c_{i<-j} -> dx_i
-    If coupling_on == "y": look at edges c_{i<-j} -> dy_i
-    If coupling_on == "z": look at edges c_{i<-j} -> dz_i
-
-    Accept lag<=1 (like your Kuramoto code).
+    Return nx.MultiDiGraph with integer nodes [0..n-1].
+    Edges carry lag, cmi, p_value attributes.
     """
-    A_node = np.zeros((n, n), dtype=int)
+    G = nx.MultiDiGraph()
+    G.add_nodes_from(range(n))
 
     if coupling_on == "x":
         target_vars = [f"dx{i}" for i in range(n)]
-        target_offset = 0
     elif coupling_on == "y":
         target_vars = [f"dy{i}" for i in range(n)]
-        target_offset = n
     else:
         target_vars = [f"dz{i}" for i in range(n)]
-        target_offset = 2 * n
 
-    # coupling vars begin after 3n in var_names
     base = 3 * n
     for i in range(n):
         target_var = target_vars[i]
@@ -84,24 +76,27 @@ def extract_node_adjacency_from_basis_oce_rossler(
             if graph_nx.has_edge(coupling_var, target_var):
                 edges = graph_nx[coupling_var][target_var]
                 for _, edata in edges.items():
-                    if edata.get("lag", 0) <= 1:
-                        if target == i:
-                            A_node[source, i] = 1
-                        break
-    return A_node
+                    if target == i:
+                        G.add_edge(
+                            source,
+                            i,
+                            lag=edata.get("lag", 0),
+                            cmi=edata.get("cmi", 0.0),
+                            p_value=edata.get("p_value", 1.0),
+                        )
+    return G
 
 
-def extract_node_adjacency_from_basis_pcmci_rossler(
+def extract_node_graph_from_basis_pcmci_rossler(
     graph_nx, n, basis_map, coupling_on="x"
 ):
     """
     For PCMCI graph (integer nodes):
-      first 3n nodes are [dx0..dx{n-1}, dy0.., dz0..]
-      coupling nodes start at index 3n
-
-    We infer j -> i if c_{i<-j} -> d(s_i)/dt is present.
+    Return nx.MultiDiGraph with integer nodes [0..n-1].
+    Edges carry lag, cmi, p_value attributes.
     """
-    A_node = np.zeros((n, n), dtype=int)
+    G = nx.MultiDiGraph()
+    G.add_nodes_from(range(n))
 
     if coupling_on == "x":
         target_start = 0
@@ -117,9 +112,52 @@ def extract_node_adjacency_from_basis_pcmci_rossler(
         for idx, (target, source) in enumerate(basis_map):
             coupling_node_idx = coupling_start + idx
             if graph_nx.has_edge(coupling_node_idx, target_node_idx):
-                if target == i:
-                    A_node[source, i] = 1
-    return A_node
+                edges = graph_nx[coupling_node_idx][target_node_idx]
+                for _, edata in edges.items():
+                    if target == i:
+                        G.add_edge(
+                            source,
+                            i,
+                            lag=edata.get("lag", 0),
+                            cmi=edata.get("val", edata.get("cmi", 0.0)),
+                            p_value=edata.get("p_value", 1.0),
+                        )
+    return G
+
+
+def collapse_to_binary_adjacency(node_graph, n):
+    """Collapse MultiDiGraph to binary n x n adjacency matrix."""
+    A = np.zeros((n, n), dtype=int)
+    for u, v, _ in node_graph.edges(data=True):
+        A[u, v] = 1
+    return A
+
+
+# =============================================================================
+# COMPANION MATRIX HELPERS
+# =============================================================================
+
+
+def build_true_companion_top_rows(true_adj, n, max_lag):
+    """Build (n, n*max_lag) true companion top rows. Lag-1 block = true_adj, rest zeros."""
+    top = np.zeros((n, n * max_lag))
+    top[:, :n] = (true_adj != 0).astype(int)
+    return top
+
+
+def build_pred_companion_top_rows(node_graph, n, max_lag):
+    """Build (n, n*max_lag) predicted companion top rows via companion_matrix()."""
+    C = companion_matrix(node_graph)
+    if C.size == 0:
+        return np.zeros((n, n * max_lag))
+    top = C[:n, :]
+    # Pad or truncate to standard width n*max_lag
+    width = n * max_lag
+    if top.shape[1] >= width:
+        return top[:, :width]
+    padded = np.zeros((n, width))
+    padded[:, : top.shape[1]] = top
+    return padded
 
 
 # =============================================================================
@@ -127,7 +165,7 @@ def extract_node_adjacency_from_basis_pcmci_rossler(
 # =============================================================================
 
 
-def compute_metrics(predicted_adj, true_adj, time_taken):
+def compute_metrics(predicted_adj, true_adj, time_taken, prefix=""):
     B = (predicted_adj != 0).astype(int)
     A = (true_adj != 0).astype(int)
 
@@ -136,19 +174,22 @@ def compute_metrics(predicted_adj, true_adj, time_taken):
     tn = np.sum((B == 0) & (A == 0))
     fn = np.sum((B == 0) & (A == 1))
 
+    total = tp + fp + tn + fn
     tpr = tp / (tp + fn) if (tp + fn) > 0 else 0.0
     fpr = fp / (fp + tn) if (fp + tn) > 0 else 0.0
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
     f1 = 2 * (precision * tpr) / (precision + tpr) if (precision + tpr) > 0 else 0.0
+    accuracy = (tp + tn) / total if total > 0 else 0.0
     shd = fp + fn
 
     return {
-        "TPR": tpr,
-        "FPR": fpr,
-        "Precision": precision,
-        "F1": f1,
-        "SHD": shd,
-        "Time": time_taken,
+        f"{prefix}TPR": tpr,
+        f"{prefix}FPR": fpr,
+        f"{prefix}Precision": precision,
+        f"{prefix}F1": f1,
+        f"{prefix}Accuracy": accuracy,
+        f"{prefix}SHD": shd,
+        f"{prefix}Time": time_taken,
     }
 
 
@@ -317,9 +358,9 @@ def plot_trial_summary_rossler(
 # =============================================================================
 
 GLOBAL_PARAMS = {
-    "n_nodes": 10,
-    "T": 1000,  # chaotic needs decent length; adjust as needed
-    "n_trials": 5,
+    "n_nodes": 5,
+    "T": 5000,  # chaotic needs decent length; adjust as needed
+    "n_trials": 2,
     "alpha": 0.05,
     "tau_max": 1,
     "dt": 0.02,
@@ -329,26 +370,19 @@ GLOBAL_PARAMS = {
     "a": 0.2,
     "b": 0.2,
     "c": 5.7,
-    "rho_default": 0.1,
+    "rho_default": 0.4,
     "noise_std": 0.0,
     "init_scale": 1.0,
     "coupling_on": "x",
 }
 
 EXPERIMENTS = {
-    "ER_Density": {
+    "Method_Compare": {
         "type": "Erdos-Renyi",
         "vary_param": "p_edge",
         "label": "Edge Probability (p)",
-        "values": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
-        "defaults": {"rho": 0.1},
-    },
-    "Coupling_Strength": {
-        "type": "Erdos-Renyi",
-        "vary_param": "rho",
-        "label": "Coupling Strength (rho)",
-        "values": [0.02, 0.05, 0.1, 0.2, 0.3],
-        "defaults": {"p_edge": 0.3},
+        "values": [0.2, 0.4, 0.6],
+        "defaults": {"rho": 0.2, "subsample": 5},
     },
 }
 
@@ -407,8 +441,13 @@ for exp_name, config in EXPERIMENTS.items():
 
             node_names = [f"Node_{i}" for i in range(GLOBAL_PARAMS["n_nodes"])]
 
+            # Subsample trajectory to increase effective dt
+            k = int(current_params.get("subsample", 1))
+            traj_sub = traj[::k] if k > 1 else traj
+            dt_eff = GLOBAL_PARAMS["dt"] * k
+
             X, basis_meta, var_names = prepare_rossler_data_for_causal_discovery(
-                traj, dt=GLOBAL_PARAMS["dt"], coupling_on=GLOBAL_PARAMS["coupling_on"]
+                traj_sub, dt=dt_eff, coupling_on=GLOBAL_PARAMS["coupling_on"]
             )
             T_eff = X.shape[0]
 
@@ -416,57 +455,84 @@ for exp_name, config in EXPERIMENTS.items():
                 X, datatime={0: np.arange(T_eff)}, var_names=var_names
             )
 
-            # -------------------------------------------------------
-            # METHOD 1: OCE (causationentropy)
-            # -------------------------------------------------------
-            start_time = time.time()
+            n = basis_meta["n"]
+            max_lag = int(current_params.get("tau_max_oce", GLOBAL_PARAMS["tau_max"]))
             X_df = pd.DataFrame(X, columns=var_names)
-
-            with suppress_stdout():
-                network = discover_network(
-                    data=X_df,
-                    max_lag=GLOBAL_PARAMS["tau_max"],
-                    method="standard",
-                    information="gaussian",
-                )
-
-            pred_adj_oce = extract_node_adjacency_from_basis_oce_rossler(
-                network,
-                basis_meta["n"],
-                basis_meta["basis_map"],
-                var_names,
-                coupling_on=GLOBAL_PARAMS["coupling_on"],
-            )
-
-            metrics = compute_metrics(pred_adj_oce, true_adj, time.time() - start_time)
-            metrics.update(
-                {
-                    "Experiment": exp_name,
-                    "Parameter": val,
-                    "Method": "OCE (gaussian)",
-                    "Trial": trial,
-                }
-            )
-            results.append(metrics)
+            true_comp = build_true_companion_top_rows(true_adj, n, max_lag)
 
             # -------------------------------------------------------
-            # METHOD 2: PCMCI (Tigramite)
+            # OCE METHODS
+            # -------------------------------------------------------
+            OCE_METHODS = [
+                ("standard", "gaussian", "OCE (standard)"),
+                ("alternative", "gaussian", "OCE (alternative)"),
+                ("lasso", "gaussian", "OCE (lasso)"),
+            ]
+
+            # Store the last OCE prediction for the visualization
+            pred_adj_oce = None
+
+            alpha_oce = current_params.get("alpha_oce", GLOBAL_PARAMS["alpha"])
+
+            for oce_method, oce_info, oce_label in OCE_METHODS:
+                start_time = time.time()
+                with suppress_stdout():
+                    network = discover_network(
+                        data=X_df,
+                        max_lag=max_lag,
+                        method=oce_method,
+                        information=oce_info,
+                        alpha_forward=alpha_oce,
+                        alpha_backward=alpha_oce,
+                    )
+
+                oce_node_graph = extract_node_graph_from_basis_oce_rossler(
+                    network,
+                    n,
+                    basis_meta["basis_map"],
+                    var_names,
+                    coupling_on=GLOBAL_PARAMS["coupling_on"],
+                )
+                pred_adj = collapse_to_binary_adjacency(oce_node_graph, n)
+                oce_time = time.time() - start_time
+
+                # Binary metrics
+                metrics = compute_metrics(pred_adj, true_adj, oce_time)
+                # Companion metrics
+                pred_comp = build_pred_companion_top_rows(oce_node_graph, n, max_lag)
+                comp_metrics = compute_metrics(pred_comp, true_comp, oce_time, prefix="comp_")
+                metrics.update(comp_metrics)
+                metrics.update(
+                    {
+                        "Experiment": exp_name,
+                        "Parameter": val,
+                        "Method": oce_label,
+                        "Trial": trial,
+                    }
+                )
+                results.append(metrics)
+                pred_adj_oce = pred_adj  # keep last for plot
+
+            # -------------------------------------------------------
+            # PCMCI (Tigramite)
             # -------------------------------------------------------
             start_time = time.time()
             pcmci = PCMCI(dataframe=dataframe, cond_ind_test=ParCorr(), verbosity=0)
             pcmci_res = pcmci.run_pcmci(
                 tau_min=1,
-                tau_max=GLOBAL_PARAMS["tau_max"],
+                tau_max=max_lag,
                 pc_alpha=GLOBAL_PARAMS["alpha"],
             )
             graph_nx = pcmci_to_networkx(pcmci_res)
 
-            pred_adj_pcmci = extract_node_adjacency_from_basis_pcmci_rossler(
+            pcmci_node_graph = extract_node_graph_from_basis_pcmci_rossler(
                 graph_nx,
-                basis_meta["n"],
+                n,
                 basis_meta["basis_map"],
                 coupling_on=GLOBAL_PARAMS["coupling_on"],
             )
+            pred_adj_pcmci = collapse_to_binary_adjacency(pcmci_node_graph, n)
+            pcmci_time = time.time() - start_time
 
             # -------------------------------------------------------
             # VISUALIZATION
@@ -474,8 +540,8 @@ for exp_name, config in EXPERIMENTS.items():
             plot_filename = f"figs/{exp_name}_param{val:.3f}_trial{trial}.png"
             plot_title = f"{exp_name} | {config['label']}={val:.3f} | Trial {trial}"
             plot_trial_summary_rossler(
-                traj=traj,
-                dt=GLOBAL_PARAMS["dt"],
+                traj=traj_sub,
+                dt=dt_eff,
                 true_adj=true_adj,
                 pred_adj_oce=pred_adj_oce,
                 pred_adj_pcmci=pred_adj_pcmci,
@@ -485,9 +551,12 @@ for exp_name, config in EXPERIMENTS.items():
                 coupling_on=GLOBAL_PARAMS["coupling_on"],
             )
 
-            metrics = compute_metrics(
-                pred_adj_pcmci, true_adj, time.time() - start_time
-            )
+            # Binary metrics
+            metrics = compute_metrics(pred_adj_pcmci, true_adj, pcmci_time)
+            # Companion metrics
+            pred_comp_pcmci = build_pred_companion_top_rows(pcmci_node_graph, n, max_lag)
+            comp_metrics = compute_metrics(pred_comp_pcmci, true_comp, pcmci_time, prefix="comp_")
+            metrics.update(comp_metrics)
             metrics.update(
                 {
                     "Experiment": exp_name,
@@ -507,15 +576,15 @@ pbar.close()
 # =============================================================================
 
 df_results = pd.DataFrame(results)
-df_results.to_csv("rossler_simplified_results.csv", index=False)
-print("\nResults saved to rossler_simplified_results.csv")
+df_results.to_csv("rossler.csv", index=False)
+print("\nResults saved to rossler.csv")
 print("\nVisualizations saved to figs/ directory.")
 
 sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
 experiments_list = list(EXPERIMENTS.keys())
 
 fig, axes = plt.subplots(
-    len(experiments_list), 2, figsize=(14, 5 * len(experiments_list))
+    len(experiments_list), 3, figsize=(20, 5 * len(experiments_list))
 )
 if len(experiments_list) == 1:
     axes = np.array([axes])
@@ -536,7 +605,7 @@ for idx, exp_name in enumerate(experiments_list):
         ax=ax_f1,
         ci=68,
     )
-    ax_f1.set_title(f"{exp_name}: F1 Score")
+    ax_f1.set_title(f"{exp_name}: F1 Score (Binary)")
     ax_f1.set_xlabel(config["label"])
     ax_f1.set_ylabel("F1")
 
@@ -556,15 +625,33 @@ for idx, exp_name in enumerate(experiments_list):
     ax_tpr.set_xlabel(config["label"])
     ax_tpr.set_ylabel("TPR")
 
+    ax_comp = axes[idx, 2]
+    sns.lineplot(
+        data=exp_data,
+        x="Parameter",
+        y="comp_F1",
+        hue="Method",
+        style="Method",
+        markers=True,
+        dashes=False,
+        ax=ax_comp,
+        ci=68,
+    )
+    ax_comp.set_title(f"{exp_name}: F1 Score (Companion)")
+    ax_comp.set_xlabel(config["label"])
+    ax_comp.set_ylabel("comp_F1")
+
     if idx == 0:
         ax_f1.legend(bbox_to_anchor=(1.05, 1.2), loc="upper left")
         ax_tpr.get_legend().remove()
+        ax_comp.get_legend().remove()
     else:
         ax_f1.get_legend().remove()
         ax_tpr.get_legend().remove()
+        ax_comp.get_legend().remove()
 
 plt.tight_layout()
-plt.savefig("rossler_analysis.png", dpi=300, bbox_inches="tight")
+plt.savefig("rossler.png", dpi=300, bbox_inches="tight")
 # plt.show()
 
 print("\n" + "=" * 80)
@@ -572,7 +659,7 @@ print("SUMMARY")
 print("=" * 80)
 
 summary = df_results.groupby(["Experiment", "Method"])[
-    ["F1", "TPR", "FPR", "Time"]
+    ["F1", "Accuracy", "TPR", "FPR", "Time", "comp_F1", "comp_Accuracy", "comp_TPR"]
 ].mean()
 summary = summary.reset_index().sort_values(
     ["Experiment", "F1"], ascending=[True, False]
@@ -583,7 +670,7 @@ for exp_name in experiments_list:
     print("-" * 80)
     exp_summary = summary[summary["Experiment"] == exp_name]
     print(
-        exp_summary[["Method", "F1", "TPR", "FPR", "Time"]].to_string(
+        exp_summary[["Method", "F1", "Accuracy", "TPR", "FPR", "comp_F1", "comp_Accuracy", "comp_TPR", "Time"]].to_string(
             index=False, float_format="%.3f"
         )
     )

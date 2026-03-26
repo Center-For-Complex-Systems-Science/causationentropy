@@ -1,14 +1,14 @@
 """
-Kuramoto Oscillator Causal Discovery Benchmark
-================================================
-Compares four methods on coupled Kuramoto oscillators with physics-informed
-sin(theta_j - theta_i) basis:
-  1. oCSE (Optimal Causation Entropy) — on expanded basis
-  2. PCMCI (ParCorr) — on expanded basis
-  3. VARLiNGAM — on raw theta time series
-  4. Linear Granger — on raw theta time series
+Coupled Gaussian Process Causal Discovery Benchmark
+====================================================
+Compares four methods on linear stochastic Gaussian processes
+across multiple graph topologies:
+  1. oCSE (Optimal Causation Entropy) — Gaussian estimator
+  2. PCMCI (ParCorr) — partial correlation
+  3. VARLiNGAM — Vector Autoregressive LiNGAM
+  4. Linear Granger — F-test on lagged regressors
 
-Sweeps: edge density (ER) and coupling strength.
+Sweeps: ER density, coupling strength, scale-free hubs, small-world rewiring.
 """
 import numpy as np
 import networkx as nx
@@ -16,9 +16,6 @@ import pandas as pd
 from tqdm import tqdm
 import time
 import warnings
-import sys
-import os
-from contextlib import contextmanager
 
 import lingam
 from sklearn.linear_model import LinearRegression
@@ -32,89 +29,24 @@ from causationentropy import discover_network
 from causationentropy.graph import pcmci_to_networkx
 from causationentropy.datasets.synthetic import (
     generate_graph_topology,
-    simulate_kuramoto,
-    prepare_kuramoto_data_for_causal_discovery,
+    linear_stochastic_gaussian_process,
 )
 
 warnings.filterwarnings("ignore")
 
 
 # =============================================================================
-# STDOUT SUPPRESSION
-# =============================================================================
-
-@contextmanager
-def suppress_stdout():
-    with open(os.devnull, "w") as devnull:
-        old_stdout = sys.stdout
-        sys.stdout = devnull
-        try:
-            yield
-        finally:
-            sys.stdout = old_stdout
-
-
-# =============================================================================
-# KURAMOTO-SPECIFIC EXTRACTION FUNCTIONS
-# =============================================================================
-
-def extract_node_adjacency_from_basis_oce(graph_nx, n, basis_map, var_names):
-    """
-    Extract node-level adjacency from oCSE graph on expanded Kuramoto basis.
-
-    An edge s_{i<-j} -> v_i implies j -> i.  Handles Kuramoto symmetry
-    sin(theta_j - theta_i) = -sin(theta_i - theta_j).
-    """
-    A_node = np.zeros((n, n), dtype=int)
-    velocity_vars = [f"v{i}" for i in range(n)]
-
-    for i in range(n):
-        velocity_var = velocity_vars[i]
-        for idx, (target, source) in enumerate(basis_map):
-            coupling_var = var_names[n + idx]
-            if graph_nx.has_edge(coupling_var, velocity_var):
-                edges = graph_nx[coupling_var][velocity_var]
-                for key, edge_data in edges.items():
-                    if edge_data["lag"] <= 1:
-                        if target == i:
-                            A_node[source, i] = 1
-                        elif source == i:
-                            A_node[target, i] = 1
-                        break
-    return A_node
-
-
-def extract_node_adjacency_from_basis_pcmci(graph_nx, n, basis_map):
-    """
-    Extract node-level adjacency from PCMCI graph on expanded Kuramoto basis.
-
-    Nodes in graph_nx are integers: 0..n-1 are velocities, n.. are coupling terms.
-    Handles Kuramoto symmetry.
-    """
-    A_node = np.zeros((n, n), dtype=int)
-    for i in range(n):
-        for idx, (target, source) in enumerate(basis_map):
-            coupling_node_idx = n + idx
-            if graph_nx.has_edge(coupling_node_idx, i):
-                if target == i:
-                    A_node[source, i] = 1
-                elif source == i:
-                    A_node[target, i] = 1
-    return A_node
-
-
-# =============================================================================
 # LINEAR GRANGER CAUSALITY
 # =============================================================================
 
-def linear_granger(theta, n_nodes, alpha=0.05):
+def linear_granger(data, n_nodes, alpha=0.05):
     """
-    Pairwise linear Granger causality on raw theta time series.
-    For each target i, F-test whether lagged theta_j improves prediction.
+    Pairwise linear Granger causality.
+    For each target i, F-test whether lagged X_j improves prediction.
     """
     adj = np.zeros((n_nodes, n_nodes), dtype=int)
-    Y_all = theta[1:]
-    X_all = theta[:-1]
+    Y_all = data[1:]
+    X_all = data[:-1]
 
     for i in range(n_nodes):
         y = Y_all[:, i]
@@ -170,15 +102,10 @@ def compute_metrics(predicted_adj, true_adj, time_taken):
 
 GLOBAL_PARAMS = {
     "n_nodes": 10,
-    "T": 5000,
+    "T": 300,
     "n_trials": 5,
+    "max_lag": 1,
     "alpha": 0.05,
-    "tau_max": 1,
-    "dt": 0.05,
-    "omega_std": 1.0,
-    "phase_noise_std": 0.02,
-    "burn_in": 50,
-    "normalize_by_indegree": False,
 }
 
 EXPERIMENTS = {
@@ -218,7 +145,9 @@ EXPERIMENTS = {
 # =============================================================================
 
 if __name__ == "__main__":
+    import os
     os.makedirs("benchmarks/results", exist_ok=True)
+
     results = []
     n_nodes = GLOBAL_PARAMS["n_nodes"]
 
@@ -228,7 +157,7 @@ if __name__ == "__main__":
     )
 
     print("=" * 70)
-    print("Kuramoto Causal Discovery Benchmark")
+    print("Coupled Gaussian Process Causal Discovery Benchmark")
     print(f"Methods: oCSE, PCMCI, VARLiNGAM, Linear Granger")
     print(f"{n_nodes} nodes, {GLOBAL_PARAMS['n_trials']} trials per condition")
     print(f"Total iterations: {total_iters}")
@@ -249,80 +178,67 @@ if __name__ == "__main__":
                 seed = 42 + (trial * 100)
                 np.random.seed(seed)
 
-                # Generate graph and simulate
+                # Generate graph
                 G = generate_graph_topology(
                     config["type"], n_nodes, current_params, seed
                 )
-                true_adj = nx.to_numpy_array(G).astype(int)
+                true_adj = nx.to_numpy_array(G)
+                sim_p = nx.density(G)
 
-                theta, _ = simulate_kuramoto(
-                    G=G, T=GLOBAL_PARAMS["T"], dt=GLOBAL_PARAMS["dt"],
-                    rho=current_params.get("rho", 0.7), seed=seed,
-                    omega_mean=0.0, omega_std=GLOBAL_PARAMS["omega_std"],
-                    phase_noise_std=GLOBAL_PARAMS["phase_noise_std"],
-                    burn_in=GLOBAL_PARAMS["burn_in"],
-                    normalize_by_indegree=GLOBAL_PARAMS["normalize_by_indegree"],
+                # Simulate coupled Gaussian process
+                data, _ = linear_stochastic_gaussian_process(
+                    rho=current_params.get("rho", 0.7),
+                    n=n_nodes,
+                    T=GLOBAL_PARAMS["T"],
+                    p=sim_p,
+                    seed=seed,
+                    G=G,
                 )
 
-                # Prepare Kuramoto sin-basis
-                X_basis, basis_meta, var_names = (
-                    prepare_kuramoto_data_for_causal_discovery(
-                        theta, dt=GLOBAL_PARAMS["dt"]
-                    )
-                )
-                T_eff = X_basis.shape[0]
-
-                n_true = int(true_adj.sum())
+                var_names = [f"X{i}" for i in range(n_nodes)]
+                n_true = int((true_adj != 0).sum())
                 common = {
                     "Experiment": exp_name, "Parameter": val, "Trial": trial,
                 }
 
-                # ----- oCSE (on expanded basis) -----
+                # ----- oCSE (Gaussian estimator) -----
                 start = time.time()
-                X_df = pd.DataFrame(X_basis, columns=var_names)
-                with suppress_stdout():
-                    network = discover_network(
-                        data=X_df,
-                        max_lag=GLOBAL_PARAMS["tau_max"],
-                        method="standard",
-                        information="gaussian",
-                    )
-                adj_oce = extract_node_adjacency_from_basis_oce(
-                    network, basis_meta["n"], basis_meta["basis_map"], var_names
+                network = discover_network(
+                    data=data,
+                    max_lag=GLOBAL_PARAMS["max_lag"],
+                    information="gaussian",
                 )
-                m = compute_metrics(adj_oce, true_adj, time.time() - start)
+                pred_adj = nx.to_numpy_array(network)
+                m = compute_metrics(pred_adj, true_adj, time.time() - start)
                 m.update(common)
                 m["Method"] = "oCSE"
                 results.append(m)
 
-                # ----- PCMCI (on expanded basis) -----
+                # ----- PCMCI (ParCorr) -----
                 start = time.time()
                 dataframe = pp.DataFrame(
-                    X_basis,
-                    datatime={0: np.arange(T_eff)},
+                    data,
+                    datatime={0: np.arange(GLOBAL_PARAMS["T"])},
                     var_names=var_names,
                 )
                 pcmci = PCMCI(
                     dataframe=dataframe, cond_ind_test=ParCorr(), verbosity=0
                 )
                 pcmci_res = pcmci.run_pcmci(
-                    tau_min=1,
-                    tau_max=GLOBAL_PARAMS["tau_max"],
+                    tau_max=GLOBAL_PARAMS["max_lag"],
                     pc_alpha=GLOBAL_PARAMS["alpha"],
                 )
                 graph_nx = pcmci_to_networkx(pcmci_res)
-                adj_pcmci = extract_node_adjacency_from_basis_pcmci(
-                    graph_nx, basis_meta["n"], basis_meta["basis_map"]
-                )
-                m = compute_metrics(adj_pcmci, true_adj, time.time() - start)
+                pred_adj = nx.to_numpy_array(graph_nx)
+                m = compute_metrics(pred_adj, true_adj, time.time() - start)
                 m.update(common)
                 m["Method"] = "PCMCI"
                 results.append(m)
 
-                # ----- VARLiNGAM (on raw theta) -----
+                # ----- VARLiNGAM -----
                 start = time.time()
                 model = lingam.VARLiNGAM(lags=1)
-                model.fit(theta)
+                model.fit(data)
                 adj_var = np.zeros((n_nodes, n_nodes), dtype=int)
                 for lag_idx, B_lag in enumerate(model.adjacency_matrices_):
                     if lag_idx == 0:
@@ -334,9 +250,9 @@ if __name__ == "__main__":
                 m["Method"] = "VARLiNGAM"
                 results.append(m)
 
-                # ----- Linear Granger (on raw theta) -----
+                # ----- Linear Granger -----
                 start = time.time()
-                adj_granger = linear_granger(theta, n_nodes, alpha=0.05)
+                adj_granger = linear_granger(data, n_nodes, alpha=0.05)
                 m = compute_metrics(adj_granger, true_adj, time.time() - start)
                 m.update(common)
                 m["Method"] = "Linear Granger"
@@ -357,7 +273,7 @@ if __name__ == "__main__":
 
     # Save results
     df = pd.DataFrame(results)
-    df.to_csv("benchmarks/results/kuramoto_results.csv", index=False)
+    df.to_csv("benchmarks/results/gaussian_process_results.csv", index=False)
 
     # Summary
     print("\n" + "=" * 70)
@@ -374,7 +290,19 @@ if __name__ == "__main__":
     ]
     summary = summary.sort_values("F1_mean", ascending=False)
     print(summary.to_string(index=False, float_format="%.3f"))
-    print(f"\nResults saved to benchmarks/results/kuramoto_results.csv")
+
+    # Per-experiment summary
+    for exp_name in EXPERIMENTS:
+        exp_data = df[df["Experiment"] == exp_name]
+        print(f"\n--- {exp_name} ---")
+        exp_summary = (
+            exp_data.groupby("Method")[["F1", "TPR", "FPR"]]
+            .mean()
+            .sort_values("F1", ascending=False)
+        )
+        print(exp_summary.to_string(float_format="%.3f"))
+
+    print(f"\nResults saved to benchmarks/results/gaussian_process_results.csv")
 
     # =========================================================================
     # PLOTS
@@ -414,5 +342,7 @@ if __name__ == "__main__":
                 ax.legend(fontsize=9)
 
     plt.tight_layout()
-    plt.savefig("benchmarks/results/kuramoto_plots.png", dpi=300, bbox_inches="tight")
-    print("Plots saved to benchmarks/results/kuramoto_plots.png")
+    plt.savefig(
+        "benchmarks/results/gaussian_process_plots.png", dpi=300, bbox_inches="tight"
+    )
+    print("Plots saved to benchmarks/results/gaussian_process_plots.png")

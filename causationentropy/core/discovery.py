@@ -27,7 +27,8 @@ def discover_network(
     bandwidth="silverman",
     k_means: int = 5,
     n_shuffles: int = 200,
-    n_jobs=-1,
+    kd_tree: bool = False,
+    n_jobs: int = -1,
 ) -> nx.MultiDiGraph:
     r"""
     Infer a causal graph via Optimal Causation Entropy (oCSE).
@@ -96,6 +97,12 @@ def discover_network(
     n_shuffles : int, default=200
         Number of permutations for statistical significance testing. Higher values
         provide more accurate p-value estimates but increase computational cost.
+    kd_tree : bool, default=False
+        If True, uses a KD-Tree for nearest-neighbor searches in kNN and
+        geometric-kNN information estimators. This reduces complexity from
+        O(N^2) to approximately O(N log N) for large datasets. Results are
+        mathematically identical to the brute-force path (kd_tree=False).
+        Has no effect when information='gaussian', 'kde', or 'poisson'.
     n_jobs : int, default=-1
         Number of parallel jobs for computation. -1 uses all available processors.
 
@@ -248,6 +255,7 @@ def discover_network(
                 metric=metric,
                 k=k_means,
                 bandwidth=bandwidth,
+                kd_tree=kd_tree,
             )
 
             # Compute p-value using shuffle test

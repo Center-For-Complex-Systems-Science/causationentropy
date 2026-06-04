@@ -112,7 +112,7 @@ def kde_entropy(X, bandwidth="silverman", kernel="gaussian"):
     return Hx
 
 
-def geometric_knn_entropy(X, Xdist, k=1):
+def geometric_knn_entropy(X, Xdist, k=1, kd_tree: bool = False, metric: str = "euclidean"):
     r"""
     Estimate entropy using geometric k-nearest neighbor method.
 
@@ -160,21 +160,36 @@ def geometric_knn_entropy(X, Xdist, k=1):
     .. [1] Lord, W.M., Sun, J., Bollt, E.M. Geometric k-nearest neighbor estimation of
            entropy and mutual information. Chaos 28, 033113 (2018).
     """
+    if kd_tree:
+        from scipy.spatial import KDTree
+        tree = KDTree(X)
+        distances, indices = tree.query(X, k=k + 1)
+        _knn_indices = indices[:, 1:]
+        _knn_dists   = distances[:, 1:]
+        Xdist = None
+    else:
+        _knn_indices = None
+        _knn_dists   = None
+
     N, d = X.shape
     Xknn = np.zeros((N, k), dtype=int)
-
-    for i in range(N):
-        Xknn[i, :] = np.argsort(Xdist[i, :])[1 : k + 1]
+    if kd_tree:
+        Xknn = _knn_indices
+    else:
+        for i in range(N):
+            Xknn[i, :] = np.argsort(Xdist[i, :])[1 : k + 1]
     H_X = np.log(N) + np.log(np.pi ** (d / 2) / gamma(1 + d / 2))
 
-    # Compute distance-based term with safety checks
     log_distances = []
     for i in range(N):
-        dist = l2dist(X[i, :], X[Xknn[i, k - 1], :])
-        if dist > 1e-12:  # Avoid log(0)
+        if kd_tree:
+            dist = _knn_dists[i, k - 1]
+        else:
+            dist = l2dist(X[i, :], X[Xknn[i, k - 1], :])
+        if dist > 1e-12:
             log_distances.append(np.log(dist))
         else:
-            log_distances.append(-12.0)  # log(1e-12) as a reasonable lower bound
+            log_distances.append(-12.0)
 
     H_X += d / N * np.sum(log_distances)
 

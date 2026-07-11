@@ -1,0 +1,7 @@
+Python Package Versions:
+- numpy: 2.3.5
+- pandas: 2.3.3
+- networkx: 3.6.1
+- scikit-learn: 1.8.0
+- tigramite: 5.2.9.4
+- causationentropy: 1.1.0

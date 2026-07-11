@@ -1,0 +1,24 @@
+FIG. X. Causal network recovery from coupled Kuramoto oscillators across three
+network topologies. Each row corresponds to a six-node network with a different
+connectivity structure: a scale-free hub network (Barabasi-Albert, m = 2), a
+small-world network (Watts-Strogatz, k = 2, rewiring probability 0.3), and an
+Erdos-Renyi random graph (edge probability 0.35). Oscillators evolve under
+d(theta_i)/dt = omega_i + rho * sum_j A_ij sin(theta_j - theta_i) with coupling
+strength rho = 0.3, natural frequencies omega_i ~ N(0,1), phase noise of standard
+deviation 0.02, and integration step dt = 0.05 over T = 4000 samples after a
+burn-in transient (single realization, seed 7). Leftmost column: the Kuramoto
+order parameter r(t) = |N^-1 sum_j exp(i theta_j)|, whose time-average r-bar
+(inset) confirms that each system operates in a regime of partial synchronization
+(r-bar = 0.78, 0.51, 0.65), where genuine causal structure remains recoverable.
+Remaining columns: the ground-truth coupling network followed by the networks
+recovered by optimal Causation Entropy (oCSE), PCMCI, pairwise linear Granger
+causality, and VARLiNGAM. Edges are colored by outcome: correctly recovered links
+(true positives, black), spurious links (false positives, red), and missed true
+links (false negatives, gray dashed). oCSE (green panels) operates on the
+physics-informed basis sin(theta_j - theta_i) with significance level alpha = 0.05
+(shuffle test, 100 surrogates); PCMCI and Granger use alpha = 0.05 and VARLiNGAM a
+lag-1 model, all applied to the raw phase series. Across all three topologies, oCSE
+recovers the network almost exactly (F1 = 0.97, 0.92, 0.87; false-positive rate
+0.00, 0.08, 0.14), whereas PCMCI over-connects the graph (F1 ~ 0.60-0.63,
+false-positive rate 0.50-0.70) and Granger and VARLiNGAM systematically miss true
+links.

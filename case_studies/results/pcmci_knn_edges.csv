@@ -1,0 +1,10 @@
+source,target,lag,val,p_value
+Deseasonalized Background Checks,Deseasonalized Background Checks,7,0.04911898909994683,0.001996007984031936
+Media Articles,Media Articles,1,0.012565570131614301,0.001996007984031936
+Deseasonalized Background Checks,Deseasonalized Background Checks,1,0.011523000155670537,0.001996007984031936
+Anti-Reg,Pro-Reg,1,0.009180747342076856,0.015968063872255488
+Media Articles,Media Articles,2,0.00885246385863514,0.003992015968063872
+Pro-Reg,Anti-Reg,4,0.007671869949491317,0.043912175648702596
+Media Articles,Media Articles,4,0.006767353207112414,0.04790419161676647
+Media Articles,Media Articles,3,0.005918598717944867,0.031936127744510975
+Deseasonalized Background Checks,Deseasonalized Background Checks,4,0.005654784290108239,0.015968063872255488

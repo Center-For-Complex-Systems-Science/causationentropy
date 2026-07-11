@@ -1,0 +1,173 @@
+% Methods section -- coupled-oscillator causal discovery with order-parameter conditioning.
+% Requires: \usepackage{amsmath,amssymb}  (and a bibliography for the \cite commands).
+% Drop into the manuscript after the Introduction.
+
+\section{Methods}
+\label{sec:methods}
+
+\subsection{Coupled phase-oscillator model and emergent regimes}
+\label{sec:model}
+
+We consider $N$ coupled phase oscillators evolving under a generalized
+Kuramoto--Sakaguchi system,
+\begin{equation}
+\dot\theta_i \;=\; \omega_i \;+\; K\sum_{j=1}^{N}\widetilde{W}_{ij}\,
+\Gamma\!\left(\theta_j-\theta_i\right)\;+\;\xi_i(t),
+\qquad
+\Gamma(\phi)=\sin(\phi-\alpha)+a_2\sin\!\big(2\phi-\beta\big),
+\label{eq:model}
+\end{equation}
+where $\theta_i$ is the phase of oscillator $i$, $\omega_i$ its natural
+frequency, $K$ the coupling strength, and $\xi_i$ independent Gaussian phase
+noise of standard deviation $\sigma$. The coupling function $\Gamma$ carries a
+phase lag $\alpha$ and an optional second harmonic of amplitude $a_2$ and lag
+$\beta$; $\widetilde{W}_{ij}=W_{ij}/\sum_k W_{ik}$ is the row-normalized coupling
+matrix. Equation~\eqref{eq:model} is integrated with a fourth-order
+Runge--Kutta scheme. A directed coupling $j\!\to\! i$ exists iff $W_{ij}>0$, and
+the binary support $A=\operatorname{supp}(W)$ is the \emph{ground-truth causal
+graph} to be reconstructed. By selecting the topology $W$, the lag $\alpha$, the
+harmonic content $(a_2,\beta)$, and the frequency distribution, Eq.~\eqref{eq:model}
+is driven into four emergent regimes---chimera, traveling-wave, metastable, and
+cyclops states (Table~\ref{tab:regimes})---each verified \emph{a posteriori},
+after discarding a transient, by the order-parameter diagnostics of
+Sec.~\ref{sec:orderparam}.
+
+\subsection{Collective coordinates: the order parameters}
+\label{sec:orderparam}
+
+The collective state of the ensemble is summarized by the complex
+Kuramoto--Daido order parameters
+\begin{equation}
+Z_m(t)\;=\;R_m(t)\,e^{i\psi_m(t)}\;=\;\frac{1}{N}\sum_{j=1}^{N}e^{\,i m\theta_j(t)},
+\qquad m=1,2,
+\label{eq:Zm}
+\end{equation}
+with $R_m\in[0,1]$ the coherence and $\psi_m$ the collective phase of the
+$m$-th harmonic. We use $Z_1,Z_2$ both to certify emergence (e.g.\ a
+traveling wave by $|Z_1|\!\to\!0$ with $|Z_q|\!\approx\!1$ for the twisted
+mode $q$; a cyclops state by its cluster partition and the second-harmonic
+coherence $R_2$) and, crucially, as conditioning variables for causal
+discovery (Sec.~\ref{sec:opcond}).
+
+\subsection{Physics-informed basis and optimal causation entropy}
+\label{sec:ocse}
+
+Causal reconstruction is performed on a physics-informed linearization of
+Eq.~\eqref{eq:model}. For each oscillator $i$ we take the one-step phase
+velocity $v_i(t)=\big[\theta_i(t{+}dt)-\theta_i(t)\big]/dt$ as the regression
+target and, as candidate predictors, the pairwise coupling features
+\begin{equation}
+s_{i\leftarrow j}(t)\;=\;\sin\!\big(\theta_j(t)-\theta_i(t)\big),
+\qquad j\neq i,
+\label{eq:basis}
+\end{equation}
+which are exactly the terms entering the equation of motion. Selecting the
+feature $s_{i\leftarrow j}$ for target $i$ corresponds to the directed edge
+$j\!\to\! i$.
+
+Optimal causation entropy (oCSE) \cite{Sun2015} identifies the parents of each
+target by aggregative discovery and removal on the \emph{causation entropy}
+\begin{equation}
+C_{\,j\to i\,\mid\,\mathcal{Z}}
+\;=\; I\!\left(v_i^{\,t+1}\,;\,s_{i\leftarrow j}^{\,t}\;\middle|\;\mathcal{Z}^{\,t}\right),
+\label{eq:ce}
+\end{equation}
+the conditional mutual information between the target's future and a candidate
+feature given a conditioning set $\mathcal{Z}$. A feature is admitted only if
+$C_{\,j\to i\,\mid\,\mathcal{Z}}$ is significantly positive and is later removed
+if it becomes redundant given the selected set, so that $\mathcal{Z}$ grows to
+contain the target's own past and its already-selected parents. The baseline
+estimator conditions on the target's own history,
+$\mathcal{Z}=\{v_i^{\,t}\}\cup\{\text{selected parents}\}$.
+
+\subsection{Conditioning on the order parameter}
+\label{sec:opcond}
+
+The central methodological element of this work is to augment the oCSE
+conditioning set with the collective coordinates of
+Eq.~\eqref{eq:Zm}. We define the \emph{order-parameter conditioning vector}
+\begin{equation}
+O(t)=\big(\operatorname{Re}Z_1,\ \operatorname{Im}Z_1,\
+\operatorname{Re}Z_2,\ \operatorname{Im}Z_2\big)(t),
+\label{eq:Ovec}
+\end{equation}
+and run oCSE with $O(t)$ permanently in the conditioning set,
+$\mathcal{Z}=\{v_i^{\,t}\}\cup O(t)\cup\{\text{selected parents}\}$; $O$ is
+supplied as a conditioning variable only and is never itself selectable as an
+edge. We refer to this estimator as oCSE+OP. The rationale is that, in
+synchronized and partially synchronized regimes, the order parameter is
+precisely the variable through which the ensemble exerts a \emph{common} drive
+on every oscillator, and is therefore the confounder responsible for
+synchrony-induced false positives.
+
+This is made precise by the mean-field reduction of Eq.~\eqref{eq:model}. Writing
+the coupling through the order parameters and using
+$\tfrac1N\sum_j e^{im\theta_j}=Z_m$, the population term acting on oscillator $i$
+becomes
+\begin{equation}
+\frac{1}{N}\sum_{j=1}^{N}\Gamma(\theta_j-\theta_i)
+=\operatorname{Im}\!\big[e^{-i(\theta_i+\alpha)}Z_1\big]
++a_2\,\operatorname{Im}\!\big[e^{-i(2\theta_i+\beta)}Z_2\big],
+\label{eq:meanfield}
+\end{equation}
+so that, in the mean-field (globally coupled) limit, the equation of motion
+collapses to
+\begin{equation}
+\dot\theta_i=\omega_i+K\Big[R_1\sin(\psi_1-\theta_i-\alpha)
++a_2R_2\sin(\psi_2-2\theta_i-\beta)\Big]
+\;\equiv\; g\!\big(\theta_i,\omega_i,Z_1,Z_2\big).
+\label{eq:greduction}
+\end{equation}
+Equation~\eqref{eq:greduction} states that each oscillator's increment depends on
+the \emph{entire rest of the ensemble only through} $(Z_1,Z_2)$. The pair
+$(Z_1,Z_2)$ is thus a \emph{sufficient statistic} for the collective influence:
+it is the complete common cause shared by all oscillators. Consequently, for any
+non-adjacent pair, the candidate feature carries no information about the
+target's future once the order parameter is given,
+\begin{equation}
+I\!\left(v_i^{\,t+1}\,;\,s_{i\leftarrow k}^{\,t}\;\middle|\;\theta_i^{\,t},\,Z_1^{\,t},\,Z_2^{\,t}\right)=0
+\qquad\text{whenever } A_{ik}=0,
+\label{eq:dsep}
+\end{equation}
+because oscillator $k$ enters $v_i^{\,t+1}$ exclusively through the collective
+coordinates. In graphical terms, $O(t)$ blocks the back-door path
+$s_{i\leftarrow k}\!\leftarrow\! Z \!\rightarrow\! v_i$ through which global
+synchrony manufactures dependence between unconnected oscillators; conditioning
+on $O$ $d$-separates them. A marginal or pairwise estimator (e.g.\ Granger
+causality) measures exactly this synchrony-induced dependence and reports it as a
+spurious edge, whereas the causation entropy of Eq.~\eqref{eq:ce} with $O$ in the
+conditioning set vanishes for non-edges and they are correctly rejected.
+
+For networks with sparse $W$ the reduction is exact only for the \emph{local}
+field over a node's neighborhood; the global order parameter $O(t)$ then captures
+the dominant \emph{common mode}, which is precisely the component shared across
+all nodes and hence the source of confounding in (partially) synchronized
+states. What survives conditioning on $O$ is the residual, oscillator-specific
+coupling---non-zero only for genuine neighbors, whose feature $s_{i\leftarrow j}$
+enters $v_i$ as an explicit additive term beyond the mean field. Conditioning on
+the order parameter therefore removes the synchrony-induced false positives while
+preserving the network-specific structure. The same conditioning can, however,
+suppress a weak true edge whose contribution is nearly collinear with the
+collective drive; oCSE+OP is thus a precision-favoring estimator that trades a
+small amount of sensitivity for a substantial reduction in false positives, a
+trade-off we quantify in Sec.~\ref{sec:results}. The second harmonic $Z_2$ is
+included because biharmonic coupling [the $a_2$ term in Eq.~\eqref{eq:model}, as
+in cyclops states] makes the collective drive two-mode, so that
+Eq.~\eqref{eq:greduction} requires both $Z_1$ and $Z_2$ for sufficiency.
+
+\subsection{Estimation, baselines, and evaluation}
+\label{sec:estimation}
+
+Causation entropies in Eq.~\eqref{eq:ce} are estimated under a Gaussian
+assumption (partial correlation), and significance is assessed by a permutation
+(shuffle) test at level $\alpha$ with $S$ surrogates; we use $S\ge20$ so that the
+attainable $p$-value resolution $1/(S{+}1)$ lies below $\alpha=0.05$. We compare
+oCSE and oCSE+OP against PCMCI (with a partial-correlation conditional
+independence test) \cite{Runge2019}, pairwise linear Granger causality, and
+VARLiNGAM \cite{Hyvarinen2010}, each applied to the same basis of
+Eq.~\eqref{eq:basis} and reduced to a node-level adjacency by the same
+feature-to-edge map. Reconstructed graphs are scored against
+$A=\operatorname{supp}(W)$ by true- and false-positive rate, precision, and
+$F_1$. Because the cyclops coupling is all-to-all, its ground-truth graph is
+complete and admits no true negatives; there the false-positive rate is undefined
+and only recall and precision are reported.

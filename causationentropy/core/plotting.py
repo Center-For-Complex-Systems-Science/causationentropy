@@ -518,7 +518,7 @@ def plot_causal_network(
         )
 
         # Get colors from colormap
-        cmap = plt.cm.get_cmap(colormaps[i % len(colormaps)])
+        cmap = plt.get_cmap(colormaps[i % len(colormaps)])
         colors = cmap(norm_cmis)
 
         # Modulate alpha by p-value if requested
@@ -562,7 +562,7 @@ def plot_causal_network(
     # Create legend for lag groups
     legend_elements = []
     for i, lag in enumerate(sorted_lags):
-        colormap = plt.cm.get_cmap(colormaps[i % len(colormaps)])
+        colormap = plt.get_cmap(colormaps[i % len(colormaps)])
         color = colormap(0.7)
         legend_elements.append(
             Patch(facecolor=color, edgecolor="black", label=f"Lag {lag}")
@@ -581,7 +581,7 @@ def plot_causal_network(
     # Add colorbar showing CMI scale if requested
     if show_colorbar and sorted_lags:
         # Create colorbar for the first lag as representative
-        cmap = plt.cm.get_cmap(colormaps[0])
+        cmap = plt.get_cmap(colormaps[0])
         sm = plt.cm.ScalarMappable(
             cmap=cmap, norm=Normalize(vmin=0, vmax=global_max_cmi)
         )

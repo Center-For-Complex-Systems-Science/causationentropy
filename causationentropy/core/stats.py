@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.integrate import trapezoid
 
 
 def auc(TPRs, FPRs):
@@ -72,11 +73,7 @@ def auc(TPRs, FPRs):
     >>> print(f"Random AUC: {auc(tpr_random, fpr_random)}")
     """
 
-    # Use trapezoid for NumPy 2.0+, trapz for older versions
-    if hasattr(np, "trapezoid"):
-        AUC = np.trapezoid(TPRs, FPRs)
-    else:
-        AUC = np.trapz(TPRs, FPRs)
+    AUC = trapezoid(TPRs, FPRs)
     return AUC
 
 

@@ -99,7 +99,8 @@ network = discover_network(
     max_lag=5,                  # Maximum time lag to consider
     alpha_forward=0.05,         # Forward selection significance
     alpha_backward=0.05,        # Backward elimination significance
-    n_shuffles=200              # Permutation test iterations
+    n_shuffles=200,             # Permutation test iterations
+    random_state=42,            # Permutation-test seed; pass None or another int for independent replicates
 )
 ```
 

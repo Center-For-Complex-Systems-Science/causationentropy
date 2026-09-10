@@ -8,6 +8,7 @@ import pytest
 from causationentropy.core.discovery import (
     discover_network,
     lasso_optimal_causation_entropy,
+    shuffle_test,
 )
 
 
@@ -494,6 +495,108 @@ class TestDiscoverNetwork:
                 assert d["cmi"] > 0, f"Causal edge has non-positive CMI: {d['cmi']}"
         else:
             pytest.skip("No X0->X1 edges found - test setup may need adjustment")
+
+
+def _edge_signature(G):
+    """Comparable edge payload for reproducibility checks."""
+    return sorted(
+        (u, v, k, d.get("lag"), d.get("cmi"), d.get("p_value"))
+        for u, v, k, d in G.edges(keys=True, data=True)
+    )
+
+
+def _permutation_rows(X, seed, n_shuffles):
+    """Replay the row shuffles shuffle_test draws from an integer seed."""
+    rng = np.random.default_rng(seed)
+    return [X[rng.permutation(len(X)), :].copy() for _ in range(n_shuffles)]
+
+
+class TestDiscoverNetworkRandomState:
+    """Tests for user-controllable permutation-test randomness."""
+
+    def test_same_random_state_identical_results(self):
+        """Two calls with the same integer seed produce identical graphs."""
+        rng = np.random.default_rng(0)
+        data = rng.normal(size=(40, 2))
+
+        G1 = discover_network(data, max_lag=1, n_shuffles=15, random_state=7)
+        G2 = discover_network(data, max_lag=1, n_shuffles=15, random_state=7)
+
+        assert set(G1.nodes()) == set(G2.nodes())
+        assert _edge_signature(G1) == _edge_signature(G2)
+
+    def test_different_seeds_change_shuffle_sequence(self):
+        """Different seeds change the permutation sequence, not necessarily the graph."""
+        X = np.arange(16, dtype=float).reshape(16, 1)
+        Y = np.zeros((16, 1))
+        n_shuffles = 4
+        captured = []
+
+        def fake_cmi(X_perm, Y_arg, Z, **kwargs):
+            captured.append(np.asarray(X_perm).copy())
+            return 0.0
+
+        with patch(
+            "causationentropy.core.discovery.conditional_mutual_information",
+            side_effect=fake_cmi,
+        ):
+            shuffle_test(X, Y, None, 0.1, alpha=0.05, n_shuffles=n_shuffles, rng=0)
+            first = captured[:]
+            captured.clear()
+            shuffle_test(X, Y, None, 0.1, alpha=0.05, n_shuffles=n_shuffles, rng=1)
+            second = captured[:]
+
+        expected_0 = _permutation_rows(X, 0, n_shuffles)
+        expected_1 = _permutation_rows(X, 1, n_shuffles)
+        assert len(first) == n_shuffles
+        assert len(second) == n_shuffles
+        for got, expected in zip(first, expected_0):
+            np.testing.assert_array_equal(got, expected)
+        for got, expected in zip(second, expected_1):
+            np.testing.assert_array_equal(got, expected)
+        assert any(not np.array_equal(a, b) for a, b in zip(expected_0, expected_1))
+
+    def test_default_random_state_matches_seed_42(self):
+        """Omitting random_state is the same as random_state=42."""
+        rng = np.random.default_rng(1)
+        data = rng.normal(size=(40, 2))
+
+        G_default = discover_network(data, max_lag=1, n_shuffles=15)
+        G_42 = discover_network(data, max_lag=1, n_shuffles=15, random_state=42)
+        G_default_again = discover_network(data, max_lag=1, n_shuffles=15)
+
+        assert _edge_signature(G_default) == _edge_signature(G_42)
+        assert _edge_signature(G_default) == _edge_signature(G_default_again)
+
+    def test_numpy_generator_is_accepted(self):
+        """Equivalent Generators produce identical results; a Generator is consumed."""
+        rng = np.random.default_rng(2)
+        data = rng.normal(size=(40, 2))
+
+        G1 = discover_network(
+            data, max_lag=1, n_shuffles=15, random_state=np.random.default_rng(99)
+        )
+        G2 = discover_network(
+            data, max_lag=1, n_shuffles=15, random_state=np.random.default_rng(99)
+        )
+        assert _edge_signature(G1) == _edge_signature(G2)
+
+        shared = np.random.default_rng(99)
+        discover_network(data, max_lag=1, n_shuffles=10, random_state=shared)
+        next_after_one_call = int(shared.integers(2**63))
+        shared = np.random.default_rng(99)
+        discover_network(data, max_lag=1, n_shuffles=10, random_state=shared)
+        discover_network(data, max_lag=1, n_shuffles=10, random_state=shared)
+        next_after_two_calls = int(shared.integers(2**63))
+        assert next_after_one_call != next_after_two_calls
+
+    def test_random_state_none_runs(self):
+        """random_state=None is a valid independent-entropy setting."""
+        rng = np.random.default_rng(3)
+        data = rng.normal(size=(30, 2))
+        G = discover_network(data, max_lag=1, n_shuffles=10, random_state=None)
+        assert isinstance(G, nx.MultiDiGraph)
+        assert set(G.nodes()) == {"X0", "X1"}
 
 
 class TestLassoOptimalCausationEntropy:

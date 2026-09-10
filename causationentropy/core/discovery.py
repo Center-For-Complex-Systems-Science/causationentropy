@@ -3,6 +3,7 @@ Author: Kevin Slote
 Email: kslote@clarkson.edu
 version = 1.1.0
 """
+
 import copy
 from typing import Dict, Tuple, Union
 
@@ -28,6 +29,7 @@ def discover_network(
     k_means: int = 5,
     n_shuffles: int = 200,
     n_jobs=-1,
+    random_state: Union[int, np.random.Generator, None] = 42,
 ) -> nx.MultiDiGraph:
     r"""
     Infer a causal graph via Optimal Causation Entropy (oCSE).
@@ -98,6 +100,13 @@ def discover_network(
         provide more accurate p-value estimates but increase computational cost.
     n_jobs : int, default=-1
         Number of parallel jobs for computation. -1 uses all available processors.
+    random_state : int, numpy.random.Generator, or None, default=42
+        Controls the permutation-test random stream. An integer seed is
+        converted with ``numpy.random.default_rng`` and is reproducible across
+        calls. The default of 42 preserves historical bit-reproducible
+        behavior. Pass a different integer or ``None`` for independent
+        replicates (``None`` draws entropy from the OS). A
+        ``numpy.random.Generator`` is used as-is and advanced in place.
 
     Returns
     -------
@@ -140,6 +149,9 @@ def discover_network(
     >>>
     >>> # Discover causal network
     >>> G = discover_network(data, max_lag=3, alpha_forward=0.01)
+    >>>
+    >>> # Independent shuffle-test replicate
+    >>> G_rep = discover_network(data, max_lag=3, random_state=0)
 
     References
     ----------
@@ -148,7 +160,7 @@ def discover_network(
 
     .. [2] Schreiber, T. Measuring information transfer. Physical Review Letters 85, 461 (2000).
     """
-    rng = np.random.default_rng(42)
+    rng = np.random.default_rng(random_state)
 
     if method not in ["standard", "alternative", "information_lasso", "lasso"]:
         raise NotImplementedError(f"discover_network: method={method} not supported.")

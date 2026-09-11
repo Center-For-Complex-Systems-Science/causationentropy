@@ -3,17 +3,163 @@ Author: Kevin Slote
 Email: kslote@clarkson.edu
 version = 1.1.0
 """
+
 import copy
 from typing import Dict, Tuple, Union
 
 import networkx as nx
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed, effective_n_jobs
 from sklearn.linear_model import Lasso, LassoLarsIC
 
 from causationentropy.core.information.conditional_mutual_information import (
     conditional_mutual_information,
 )
+
+# Default seed for permutation tests. Independent streams are spawned per
+# target so serial and parallel execution consume the same randomness.
+_DISCOVER_NETWORK_SEED = 42
+
+
+def _validate_n_jobs(n_jobs):
+    """Normalize ``n_jobs`` to joblib's integer convention.
+
+    ``None`` means serial (1 job). ``-1`` means all processors. ``0`` is
+    invalid. Booleans are rejected because ``bool`` is a subclass of ``int``.
+    """
+    if n_jobs is None:
+        return 1
+    if isinstance(n_jobs, bool) or not isinstance(n_jobs, (int, np.integer)):
+        raise ValueError(f"n_jobs must be an integer, got {type(n_jobs).__name__}")
+    n_jobs = int(n_jobs)
+    if n_jobs == 0:
+        raise ValueError(
+            "n_jobs=0 is invalid; use n_jobs=1 for serial execution "
+            "or n_jobs=-1 for all processors"
+        )
+    return n_jobs
+
+
+def _resolve_n_workers(n_jobs, n_targets):
+    """Worker count: requested jobs, but never more than the number of targets."""
+    n_jobs = _validate_n_jobs(n_jobs)
+    return max(1, min(effective_n_jobs(n_jobs), int(n_targets)))
+
+
+def _run_target_jobs(job_args, n_workers):
+    """Run per-target inference serially or with joblib.
+
+    Both paths call the same ``_discover_edges_for_target`` helper so the
+    oCSE mathematics is not duplicated.
+    """
+    if n_workers == 1:
+        return [_discover_edges_for_target(*args) for args in job_args]
+    # loky isolates BLAS via inner_max_num_threads so process workers do not
+    # oversubscribe CPU against NumPy's Accelerate/OpenMP threads.
+    return Parallel(n_jobs=n_workers, backend="loky", inner_max_num_threads=1)(
+        delayed(_discover_edges_for_target)(*args) for args in job_args
+    )
+
+
+def _discover_edges_for_target(
+    i,
+    rng_seed,
+    series,
+    X_lagged,
+    Y_all,
+    feature_names,
+    method,
+    max_lag,
+    T,
+    alpha_forward,
+    alpha_backward,
+    n_shuffles,
+    information,
+    metric,
+    k_means,
+    bandwidth,
+    var_name,
+):
+    """Infer parents of one target variable and return edge tuples.
+
+    Workers never touch the shared NetworkX graph. Each target gets its own
+    RNG from ``rng_seed`` so jobs do not share or duplicate a random stream.
+    """
+    rng = np.random.default_rng(rng_seed)
+    print(f"Estimating edges for node {i} ({var_name})")
+
+    Y = Y_all[:, [i]]  # shape: (T - max_lag, 1)
+    if method == "standard":
+        Z_init = []
+        for tau in range(1, max_lag + 1):
+            Z_init.append(series[max_lag - tau : T - tau, i])  # lagged Y_i
+        Z_init = np.column_stack(Z_init)  # shape: (T - max_lag, max_lag)
+        S = standard_optimal_causation_entropy(
+            X_lagged,
+            Y,
+            Z_init,
+            rng,
+            alpha_forward,
+            alpha_backward,
+            n_shuffles,
+            information,
+            metric,
+            k_means,
+            bandwidth,
+        )
+    if method == "alternative":
+        S = alternative_optimal_causation_entropy(
+            X_lagged,
+            Y,
+            rng,
+            alpha_forward,
+            alpha_backward,
+            n_shuffles,
+            information,
+            metric,
+            k_means,
+            bandwidth,
+        )
+    if method == "information_lasso":
+        S = information_lasso_optimal_causation_entropy(X_lagged, Y, rng)
+    if method == "lasso":
+        S = lasso_optimal_causation_entropy(X_lagged, Y, rng)
+
+    edges = []
+    for s in S:
+        src_var, src_lag = feature_names[s]
+
+        X_predictor = X_lagged[:, [s]]
+        Y_target = Y
+        other_selected = [idx for idx in S if idx != s]
+        Z_cond = X_lagged[:, other_selected] if other_selected else None
+
+        cmi = conditional_mutual_information(
+            X_predictor,
+            Y_target,
+            Z_cond,
+            method=information,
+            metric=metric,
+            k=k_means,
+            bandwidth=bandwidth,
+        )
+
+        test_result = shuffle_test(
+            X_predictor,
+            Y_target,
+            Z_cond,
+            cmi,
+            alpha=alpha_backward,
+            rng=rng,
+            n_shuffles=n_shuffles,
+            information=information,
+            metric=metric,
+            k_means=k_means,
+            bandwidth=bandwidth,
+        )
+        edges.append((src_var, src_lag, cmi, test_result["P_value"]))
+    return i, edges
 
 
 def discover_network(
@@ -97,7 +243,10 @@ def discover_network(
         Number of permutations for statistical significance testing. Higher values
         provide more accurate p-value estimates but increase computational cost.
     n_jobs : int, default=-1
-        Number of parallel jobs for computation. -1 uses all available processors.
+        Number of parallel jobs. Each target variable is an independent job.
+        ``1`` runs serially in the calling process. ``-1`` uses all available
+        processors. The worker count is never larger than the number of
+        target variables. ``0`` is invalid.
 
     Returns
     -------
@@ -115,7 +264,8 @@ def discover_network(
     NotImplementedError
         If an unsupported method or information type is specified.
     ValueError
-        If the time series is too short for the chosen max_lag.
+        If the time series is too short for the chosen max_lag, or if
+        ``n_jobs`` is not a valid integer.
 
     Notes
     -----
@@ -148,8 +298,6 @@ def discover_network(
 
     .. [2] Schreiber, T. Measuring information transfer. Physical Review Letters 85, 461 (2000).
     """
-    rng = np.random.default_rng(42)
-
     if method not in ["standard", "alternative", "information_lasso", "lasso"]:
         raise NotImplementedError(f"discover_network: method={method} not supported.")
     supported_information_types = ["gaussian", "knn", "kde", "geometric_knn", "poisson"]
@@ -158,6 +306,7 @@ def discover_network(
             f"discover_network: information={information} not supported. "
             f"Supported types: {supported_information_types}"
         )
+    n_jobs = _validate_n_jobs(n_jobs)
 
     # Convert DataFrame to ndarray while keeping column labels
     if isinstance(data, pd.DataFrame):
@@ -188,89 +337,44 @@ def discover_network(
     G = nx.MultiDiGraph()
     G.add_nodes_from(var_names)
 
-    # Step 3: Loop over each variable and infer parents from lagged predictors
-    for i in range(n):
-        print(f"Estimating edges for node {i} ({var_names[i]})")
+    # Independent RNG per target so n_jobs=1 and n_jobs>1 match, and so
+    # workers never share or clone a single Generator stream.
+    target_seeds = np.random.SeedSequence(_DISCOVER_NETWORK_SEED).spawn(n)
+    job_args = [
+        (
+            i,
+            target_seeds[i],
+            series,
+            X_lagged,
+            Y_all,
+            feature_names,
+            method,
+            max_lag,
+            T,
+            alpha_forward,
+            alpha_backward,
+            n_shuffles,
+            information,
+            metric,
+            k_means,
+            bandwidth,
+            var_names[i],
+        )
+        for i in range(n)
+    ]
 
-        Y = Y_all[:, [i]]  # shape: (T - max_lag, 1)
-        if method == "standard":
-            Z_init = []
-            for tau in range(1, max_lag + 1):
-                Z_init.append(series[max_lag - tau : T - tau, i])  # lagged Y_i
-            Z_init = np.column_stack(Z_init)  # shape: (T - max_lag, max_lag)
-            S = standard_optimal_causation_entropy(
-                X_lagged,
-                Y,
-                Z_init,
-                rng,
-                alpha_forward,
-                alpha_backward,
-                n_shuffles,
-                information,
-                metric,
-                k_means,
-                bandwidth,
-            )
-        if method == "alternative":
-            S = alternative_optimal_causation_entropy(
-                X_lagged,
-                Y,
-                rng,
-                alpha_forward,
-                alpha_backward,
-                n_shuffles,
-                information,
-                metric,
-                k_means,
-                bandwidth,
-            )
-        if method == "information_lasso":
-            S = information_lasso_optimal_causation_entropy(X_lagged, Y, rng)
-        if method == "lasso":
-            S = lasso_optimal_causation_entropy(X_lagged, Y, rng)
-        for s in S:
-            src_var, src_lag = feature_names[s]
+    # Workers return edge lists; only this process mutates G.
+    n_workers = _resolve_n_workers(n_jobs, n)
+    results = _run_target_jobs(job_args, n_workers)
 
-            # Compute CMI and p-value for this edge
-            X_predictor = X_lagged[:, [s]]  # predictor at this lag
-            Y_target = Y  # target variable
-
-            # Conditioning set: all other selected predictors for this target
-            other_selected = [idx for idx in S if idx != s]
-            Z_cond = X_lagged[:, other_selected] if other_selected else None
-
-            # Compute conditional mutual information
-            cmi = conditional_mutual_information(
-                X_predictor,
-                Y_target,
-                Z_cond,
-                method=information,
-                metric=metric,
-                k=k_means,
-                bandwidth=bandwidth,
-            )
-
-            # Compute p-value using shuffle test
-            test_result = shuffle_test(
-                X_predictor,
-                Y_target,
-                Z_cond,
-                cmi,
-                alpha=alpha_backward,  # Use backward elimination alpha
-                rng=rng,
-                n_shuffles=n_shuffles,
-                information=information,
-                metric=metric,
-                k_means=k_means,
-                bandwidth=bandwidth,
-            )
-
+    for i, edges in sorted(results, key=lambda item: item[0]):
+        for src_var, src_lag, cmi, p_value in edges:
             G.add_edge(
                 var_names[src_var],
                 var_names[i],
                 lag=src_lag,
                 cmi=cmi,
-                p_value=test_result["P_value"],
+                p_value=p_value,
             )
 
     return G

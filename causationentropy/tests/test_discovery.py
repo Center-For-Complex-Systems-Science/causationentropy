@@ -209,7 +209,7 @@ class TestDiscoverNetwork:
         mock_cmi.return_value = 0.5  # Mock CMI value
 
         data = np.random.normal(0, 1, (20, 2))
-        G = discover_network(data, max_lag=1, n_shuffles=10)
+        G = discover_network(data, max_lag=1, n_shuffles=10, n_jobs=1)
 
         # Verify CMI was called
         assert mock_cmi.called
@@ -239,7 +239,12 @@ class TestDiscoverNetwork:
         # Test with different metric values
         for metric in ["euclidean", "cityblock", "chebyshev"]:
             discover_network(
-                data, information="knn", metric=metric, max_lag=1, n_shuffles=5
+                data,
+                information="knn",
+                metric=metric,
+                max_lag=1,
+                n_shuffles=5,
+                n_jobs=1,
             )
 
             # Verify that the metric parameter was passed to conditional_mutual_information
@@ -256,7 +261,12 @@ class TestDiscoverNetwork:
         # Test with different bandwidth values
         for bandwidth in ["silverman", "scott", 0.5]:
             discover_network(
-                data, information="kde", bandwidth=bandwidth, max_lag=1, n_shuffles=5
+                data,
+                information="kde",
+                bandwidth=bandwidth,
+                max_lag=1,
+                n_shuffles=5,
+                n_jobs=1,
             )
 
             # Verify that the bandwidth parameter was passed to conditional_mutual_information
@@ -273,7 +283,12 @@ class TestDiscoverNetwork:
         # Test with different k_means values
         for k_means in [1, 3, 5, 10]:
             discover_network(
-                data, information="knn", k_means=k_means, max_lag=1, n_shuffles=5
+                data,
+                information="knn",
+                k_means=k_means,
+                max_lag=1,
+                n_shuffles=5,
+                n_jobs=1,
             )
 
             # Verify that the k_means parameter was passed as 'k' to conditional_mutual_information
@@ -300,6 +315,7 @@ class TestDiscoverNetwork:
             k_means=k_means,
             max_lag=1,
             n_shuffles=5,
+            n_jobs=1,
         )
 
         # Verify all parameters were passed correctly
@@ -330,6 +346,7 @@ class TestDiscoverNetwork:
                 k_means=k_means,
                 max_lag=1,
                 n_shuffles=5,
+                n_jobs=1,
             )
 
             # Verify parameters were passed through for both methods
@@ -494,6 +511,92 @@ class TestDiscoverNetwork:
                 assert d["cmi"] > 0, f"Causal edge has non-positive CMI: {d['cmi']}"
         else:
             pytest.skip("No X0->X1 edges found - test setup may need adjustment")
+
+
+def _comparable_edges(G):
+    """Stable edge signature for serial vs parallel comparison."""
+    return sorted(
+        (u, v, d["lag"], float(d["cmi"]), float(d["p_value"]))
+        for u, v, d in G.edges(data=True)
+    )
+
+
+class TestDiscoverNetworkNJobs:
+    """Tests that n_jobs actually controls parallel execution."""
+
+    @pytest.fixture
+    def causal_data(self):
+        rng = np.random.default_rng(0)
+        T, n = 80, 4
+        data = rng.normal(size=(T, n))
+        for t in range(1, T):
+            data[t, 1] += 0.8 * data[t - 1, 0]
+            data[t, 2] += 0.8 * data[t - 1, 1]
+        return data
+
+    def test_n_jobs_1_runs(self, causal_data):
+        G = discover_network(causal_data, max_lag=1, n_shuffles=20, n_jobs=1)
+        assert isinstance(G, nx.MultiDiGraph)
+        assert len(G.nodes()) == 4
+
+    def test_n_jobs_2_runs(self, causal_data):
+        G = discover_network(causal_data, max_lag=1, n_shuffles=20, n_jobs=2)
+        assert isinstance(G, nx.MultiDiGraph)
+        assert len(G.nodes()) == 4
+
+    def test_n_jobs_4_runs(self, causal_data):
+        G = discover_network(causal_data, max_lag=1, n_shuffles=20, n_jobs=4)
+        assert isinstance(G, nx.MultiDiGraph)
+        assert len(G.nodes()) == 4
+
+    def test_n_jobs_minus_one_runs(self, causal_data):
+        G = discover_network(causal_data, max_lag=1, n_shuffles=20, n_jobs=-1)
+        assert isinstance(G, nx.MultiDiGraph)
+        assert len(G.nodes()) == 4
+
+    def test_serial_and_parallel_equivalent(self, causal_data):
+        kwargs = dict(
+            max_lag=1,
+            n_shuffles=30,
+            information="gaussian",
+            method="standard",
+        )
+        G1 = discover_network(causal_data, n_jobs=1, **kwargs)
+        G2 = discover_network(causal_data, n_jobs=2, **kwargs)
+        G4 = discover_network(causal_data, n_jobs=4, **kwargs)
+        G_all = discover_network(causal_data, n_jobs=-1, **kwargs)
+
+        assert (
+            set(G1.nodes()) == set(G2.nodes()) == set(G4.nodes()) == set(G_all.nodes())
+        )
+        assert _comparable_edges(G1) == _comparable_edges(G2)
+        assert _comparable_edges(G1) == _comparable_edges(G4)
+        assert _comparable_edges(G1) == _comparable_edges(G_all)
+
+    def test_n_jobs_zero_invalid(self):
+        data = np.random.normal(0, 1, (20, 3))
+        with pytest.raises(ValueError, match="n_jobs=0 is invalid"):
+            discover_network(data, n_jobs=0)
+
+    def test_n_jobs_non_integer_invalid(self):
+        data = np.random.normal(0, 1, (20, 3))
+        with pytest.raises(ValueError, match="n_jobs must be an integer"):
+            discover_network(data, n_jobs=1.5)
+        with pytest.raises(ValueError, match="n_jobs must be an integer"):
+            discover_network(data, n_jobs=True)
+
+
+def test_resolve_n_workers_caps_at_target_count():
+    """n_jobs=-1 / oversized n_jobs must not exceed the number of targets."""
+    from joblib import effective_n_jobs
+
+    from causationentropy.core.discovery import _resolve_n_workers
+
+    assert _resolve_n_workers(1, 8) == 1
+    assert _resolve_n_workers(2, 8) == 2
+    assert _resolve_n_workers(100, 3) == 3
+    assert _resolve_n_workers(-1, 2) == 2
+    assert _resolve_n_workers(-1, 100) == effective_n_jobs(-1)
 
 
 class TestLassoOptimalCausationEntropy:

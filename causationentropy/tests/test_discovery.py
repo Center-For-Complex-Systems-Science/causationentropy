@@ -32,6 +32,14 @@ class TestDiscoverNetwork:
 
         assert isinstance(G, nx.MultiDiGraph)
         assert len(G.nodes()) == 2
+
+        # Assert ground-truth causal recovery (Issue #15)
+        edges_with_lag = {
+            (u, v, attrs.get("lag")) for u, v, attrs in G.edges(data=True)
+        }
+        assert ("X0", "X1", 1) in edges_with_lag
+        assert edges_with_lag == {("X0", "X1", 1)}
+
         assert "X0" in G.nodes()
         assert "X1" in G.nodes()
 

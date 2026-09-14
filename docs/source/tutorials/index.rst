@@ -1,47 +1,46 @@
-========
 Tutorials
-========
+=========
 
-This section contains practical examples of using the Causation Entropy library.
-
-.. toctree::
-   :maxdepth: 2
-
-   basic_usage
-
-Interactive Notebooks
-====================
-
-For interactive examples, check out our Jupyter notebooks:
-
-.. toctree::
-   :maxdepth: 1
-   :glob:
-
-   notebooks/*
-Create examples/basic_usage.rst:
+This section provides practical examples and guides for using the ``causationentropy`` package for causal network discovery from time-series data.
 
 Basic Usage
-===========
+-----------
 
-This example demonstrates the fundamental usage of the library.
-
-Simple Example
-==============
+Below is a self-contained example demonstrating how to discover a causal network from synthetic time-series data:
 
 .. code-block:: python
 
-   from causationentropy import discover_network
+    import numpy as np
+    from causationentropy import discover_network
 
-   # Load your time series data (variables as columns, time as rows)
-   data = pd.read_csv('your_data.csv')
+    # 1. Generate synthetic data (X0 causes X1 at lag 1)
+    np.random.seed(42)
+    n_samples = 200
+    x0 = np.random.normal(0, 1, n_samples)
+    x1 = np.zeros(n_samples)
 
-   # Discover causal network
-   network = discover_network(data, method='standard', max_lag=5)
+    for t in range(1, n_samples):
+        x1[t] = 0.7 * x0[t - 1] + 0.3 * np.random.normal()
 
-.. figure:: ../_static/images/diagrams/basic_flow.png
-   :alt: Basic workflow diagram
-   :width: 600px
-   :align: center
-   
-   The `discover_network` method returns a NetworkX MultiDiGraph object.
+    # Combine into a 2D array of shape (n_samples, n_variables)
+    data = np.column_stack([x0, x1])
+
+    # 2. Run causal network discovery
+    network = discover_network(data, max_lag=2, n_shuffles=50)
+
+    # 3. Inspect discovered causal edges
+    for u, v, attrs in network.edges(data=True):
+        print(f"Discovered causal edge: {u} -> {v} (lag: {attrs.get('lag')})")
+
+Interactive Notebooks
+---------------------
+
+The repository includes the following interactive Jupyter notebooks demonstrating different estimators and use cases:
+
+* `Quickstart Notebook <https://github.com/Center-For-Complex-Systems-Science/causationentropy/blob/main/notebooks/Quickstart.ipynb>`_ - Introductory workflow and basic network discovery.
+* `Optimal Causation Entropy Tutorial <https://github.com/Center-For-Complex-Systems-Science/causationentropy/blob/main/notebooks/Optimal_Causation_Entropy_Tutorial.ipynb>`_ - Detailed walk-through of the oCSE algorithm.
+* `Gaussian Causal Discovery Example <https://github.com/Center-For-Complex-Systems-Science/causationentropy/blob/main/notebooks/gaussian_causal_discovery_example.ipynb>`_ - Network discovery under Gaussian assumptions.
+* `kNN Causal Discovery Example <https://github.com/Center-For-Complex-Systems-Science/causationentropy/blob/main/notebooks/knn_causal_discovery_example.ipynb>`_ - Nonparametric causal discovery using k-Nearest Neighbors.
+* `Geometric kNN Causal Discovery Example <https://github.com/Center-For-Complex-Systems-Science/causationentropy/blob/main/notebooks/geometric_knn_causal_discovery_example.ipynb>`_ - Nonparametric estimation using geometric kNN entropy corrections.
+* `KDE Causal Discovery Example <https://github.com/Center-For-Complex-Systems-Science/causationentropy/blob/main/notebooks/kde_causal_discovery_example.ipynb>`_ - Nonparametric causal discovery using Kernel Density Estimation.
+* `Poisson Causal Discovery Example <https://github.com/Center-For-Complex-Systems-Science/causationentropy/blob/main/notebooks/poisson_causal_discovery_example.ipynb>`_ - Causal discovery for count and event data with Poisson dynamics.

@@ -95,6 +95,30 @@ class TestComputeTPRFPR:
         assert TPR == 1.0
         assert FPR == 0.0
 
+    def test_tpr_fpr_ignores_self_loops(self):
+        """Test that self-loops on the diagonal are ignored."""
+        A = np.array(
+            [
+                [0, 1, 0],
+                [1, 0, 1],
+                [0, 1, 0],
+            ]
+        )
+
+        # Same graph as A, but with self-loops added to the prediction.
+        B = np.array(
+            [
+                [1, 1, 0],
+                [1, 1, 1],
+                [0, 1, 1],
+            ]
+        )
+        TPR, FPR = Compute_TPR_FPR(A, B)
+
+        # Diagonal entries represent self-loops and must be ignored.
+        assert TPR == 1.0
+        assert FPR == 0.0
+
     def test_tpr_fpr_different_matrices(self):
         """Test TPR/FPR with different matrices."""
         A = np.array([[0, 1, 1], [0, 0, 1], [1, 0, 0]])

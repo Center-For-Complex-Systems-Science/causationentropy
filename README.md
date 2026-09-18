@@ -140,7 +140,7 @@ This measures how much variable X tells us about variable Y, beyond what we alre
 **Causal Discovery Rule**: Variable X causes Y if knowing X(t) significantly improves prediction of Y(t+1), even when controlling for all other relevant variables.
 
 The algorithm implements a two-phase approach:
-1. **Forward Selection**: Iteratively adds predictors that maximize conditional mutual information
+1. **Forward Selection**: Iteratively adds predictors that maximize conditional mutual information until no new statistically significant variable is discovered
 2. **Backward Elimination**: Removes predictors that lose significance when conditioned on others
 
 ## Documentation

@@ -131,7 +131,7 @@ discovered = discover_network(data)
   
 ## Mathematical Foundation
 
-The algorithm uses **conditional mutual information** to quantify causal relationships:
+The algorithm uses **conditional mutual information** on time delayed variables to quantify causal relationships:
 
 $$I(X; Y | Z) = H(X | Z) + H(Y | Z) - H(X, Y | Z)$$
 

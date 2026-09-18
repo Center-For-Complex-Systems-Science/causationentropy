@@ -315,10 +315,11 @@ def discover_network(
     k_means: int = 5,
     n_shuffles: int = 200,
     n_jobs: int = -1,
+    random_state=42,
 ) -> nx.MultiDiGraph:
     """Main discovery interface."""
 
-    rng = np.random.default_rng(42)
+    rng = np.random.default_rng(random_state)
 
     # Validate method
     if method not in ["standard", "alternative", "information_lasso", "lasso", "your_method"]:

@@ -172,13 +172,14 @@ def Compute_TPR_FPR(A, B):
     # A - B > 0: edges in A but not in B (false negatives)
     # A - B < 0: edges in B but not in A (false positives)
 
-    false_negatives = np.sum((A - B) > 0)
-    false_positives = np.sum((A - B) < 0)
+    # Ignore diagonal entries because self-loops are excluded.
+    mask = ~np.eye(n, dtype=bool)
 
-    total_positives = np.sum(A)  # Total edges in ground truth
-    total_negatives = (
-        n * (n - 1) - total_positives
-    )  # Total non-edges (excluding diagonal)
+    false_negatives = np.sum((A - B)[mask] > 0)
+    false_positives = np.sum((A - B)[mask] < 0)
+
+    total_positives = np.sum(A[mask])
+    total_negatives = np.sum(mask) - total_positives
 
     # Compute TPR and FPR
     TPR = 1 - (false_negatives / total_positives) if total_positives > 0 else 1.0

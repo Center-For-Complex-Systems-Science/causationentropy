@@ -228,6 +228,134 @@ class TestComputeTPRFPR:
             assert 0 <= TPR <= 1
             assert 0 <= FPR <= 1
 
+    def test_tpr_fpr_manual_confusion_counts(self):
+        """Hand-check TP/FP/TN/FN on a 3x3 off-diagonal example.
+
+        Ground truth A and prediction B (diagonal already zero):
+
+            A = [[0, 1, 0],          B = [[0, 1, 1],
+                 [0, 0, 1],               [0, 0, 0],
+                 [1, 0, 0]]               [1, 1, 0]]
+
+        Off-diagonal cells only:
+            (0,1): A=1, B=1 -> TP
+            (0,2): A=0, B=1 -> FP
+            (1,0): A=0, B=0 -> TN
+            (1,2): A=1, B=0 -> FN
+            (2,0): A=1, B=1 -> TP
+            (2,1): A=0, B=1 -> FP
+
+        TP=2, FP=2, TN=1, FN=1, P=3, N=3
+        TPR = TP/P = 2/3, FPR = FP/N = 2/3
+        """
+        A = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]])
+        B = np.array([[0, 1, 1], [0, 0, 0], [1, 1, 0]])
+
+        TPR, FPR = Compute_TPR_FPR(A, B)
+
+        assert TPR == pytest.approx(2 / 3)
+        assert FPR == pytest.approx(2 / 3)
+
+    def test_tpr_fpr_ignores_predicted_self_loops(self):
+        """Diagonal 1s in the prediction must not inflate FPR.
+
+        Same off-diagonal pattern as the hand-checked example, but B has
+        self-loops. Those three diagonal entries would be counted as extra
+        false positives if the diagonal were included in the numerator while
+        still being excluded from the n*(n-1) denominator.
+        """
+        A = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]])
+        B = np.array([[1, 1, 1], [0, 1, 0], [1, 1, 1]])
+
+        TPR, FPR = Compute_TPR_FPR(A, B)
+
+        assert TPR == pytest.approx(2 / 3)
+        assert FPR == pytest.approx(2 / 3)
+        assert 0 <= FPR <= 1
+
+    def test_tpr_fpr_ignores_ground_truth_self_loops(self):
+        """Diagonal 1s in A are not true edges and must not change TPR/FPR.
+
+        Off-diagonal A matches B exactly (three edges, three non-edges), so
+        TP=3, FP=0, TN=3, FN=0 even though A has 1s on the diagonal.
+        """
+        A = np.array([[1, 1, 0], [0, 1, 1], [1, 0, 1]])
+        B = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]])
+
+        TPR, FPR = Compute_TPR_FPR(A, B)
+
+        assert TPR == pytest.approx(1.0)
+        assert FPR == pytest.approx(0.0)
+
+    def test_fpr_in_unit_interval_with_self_loops(self):
+        """FPR stays in [0, 1] even when A or B contain self-loops."""
+        rng = np.random.default_rng(19)
+        for n in range(2, 8):
+            A = rng.integers(0, 2, size=(n, n))
+            B = rng.integers(0, 2, size=(n, n))
+            TPR, FPR = Compute_TPR_FPR(A, B)
+            assert 0 <= TPR <= 1
+            assert 0 <= FPR <= 1
+
+    def test_tpr_fpr_perfect_prediction_with_self_loops(self):
+        """Perfect off-diagonal recovery is TPR=1, FPR=0 even if B has loops."""
+        A = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
+        B = A.copy()
+        np.fill_diagonal(B, 1)
+
+        TPR, FPR = Compute_TPR_FPR(A, B)
+
+        assert TPR == 1.0
+        assert FPR == 0.0
+
+    def test_tpr_fpr_no_true_positives(self):
+        """No off-diagonal edges in A: TPR=1 by convention, FPR = FP / N."""
+        A = np.zeros((3, 3), dtype=int)
+        B = np.array([[1, 1, 0], [0, 1, 0], [0, 0, 1]])
+
+        # Off-diagonal: one FP at (0,1); N = 6; P = 0
+        TPR, FPR = Compute_TPR_FPR(A, B)
+
+        assert TPR == pytest.approx(1.0)
+        assert FPR == pytest.approx(1 / 6)
+
+    def test_tpr_fpr_no_true_negatives(self):
+        """Complete directed graph without self-loops has N=0, so FPR=0."""
+        A = np.array([[0, 1, 1], [1, 0, 1], [1, 1, 0]])
+        B = A.copy()
+        B[0, 1] = 0  # one missed edge; still no off-diagonal non-edges in A
+
+        TPR, FPR = Compute_TPR_FPR(A, B)
+
+        assert TPR == pytest.approx(5 / 6)
+        assert FPR == pytest.approx(0.0)
+
+    def test_tpr_fpr_issue19_all_ones_prediction(self):
+        """All-ones prediction must not yield FPR > 1 (issue #19).
+
+        n=5, P=6 off-diagonal true edges, B is all ones including the diagonal.
+        Off-diagonal: TP=6, FN=0, FP=14, TN=0 -> TPR=1, FPR=1.
+        The unfixed implementation counted 5 extra diagonal FPs over N=14,
+        giving FPR = 19/14 ≈ 1.357.
+        """
+        A = np.array(
+            [
+                [0, 1, 1, 0, 0],
+                [1, 0, 0, 1, 0],
+                [0, 1, 0, 0, 0],
+                [0, 0, 1, 0, 0],
+                [0, 0, 0, 0, 0],
+            ]
+        )
+        B = np.ones_like(A)
+
+        TPR, FPR = Compute_TPR_FPR(A, B)
+
+        assert np.sum(A) == 6
+        assert TPR == pytest.approx(1.0)
+        assert FPR == pytest.approx(1.0)
+        assert 0 <= FPR <= 1
+
 
 class TestStatsFunctionProperties:
     """Test mathematical properties and edge cases."""

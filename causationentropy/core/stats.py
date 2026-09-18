@@ -124,7 +124,7 @@ def Compute_TPR_FPR(A, B):
     -----
     This implementation assumes:
     - Matrices are square and binary
-    - Self-loops are excluded (diagonal elements ignored)
+    - Self-loops are excluded (diagonal elements ignored from TP/FP/TN/FN and from P, N)
     - Matrices represent undirected graphs (symmetric)
 
     **Interpretation:**
@@ -168,17 +168,20 @@ def Compute_TPR_FPR(A, B):
     n = A.shape[0]
     assert A.shape[0] == A.shape[1] == B.shape[0] == B.shape[1]
 
+    # Self-loops are excluded: apply the same off-diagonal mask to A and B.
+    off_diag = ~np.eye(n, dtype=bool)
+    A_off = A[off_diag]
+    B_off = B[off_diag]
+
     # Count true positives, false negatives, false positives
     # A - B > 0: edges in A but not in B (false negatives)
     # A - B < 0: edges in B but not in A (false positives)
 
-    false_negatives = np.sum((A - B) > 0)
-    false_positives = np.sum((A - B) < 0)
+    false_negatives = np.sum((A_off - B_off) > 0)
+    false_positives = np.sum((A_off - B_off) < 0)
 
-    total_positives = np.sum(A)  # Total edges in ground truth
-    total_negatives = (
-        n * (n - 1) - total_positives
-    )  # Total non-edges (excluding diagonal)
+    total_positives = np.sum(A_off)  # Total edges in ground truth (off-diagonal)
+    total_negatives = n * (n - 1) - total_positives  # Off-diagonal non-edges
 
     # Compute TPR and FPR
     TPR = 1 - (false_negatives / total_positives) if total_positives > 0 else 1.0

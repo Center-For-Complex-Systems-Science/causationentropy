@@ -1,7 +1,9 @@
+import networkx as nx
 import numpy as np
 import pytest
 
 from causationentropy.datasets.synthetic import (
+    linear_gaussian_from_graph,
     linear_stochastic_gaussian_process,
     logisic_dynamics,
     logistic_map,
@@ -587,3 +589,140 @@ class TestPoissonCoupledOscillators:
 
         # Test basic properties expected by discovery algorithms
         assert len(data.columns) == A_true.shape[0]  # Matching dimensions
+
+
+class TestLinearGaussianFromGraph:
+    """Test graph-driven linear Gaussian dynamics."""
+
+    def _chain_graph(self):
+        G = nx.MultiDiGraph()
+        G.add_edge(0, 1, lag=1)
+        G.add_edge(1, 2, lag=2)
+        return G
+
+    def test_basic_shapes_and_truth(self):
+        """Output shape follows (T, n) and truth is the input graph."""
+        G = self._chain_graph()
+        X, truth = linear_gaussian_from_graph(G, T=100, seed=0)
+
+        assert X.shape == (100, 3)
+        assert isinstance(X, np.ndarray)
+        assert truth is G
+        assert np.all(np.isfinite(X))
+
+    def test_reproducibility(self):
+        """Same seed gives identical output; different seed differs."""
+        G = self._chain_graph()
+        X1, _ = linear_gaussian_from_graph(G, T=100, seed=7)
+        X2, _ = linear_gaussian_from_graph(G, T=100, seed=7)
+        X3, _ = linear_gaussian_from_graph(G, T=100, seed=8)
+
+        assert np.array_equal(X1, X2)
+        assert not np.array_equal(X1, X3)
+
+    def test_couplings_follow_graph(self):
+        """True (pair, lag) links correlate; spurious ones do not."""
+        X, _ = linear_gaussian_from_graph(self._chain_graph(), T=2000, seed=0)
+
+        coupled_01 = np.corrcoef(X[:-1, 0], X[1:, 1])[0, 1]
+        coupled_12 = np.corrcoef(X[:-2, 1], X[2:, 2])[0, 1]
+        spurious = np.corrcoef(X[:-1, 0], X[1:, 2])[0, 1]
+
+        assert coupled_01 > 0.3
+        assert coupled_12 > 0.3
+        assert abs(spurious) < 0.15
+
+    def test_missing_lag_defaults_to_one(self):
+        """Edges without a lag attribute drive at lag 1."""
+        G = nx.MultiDiGraph()
+        G.add_edge(0, 1)
+
+        X, _ = linear_gaussian_from_graph(G, T=2000, seed=0)
+
+        assert np.corrcoef(X[:-1, 0], X[1:, 1])[0, 1] > 0.3
+
+    def test_weight_attribute(self):
+        """Zero weight removes the coupling; parallel weights sum."""
+        G_zero = nx.MultiDiGraph()
+        G_zero.add_edge(0, 1, lag=1, weight=0.0)
+        X_zero, _ = linear_gaussian_from_graph(G_zero, T=2000, seed=0)
+        assert abs(np.corrcoef(X_zero[:-1, 0], X_zero[1:, 1])[0, 1]) < 0.15
+
+        G_split = nx.MultiDiGraph()
+        G_split.add_edge(0, 1, lag=1, weight=0.5)
+        G_split.add_edge(0, 1, lag=1, weight=0.5)
+        G_single = nx.MultiDiGraph()
+        G_single.add_edge(0, 1, lag=1, weight=1.0)
+        X_split, _ = linear_gaussian_from_graph(G_split, T=100, seed=0)
+        X_single, _ = linear_gaussian_from_graph(G_single, T=100, seed=0)
+        np.testing.assert_allclose(X_split, X_single)
+
+    def test_arbitrary_node_labels(self):
+        """Columns follow list(G.nodes()) for any hashable labels."""
+        G = nx.MultiDiGraph()
+        G.add_edge("a", "b", lag=1)
+
+        X, truth = linear_gaussian_from_graph(G, T=50, seed=1)
+
+        assert X.shape == (50, 2)
+        assert truth is G
+        assert np.corrcoef(X[:-1, 0], X[1:, 1])[0, 1] > 0.3
+
+    def test_empty_graph_is_noise(self):
+        """A graph without edges yields finite noise."""
+        G = nx.MultiDiGraph()
+        G.add_nodes_from([0, 1])
+
+        X, _ = linear_gaussian_from_graph(G, T=50, seed=0)
+
+        assert X.shape == (50, 2)
+        assert np.all(np.isfinite(X))
+
+    def test_invalid_inputs(self):
+        """Undirected graphs, bad lags/weights, short T, bad rho raise."""
+        with pytest.raises(ValueError):
+            linear_gaussian_from_graph(nx.MultiGraph([(0, 1)]))
+
+        G = nx.MultiDiGraph()
+        G.add_edge(0, 1, lag=0)
+        with pytest.raises(ValueError):
+            linear_gaussian_from_graph(G)
+
+        G = nx.MultiDiGraph()
+        G.add_edge(0, 1, lag=1.5)
+        with pytest.raises(ValueError):
+            linear_gaussian_from_graph(G)
+
+        G = nx.MultiDiGraph()
+        G.add_edge(0, 1, lag=1, weight=np.inf)
+        with pytest.raises(ValueError):
+            linear_gaussian_from_graph(G)
+
+        with pytest.raises(ValueError):
+            linear_gaussian_from_graph(self._chain_graph(), T=2)
+
+        with pytest.raises(ValueError):
+            linear_gaussian_from_graph(self._chain_graph(), rho=0.0)
+
+    def test_discovery_roundtrip(self):
+        """discover_network recovers a simulated lag-1 chain."""
+        from causationentropy.core.discovery import discover_network
+
+        G = nx.MultiDiGraph()
+        G.add_edge(0, 1, lag=1)
+        G.add_edge(1, 2, lag=1)
+        X, _ = linear_gaussian_from_graph(G, T=400, seed=0)
+
+        found = discover_network(
+            X,
+            method="alternative",
+            information="gaussian",
+            max_lag=2,
+            n_shuffles=20,
+            random_state=0,
+        )
+
+        for source, sink in (("X0", "X1"), ("X1", "X2")):
+            edges = found.get_edge_data(source, sink)
+            assert edges is not None
+            assert any(data.get("lag") == 1 for data in edges.values())

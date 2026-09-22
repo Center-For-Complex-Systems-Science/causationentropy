@@ -110,3 +110,139 @@ def poisson_coupled_oscillators(
             X[t, i] = rng.poisson(rate)
 
     return X, A
+
+
+def linear_gaussian_from_graph(G, T=500, coupling=0.7, rho=0.9, epsilon=0.1, seed=42):
+    """Simulate a stable vector autoregression from a directed lag graph.
+
+    Each edge ``source -> sink`` with a ``lag`` attribute defines one term
+    of a vector autoregression: the sink at time ``t`` is driven by the
+    source at time ``t - lag``. This accepts the same
+    :class:`networkx.MultiDiGraph` format produced by
+    ``discover_network`` (nodes are variables, edges carry ``lag``), so a
+    discovered network can be used directly as ground truth for unit and
+    integration tests.
+
+    The simulated process is:
+
+    .. math::
+
+        X_i(t) = \\sum_{(j, \\tau) \\to i} w_{j \\to i}^{(\\tau)}
+        X_j(t - \\tau) + \\epsilon_i(t)
+
+    where :math:`\\epsilon_i(t)` is Gaussian noise with standard deviation
+    ``epsilon``. Edge weights default to ``coupling`` unless the edge
+    carries a ``weight`` attribute. All weights are jointly rescaled so the
+    companion matrix has spectral radius ``rho`` (mirroring
+    :func:`linear_stochastic_gaussian_process`), which keeps the process
+    stationary for ``rho < 1``.
+
+    Parameters
+    ----------
+    G : nx.MultiDiGraph or nx.DiGraph
+        Directed graph defining the ground-truth couplings. Nodes are
+        variables (any hashable labels); each edge must carry an integer
+        ``lag >= 1`` attribute (missing lags default to 1) and may carry
+        a numeric ``weight`` attribute. Parallel edges between the same
+        nodes at the same lag have their weights summed.
+    T : int, default=500
+        Number of time steps. Must exceed the largest lag in ``G``.
+    coupling : float, default=0.7
+        Default per-edge weight used when an edge has no ``weight``
+        attribute.
+    rho : float, default=0.9
+        Target spectral radius of the companion matrix. Must be positive;
+        values below 1 give a stationary process.
+    epsilon : float, default=0.1
+        Standard deviation of the Gaussian innovations.
+    seed : int, default=42
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    X : np.ndarray of shape (T, n)
+        Simulated multivariate time series. Column ``k`` corresponds to
+        ``list(G.nodes())[k]``.
+    G : nx.MultiDiGraph or nx.DiGraph
+        The input graph, returned unchanged as ground truth.
+
+    Raises
+    ------
+    ValueError
+        If ``G`` is not directed, any lag is not an integer ``>= 1``,
+        any weight is not finite, ``rho`` is not positive, or ``T`` does
+        not exceed the largest lag.
+
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> from causationentropy.datasets.synthetic import (
+    ...     linear_gaussian_from_graph,
+    ... )
+    >>>
+    >>> G = nx.MultiDiGraph()
+    >>> G.add_edge(0, 1, lag=1)
+    >>> G.add_edge(1, 2, lag=2)
+    >>> X, truth = linear_gaussian_from_graph(G, T=300, seed=0)
+    >>> X.shape
+    (300, 3)
+
+    See Also
+    --------
+    linear_stochastic_gaussian_process : Random-graph Gaussian dynamics.
+    """
+    if not G.is_directed():
+        raise ValueError("G must be a directed graph.")
+    if rho <= 0:
+        raise ValueError("rho must be positive.")
+    if T < 1:
+        raise ValueError("T must be at least 1.")
+
+    nodes = list(G.nodes())
+    n = len(nodes)
+    index = {node: k for k, node in enumerate(nodes)}
+
+    coefficients = {}  # lag -> (n, n) matrix with [sink, source] weights
+    for u, v, data in G.edges(data=True):
+        lag = data.get("lag", 1)
+        if isinstance(lag, bool) or not isinstance(lag, (int, np.integer)):
+            raise ValueError(f"Edge {(u, v)} has non-integer lag={lag!r}.")
+        lag = int(lag)
+        if lag < 1:
+            raise ValueError(f"Edge {(u, v)} has lag={lag}; lags start at 1.")
+        weight = data.get("weight", coupling)
+        if not np.isfinite(weight):
+            raise ValueError(f"Edge {(u, v)} has non-finite weight={weight!r}.")
+        matrix = coefficients.setdefault(lag, np.zeros((n, n)))
+        matrix[index[v], index[u]] += float(weight)
+
+    if n == 0:
+        return np.zeros((T, 0)), G
+
+    max_lag = max(coefficients) if coefficients else 0
+    if T <= max_lag:
+        raise ValueError(f"T={T} must exceed the largest lag {max_lag} in G.")
+
+    rng = np.random.default_rng(seed)
+    lag_matrices = [
+        coefficients.get(tau, np.zeros((n, n))) for tau in range(1, max_lag + 1)
+    ]
+    if max_lag > 0:
+        companion = np.zeros((n * max_lag, n * max_lag))
+        companion[:n, :] = np.hstack(lag_matrices)
+        if max_lag > 1:
+            companion[n:, :-n] = np.eye(n * (max_lag - 1))
+        max_eigval = np.max(np.abs(np.linalg.eigvals(companion)))
+        if max_eigval > 1e-12:
+            scale = rho / max_eigval
+            lag_matrices = [matrix * scale for matrix in lag_matrices]
+
+    X = np.zeros((T, n))
+    warmup = max(max_lag, 1)
+    X[:warmup, :] = epsilon * rng.standard_normal((warmup, n))
+    for t in range(warmup, T):
+        driven = np.zeros(n)
+        for tau, matrix in enumerate(lag_matrices, start=1):
+            driven += matrix @ X[t - tau, :]
+        X[t, :] = driven + epsilon * rng.standard_normal(n)
+    return X, G

@@ -6,6 +6,7 @@ from causationentropy.core.stats import (
     adaptive_bh_correction,
     auc,
     benjamini_hochberg_correction,
+    benjamini_yekutieli_correction,
     bonferroni_correction,
     estimate_null_proportion,
 )
@@ -460,3 +461,53 @@ class TestNullProportionAndAdaptiveBH:
             adaptive_bh_correction([0.01], alpha=1.5)
         with pytest.raises(ValueError):
             adaptive_bh_correction([0.01], lambda_=0.0)
+
+
+class TestBenjaminiYekutieliCorrection:
+    """Test the Benjamini-Yekutieli procedure for dependent tests."""
+
+    def test_by_basic(self):
+        """Strong signals pass the tightened threshold."""
+        rejected, p_adj = benjamini_yekutieli_correction([0.001, 0.002, 0.5, 0.9])
+
+        assert list(rejected) == [True, True, False, False]
+        harmonic_4 = 1 + 1 / 2 + 1 / 3 + 1 / 4
+        expected = [0.001 * 4 * harmonic_4, 0.002 * 4 * harmonic_4 / 2, 1.0, 1.0]
+        np.testing.assert_allclose(p_adj, expected)
+
+    def test_by_more_conservative_than_bh(self):
+        """BY rejections are a subset of BH rejections on dependent-like data."""
+        np.random.seed(0)
+        p_values = np.random.beta(0.5, 5, size=50)
+
+        by_rejected, _ = benjamini_yekutieli_correction(p_values)
+        bh_rejected, _ = benjamini_hochberg_correction(p_values)
+
+        assert np.all(~by_rejected | bh_rejected)
+
+    def test_by_stricter_example(self):
+        """BH rejects where BY does not."""
+        by_rejected, _ = benjamini_yekutieli_correction([0.01, 0.02, 0.03, 0.5])
+        bh_rejected, _ = benjamini_hochberg_correction([0.01, 0.02, 0.03, 0.5])
+
+        assert list(bh_rejected) == [True, True, True, False]
+        assert sum(by_rejected) < sum(bh_rejected)
+
+    def test_by_nan_and_empty(self):
+        """NaN is never rejected; empty input gives empty outputs."""
+        rejected, p_adj = benjamini_yekutieli_correction([0.0001, np.nan])
+
+        assert list(rejected) == [True, False]
+        assert np.isnan(p_adj[1])
+
+        rejected, p_adj = benjamini_yekutieli_correction([])
+
+        assert rejected.shape == (0,)
+        assert p_adj.shape == (0,)
+
+    def test_by_invalid_inputs(self):
+        """Bad alpha or p-values raise."""
+        with pytest.raises(ValueError):
+            benjamini_yekutieli_correction([0.01], alpha=0.0)
+        with pytest.raises(ValueError):
+            benjamini_yekutieli_correction([-0.5])

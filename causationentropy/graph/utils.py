@@ -1,6 +1,15 @@
+import warnings
+
 import networkx as nx
 import numpy as np
 import pandas as pd
+
+from causationentropy.core.stats import (
+    adaptive_bh_correction,
+    benjamini_hochberg_correction,
+    benjamini_yekutieli_correction,
+    bonferroni_correction,
+)
 
 LINK_TYPE_SEMANTICS = {
     "-->": "directed",
@@ -317,6 +326,10 @@ def network_to_dataframe(
         - 'CMI': Conditional mutual information value
         - 'P_Value': Statistical p-value from permutation test
 
+        If any edge carries a ``p_adjusted`` attribute (see
+        :func:`apply_test_correction`), a ``P_Adjusted`` column is included
+        as well.
+
         Additional columns are added based on the optional parameters provided:
 
         - 'Method': Discovery method
@@ -361,6 +374,9 @@ def network_to_dataframe(
             "P_Value": data.get("p_value", None),
         }
 
+        if "p_adjusted" in data:
+            edge_dict["P_Adjusted"] = data.get("p_adjusted")
+
         # Add optional metadata columns
         if method is not None:
             edge_dict["Method"] = method
@@ -392,6 +408,8 @@ def network_to_dataframe(
 
     # Reorder columns to have base columns first, then optional metadata
     base_cols = ["Source", "Sink", "Lag", "CMI", "P_Value"]
+    if "P_Adjusted" in df.columns:
+        base_cols.append("P_Adjusted")
     metadata_order = [
         "Method",
         "Information",
@@ -472,3 +490,151 @@ def pcmci_network_to_dataframe(G: nx.MultiDiGraph) -> pd.DataFrame:
         col for col in optional_columns if col in df.columns
     ]
     return df[ordered_columns]
+
+
+def apply_test_correction(
+    G: nx.MultiDiGraph,
+    method: str = "bh",
+    alpha: float = 0.05,
+    lambda_: float = 0.5,
+    family: str = "graph",
+    n_shuffles: int = None,
+) -> nx.MultiDiGraph:
+    r"""
+    Apply a multiple-testing correction to a discovered network's p-values.
+
+    This implements reporting option (a): the selected edges are unchanged,
+    and each edge gains a ``p_adjusted`` attribute next to its raw
+    ``p_value`` (see :func:`network_to_dataframe`, which exposes it as the
+    ``P_Adjusted`` column). Note that correcting only over the surviving
+    edges does not control the error rate over all ``n * n * max_lag``
+    candidate links; it is a reporting adjustment.
+
+    Parameters
+    ----------
+    G : nx.MultiDiGraph
+        The causal network graph from ``discover_network``. Edges are
+        expected to carry a ``p_value`` attribute; edges without one are
+        treated as missing tests and get ``p_adjusted=None``.
+    method : str, default='bh'
+        Correction method. Options:
+
+        - 'bonferroni': FWER control, most conservative.
+        - 'bh': Benjamini-Hochberg FDR control.
+        - 'by': Benjamini-Yekutieli FDR control under arbitrary dependence
+          (appropriate since shuffle-test p-values from reused data are
+          dependent).
+        - 'adaptive_bh': Adaptive BH using the null-proportion estimate.
+    alpha : float, default=0.05
+        Desired error rate. Must lie in (0, 1].
+    lambda_ : float, default=0.5
+        Tuning parameter in (0, 1) for the null-proportion estimate. Only
+        used with ``method='adaptive_bh'``.
+    family : str, default='graph'
+        Hypothesis family the correction is applied over. ``'graph'``
+        corrects over all edges at once; ``'target'`` corrects separately
+        within each sink node's incoming edges.
+    n_shuffles : int, optional
+        Number of permutations used for the shuffle tests. If given, a
+        ``UserWarning`` is emitted when the permutation resolution
+        (:math:`1 / (n_{shuffles} + 1)`) cannot reach the strictest
+        threshold of the chosen method, since some rejections are then
+        impossible. At least ``m / alpha - 1`` shuffles are needed in
+        general (``m * c(m) / alpha - 1`` for ``'by'``).
+
+    Returns
+    -------
+    G : nx.MultiDiGraph
+        The same graph, with a ``p_adjusted`` edge attribute added to each
+        edge.
+
+    Raises
+    ------
+    ValueError
+        If ``method`` or ``family`` is unknown, or ``n_shuffles`` is less
+        than 1.
+
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> from causationentropy.graph.utils import apply_test_correction
+    >>>
+    >>> G = nx.MultiDiGraph()
+    >>> G.add_edge("X0", "X1", lag=1, cmi=0.5, p_value=0.001)
+    >>> G.add_edge("X1", "X2", lag=1, cmi=0.3, p_value=0.4)
+    >>> G = apply_test_correction(G, method="bh", n_shuffles=500)
+    >>> print(round(G["X0"]["X1"][0]["p_adjusted"], 4))
+    0.002
+
+    See Also
+    --------
+    causationentropy.core.stats.bonferroni_correction : FWER control.
+    causationentropy.core.stats.benjamini_hochberg_correction : FDR control.
+    causationentropy.core.stats.benjamini_yekutieli_correction : FDR control
+        under dependence.
+    causationentropy.core.stats.adaptive_bh_correction : Adaptive FDR control.
+    network_to_dataframe : Tabulate edges including ``P_Adjusted``.
+    """
+    corrections = {
+        "bonferroni": bonferroni_correction,
+        "bh": benjamini_hochberg_correction,
+        "by": benjamini_yekutieli_correction,
+        "adaptive_bh": adaptive_bh_correction,
+    }
+    if method not in corrections:
+        raise ValueError(
+            f"Unknown method={method}. Supported methods: " f"{sorted(corrections)}."
+        )
+    if family not in ("graph", "target"):
+        raise ValueError(f"Unknown family={family}. Use 'graph' or 'target'.")
+    if n_shuffles is not None and n_shuffles < 1:
+        raise ValueError("n_shuffles must be at least 1.")
+
+    if family == "graph":
+        groups = [list(G.edges(data=True))]
+    else:
+        by_sink = {}
+        for u, v, data in G.edges(data=True):
+            by_sink.setdefault(v, []).append((u, v, data))
+        groups = [by_sink[key] for key in sorted(by_sink, key=str)]
+
+    for group in groups:
+        p_values = []
+        for _, _, data in group:
+            raw = data.get("p_value", None)
+            if raw is None:
+                p_values.append(np.nan)
+                continue
+            try:
+                p_values.append(float(raw))
+            except (TypeError, ValueError):
+                p_values.append(np.nan)
+        p = np.asarray(p_values, dtype=float)
+        m = int(np.sum(~np.isnan(p)))
+
+        if m > 0 and n_shuffles is not None:
+            if method == "by":
+                harmonic = float(np.sum(1.0 / np.arange(1, m + 1)))
+                required = m * harmonic / alpha - 1
+            else:
+                required = m / alpha - 1
+            if n_shuffles < required:
+                warnings.warn(
+                    f"n_shuffles={n_shuffles} gives a minimum attainable "
+                    f"p-value of {1.0 / (n_shuffles + 1):.4g}, which cannot "
+                    f"reach the strictest {method} threshold for m={m} "
+                    f"tests at alpha={alpha}. Some rejections may be "
+                    f"impossible; consider n_shuffles >= "
+                    f"{int(np.ceil(required))}.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+        if method == "adaptive_bh":
+            _, p_adjusted = corrections[method](p, alpha=alpha, lambda_=lambda_)
+        else:
+            _, p_adjusted = corrections[method](p, alpha=alpha)
+        for (_, _, data), adjusted in zip(group, p_adjusted):
+            data["p_adjusted"] = None if np.isnan(adjusted) else float(adjusted)
+
+    return G

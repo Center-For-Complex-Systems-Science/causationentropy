@@ -287,6 +287,7 @@ def bonferroni_correction(
     See Also
     --------
     benjamini_hochberg_correction : Control the false discovery rate.
+    benjamini_yekutieli_correction : FDR control under arbitrary dependence.
     adaptive_bh_correction : Adaptive FDR control with null estimation.
     """
     _validate_alpha(alpha)
@@ -365,6 +366,7 @@ def benjamini_hochberg_correction(
     See Also
     --------
     bonferroni_correction : Control the family-wise error rate.
+    benjamini_yekutieli_correction : FDR control under arbitrary dependence.
     adaptive_bh_correction : Adaptive FDR control with null estimation.
     """
     _validate_alpha(alpha)
@@ -514,6 +516,7 @@ def adaptive_bh_correction(
     See Also
     --------
     benjamini_hochberg_correction : Non-adaptive FDR control.
+    benjamini_yekutieli_correction : FDR control under arbitrary dependence.
     estimate_null_proportion : The null-proportion estimator used here.
     """
     _validate_alpha(alpha)
@@ -547,4 +550,87 @@ def adaptive_bh_correction(
     raw_adjusted = sorted_p * m * pi0 / ranks
     adaptive_adjusted = np.minimum.accumulate(raw_adjusted[::-1])[::-1]
     p_adjusted[finite_idx[order]] = np.minimum(adaptive_adjusted, 1.0)
+    return rejected, p_adjusted
+
+
+def benjamini_yekutieli_correction(
+    p_values, alpha: float = 0.05
+) -> Tuple[np.ndarray, np.ndarray]:
+    r"""
+    Apply the Benjamini-Yekutieli procedure for FDR control under dependence.
+
+    Shuffle-test p-values from the same data reuse are dependent, so the
+    standard Benjamini-Hochberg guarantee (independence or positive
+    dependence) may not hold. The Benjamini-Yekutieli procedure controls
+    the FDR under arbitrary dependence by tightening the threshold with
+    the harmonic number :math:`c(m) = \\sum_{j=1}^{m} 1/j`:
+
+    .. math::
+
+        p_{(k)} \\leq \\frac{k}{m \\, c(m)}\\alpha
+
+    rejecting :math:`H_{0,(1)}, \\ldots, H_{0,(k)}` for the largest such
+    :math:`k`. It is more conservative than
+    :func:`benjamini_hochberg_correction` and appropriate when the
+    dependence structure between tests is unknown.
+
+    Parameters
+    ----------
+    p_values : array-like of shape (m,)
+        One-dimensional collection of p-values. ``NaN`` entries are treated
+        as missing tests: they are excluded from ``m``, never rejected, and
+        get an adjusted p-value of ``NaN``.
+    alpha : float, default=0.05
+        Desired false discovery rate. Must lie in (0, 1].
+
+    Returns
+    -------
+    rejected : np.ndarray of shape (m,) with dtype bool
+        Whether each null hypothesis is rejected, in input order.
+    p_adjusted : np.ndarray of shape (m,)
+        BY-adjusted p-values in input order, i.e. the smallest FDR level at
+        which each hypothesis would be rejected.
+
+    Examples
+    --------
+    >>> from causationentropy.core.stats import benjamini_yekutieli_correction
+    >>>
+    >>> rejected, _ = benjamini_yekutieli_correction([0.001, 0.002, 0.5, 0.9])
+    >>> print(rejected)
+    [ True  True False False]
+
+    References
+    ----------
+    .. [1] Benjamini, Y., Yekutieli, D. "The control of the false
+           discovery rate in multiple testing under dependency."
+           Annals of Statistics 29, 1165-1188 (2001).
+
+    See Also
+    --------
+    benjamini_hochberg_correction : FDR control under independence.
+    bonferroni_correction : Control the family-wise error rate.
+    """
+    _validate_alpha(alpha)
+    p = _validate_p_values(p_values)
+
+    rejected = np.zeros(p.shape, dtype=bool)
+    p_adjusted = np.full(p.shape, np.nan)
+    finite_idx = np.flatnonzero(~np.isnan(p))
+    m = finite_idx.size
+    if m == 0:
+        return rejected, p_adjusted
+
+    harmonic = float(np.sum(1.0 / np.arange(1, m + 1)))
+    order = np.argsort(p[finite_idx], kind="mergesort")
+    sorted_p = p[finite_idx[order]]
+    ranks = np.arange(1, m + 1)
+
+    passing = sorted_p <= ranks / (m * harmonic) * alpha
+    if np.any(passing):
+        k_max = int(np.flatnonzero(passing)[-1]) + 1
+        rejected[finite_idx[order[:k_max]]] = True
+
+    raw_adjusted = sorted_p * m * harmonic / ranks
+    by_adjusted = np.minimum.accumulate(raw_adjusted[::-1])[::-1]
+    p_adjusted[finite_idx[order]] = np.minimum(by_adjusted, 1.0)
     return rejected, p_adjusted

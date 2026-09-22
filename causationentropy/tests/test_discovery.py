@@ -607,6 +607,126 @@ class TestDiscoverNetworkRandomState:
         assert set(G.nodes()) == {"X0", "X1"}
 
 
+class TestShuffleTestEarlyStopping:
+    """Tests for futility early stopping in shuffle_test."""
+
+    def _null_data(self, seed=0):
+        rng = np.random.default_rng(seed)
+        X = rng.normal(size=(60, 1))
+        Y = rng.normal(size=(60, 1))
+        return X, Y
+
+    def test_stops_early_for_clear_null(self):
+        """All nulls above observed stops after floor(alpha*B) + 1 draws."""
+        X = np.arange(16, dtype=float).reshape(16, 1)
+        Y = np.zeros((16, 1))
+
+        def always_above(X_perm, Y_arg, Z, **kwargs):
+            return 1.0
+
+        with patch(
+            "causationentropy.core.discovery.conditional_mutual_information",
+            side_effect=always_above,
+        ):
+            result = shuffle_test(X, Y, None, 0.1, alpha=0.05, n_shuffles=200, rng=0)
+
+        assert result["N_Completed"] == 11
+        assert not result["Pass"]
+        assert result["P_value"] > 0.05
+
+    def test_runs_full_course_for_signal(self):
+        """All nulls below observed runs every shuffle and passes."""
+        X = np.arange(16, dtype=float).reshape(16, 1)
+        Y = np.zeros((16, 1))
+
+        def always_below(X_perm, Y_arg, Z, **kwargs):
+            return 0.0
+
+        with patch(
+            "causationentropy.core.discovery.conditional_mutual_information",
+            side_effect=always_below,
+        ):
+            result = shuffle_test(X, Y, None, 0.1, alpha=0.05, n_shuffles=200, rng=0)
+
+        assert result["N_Completed"] == 200
+        assert result["Pass"]
+        assert result["P_value"] == 0.0
+
+    def test_early_stop_disabled_runs_full(self):
+        """early_stop=False draws every shuffle even for clear nulls."""
+        X = np.arange(16, dtype=float).reshape(16, 1)
+        Y = np.zeros((16, 1))
+        calls = []
+
+        def always_above(X_perm, Y_arg, Z, **kwargs):
+            calls.append(1)
+            return 1.0
+
+        with patch(
+            "causationentropy.core.discovery.conditional_mutual_information",
+            side_effect=always_above,
+        ):
+            result = shuffle_test(
+                X,
+                Y,
+                None,
+                0.1,
+                alpha=0.05,
+                n_shuffles=50,
+                rng=0,
+                early_stop=False,
+            )
+
+        assert result["N_Completed"] == 50
+        assert len(calls) == 50
+        assert not result["Pass"]
+
+    def test_agrees_with_full_run(self):
+        """Early stopping never changes the Pass decision (Gaussian)."""
+        from causationentropy.core.information.conditional_mutual_information import (
+            conditional_mutual_information as real_cmi,
+        )
+
+        for seed in range(10):
+            rng = np.random.default_rng(seed)
+            X = rng.normal(size=(80, 1))
+            if seed % 2:
+                Y = X + 0.5 * rng.normal(size=(80, 1))
+            else:
+                Y = rng.normal(size=(80, 1))
+            observed = real_cmi(X, Y, None, method="gaussian")
+
+            early = shuffle_test(
+                X, Y, None, observed, alpha=0.05, n_shuffles=100, rng=seed
+            )
+            full = shuffle_test(
+                X,
+                Y,
+                None,
+                observed,
+                alpha=0.05,
+                n_shuffles=100,
+                rng=seed,
+                early_stop=False,
+            )
+
+            assert early["Pass"] == full["Pass"]
+            assert early["N_Completed"] <= full["N_Completed"]
+
+    def test_saves_work_on_null_data(self):
+        """Independent series stop well short of the full shuffle budget."""
+        X, Y = self._null_data()
+        from causationentropy.core.information.conditional_mutual_information import (
+            conditional_mutual_information as real_cmi,
+        )
+
+        observed = real_cmi(X, Y, None, method="gaussian")
+        result = shuffle_test(X, Y, None, observed, alpha=0.05, n_shuffles=200, rng=0)
+
+        assert 1 <= result["N_Completed"] < 200
+        assert not result["Pass"]
+
+
 class TestLassoOptimalCausationEntropy:
     """Test LASSO-based variable selection for causal discovery."""
 

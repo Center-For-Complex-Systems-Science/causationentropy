@@ -904,6 +904,7 @@ def shuffle_test(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    early_stop=True,
 ):
     r"""
     Permutation test for conditional mutual information significance.
@@ -946,6 +947,23 @@ def shuffle_test(
         Random number generator or seed for reproducible results.
     information : str, default='gaussian'
         Information measure estimator type used for conditional mutual information.
+    early_stop : bool, default=True
+        If True, stop drawing shuffles once more null values exceed the
+        observed CMI than ``alpha * n_shuffles``. The final p-value is then
+        guaranteed above ``alpha``, so the test cannot pass; this only
+        skips work for clearly insignificant candidates. Tests that could
+        pass always run the full ``n_shuffles``.
+
+    Returns
+    -------
+    result : dict
+        Dictionary containing test results:
+
+        - 'Threshold': float, the (1-α) percentile of the null distribution
+        - 'Value': float, the observed conditional mutual information value
+        - 'Pass': bool, True if observed_cmi >= threshold (statistically significant)
+        - 'P_value': float, empirical p-value (proportion of null values >= observed)
+        - 'N_Completed': int, number of shuffles actually drawn
 
     Returns
     -------
@@ -985,6 +1003,12 @@ def shuffle_test(
     rng = np.random.default_rng(rng)
     null_cmi = np.empty(n_shuffles)
 
+    # Futility stopping: once strictly more null values exceed the observed
+    # CMI than alpha * n_shuffles, the final p-value must end above alpha,
+    # so the test cannot pass and further shuffles only cost compute.
+    stop_limit = alpha * n_shuffles
+    exceedances = 0
+    n_completed = n_shuffles
     for i in range(n_shuffles):
         X_perm = X[rng.permutation(len(X)), :]  # shuffle rows
         null_cmi[i] = conditional_mutual_information(
@@ -996,15 +1020,27 @@ def shuffle_test(
             k=k_means,
             bandwidth=bandwidth,
         )
+        if early_stop and null_cmi[i] > observed_cmi:
+            exceedances += 1
+            if exceedances > stop_limit:
+                n_completed = i + 1
+                break
 
+    null_cmi = null_cmi[:n_completed]
     threshold = np.percentile(null_cmi, 100 * (1 - alpha))
     # Calculate p-value: proportion of null values >= observed value
     p_value = np.mean(null_cmi >= observed_cmi)
+    if n_completed < n_shuffles:
+        # Stopped early: the p-value is guaranteed above alpha.
+        passed = False
+    else:
+        passed = observed_cmi >= threshold
     return {
         "Threshold": threshold,
         "Value": observed_cmi,
-        "Pass": observed_cmi >= threshold,
+        "Pass": passed,
         "P_value": p_value,
+        "N_Completed": n_completed,
     }
 
 

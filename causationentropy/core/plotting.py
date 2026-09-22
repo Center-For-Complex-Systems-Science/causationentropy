@@ -645,3 +645,164 @@ def plot_causal_network(
         plt.show()
 
     return fig, ax
+
+
+def plot_delay_analysis(
+    G: nx.MultiDiGraph,
+    figsize: Tuple[float, float] = (10, 6),
+    title: str = "Delay analysis: CMI vs lag",
+    save_path: str = None,
+    file_format: str = "png",
+    transparent: bool = False,
+    show_plot: bool = True,
+):
+    r"""
+    Plot conditional mutual information against time delay for each tested link.
+
+    This visualization is intended for graphs produced by
+    ``discover_network(..., only_return_significant=False)``, which contain
+    both significant and insignificant links. The time delay (``lag``) is
+    placed on the x-axis and the pairwise CMI on the y-axis, with one line
+    per directed node pair and markers distinguishing significant from
+    insignificant links.
+
+    Parameters
+    ----------
+    G : nx.MultiDiGraph
+        The causal network graph from ``discover_network``. Expected to
+        contain edge attributes ``lag`` and ``cmi``, and optionally
+        ``significant``.
+    figsize : tuple of float, default=(10, 6)
+        Figure size in inches (width, height).
+    title : str, default='Delay analysis: CMI vs lag'
+        Title for the plot.
+    save_path : str, optional
+        Path to save the figure. If None, figure is not saved.
+    file_format : str, default='png'
+        File format for saving ('png', 'pdf', 'svg', 'eps', etc.).
+    transparent : bool, default=False
+        If True, save figure with transparent background.
+    show_plot : bool, default=True
+        If True, display the plot using plt.show().
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The figure object containing the plot.
+    ax : matplotlib.axes.Axes
+        The axes object containing the plot.
+
+    Notes
+    -----
+    This plot is only practical for smaller networks, since a complete
+    delay analysis contains one point per ``(source, sink, lag)``
+    combination.
+
+    Edges without a finite ``cmi`` value are skipped.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from causationentropy.core.discovery import discover_network
+    >>> from causationentropy.core.plotting import plot_delay_analysis
+    >>>
+    >>> data = np.random.randn(200, 3)
+    >>> G = discover_network(
+    ...     data, max_lag=2, n_shuffles=20, only_return_significant=False
+    ... )
+    >>> fig, ax = plot_delay_analysis(G, show_plot=False)
+
+    See Also
+    --------
+    causationentropy.core.discovery.discover_network : Discover causal networks
+    causationentropy.graph.utils.network_to_dataframe : Tabulate network edges
+    """
+    if not G or G.number_of_nodes() == 0:
+        print("Graph is empty, nothing to plot.")
+        return None, None
+
+    # Group (lag, cmi, significant) points by directed node pair
+    series: Dict[Tuple, List[Tuple]] = defaultdict(list)
+    for u, v, edge_data in G.edges(data=True):
+        cmi = edge_data.get("cmi", None)
+        if cmi is None:
+            continue
+        try:
+            cmi = float(cmi)
+        except (TypeError, ValueError):
+            continue
+        if not np.isfinite(cmi):
+            continue
+        lag = edge_data.get("lag", 0)
+        significant = edge_data.get("significant", None)
+        series[(u, v)].append((lag, cmi, significant))
+
+    if not series:
+        print("Graph has no edges with finite CMI, nothing to plot.")
+        return None, None
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    sig_handle = None
+    insig_handle = None
+    for (u, v), points in sorted(series.items(), key=lambda item: str(item[0])):
+        points.sort(key=lambda point: point[0])
+        lags = [point[0] for point in points]
+        cmis = [point[1] for point in points]
+        ax.plot(lags, cmis, color="gray", alpha=0.4, linewidth=1.0)
+
+        for lag, cmi, significant in points:
+            if significant is False:
+                insig_handle = ax.scatter(
+                    [lag],
+                    [cmi],
+                    color="white",
+                    edgecolors="black",
+                    s=60,
+                    zorder=3,
+                )
+            else:
+                sig_handle = ax.scatter(
+                    [lag],
+                    [cmi],
+                    color="black",
+                    s=60,
+                    zorder=3,
+                )
+
+    ax.set_xlabel("Lag")
+    ax.set_ylabel("CMI")
+    ax.set_title(title, fontweight="bold")
+
+    all_lags = sorted({lag for points in series.values() for lag, _, _ in points})
+    if all_lags:
+        ax.set_xticks(all_lags)
+
+    legend_handles = []
+    if sig_handle is not None:
+        legend_handles.append(sig_handle)
+    if insig_handle is not None:
+        legend_handles.append(insig_handle)
+    labels = []
+    if sig_handle is not None:
+        labels.append("Significant")
+    if insig_handle is not None:
+        labels.append("Insignificant")
+    if legend_handles:
+        ax.legend(legend_handles, labels, loc="best")
+
+    plt.tight_layout()
+
+    if save_path is not None:
+        plt.savefig(
+            save_path,
+            format=file_format,
+            bbox_inches="tight",
+            transparent=transparent,
+        )
+        print(f"Figure saved to: {save_path}")
+
+    if show_plot:
+        plt.show()
+
+    return fig, ax

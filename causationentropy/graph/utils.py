@@ -330,6 +330,10 @@ def network_to_dataframe(
         :func:`apply_test_correction`), a ``P_Adjusted`` column is included
         as well.
 
+        If any edge carries a ``significant`` attribute (see
+        ``discover_network(..., only_return_significant=False)``), a
+        ``Significant`` column is included as well.
+
         Additional columns are added based on the optional parameters provided:
 
         - 'Method': Discovery method
@@ -376,6 +380,8 @@ def network_to_dataframe(
 
         if "p_adjusted" in data:
             edge_dict["P_Adjusted"] = data.get("p_adjusted")
+        if "significant" in data:
+            edge_dict["Significant"] = data.get("significant")
 
         # Add optional metadata columns
         if method is not None:
@@ -410,6 +416,8 @@ def network_to_dataframe(
     base_cols = ["Source", "Sink", "Lag", "CMI", "P_Value"]
     if "P_Adjusted" in df.columns:
         base_cols.append("P_Adjusted")
+    if "Significant" in df.columns:
+        base_cols.append("Significant")
     metadata_order = [
         "Method",
         "Information",

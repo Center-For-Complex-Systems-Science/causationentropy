@@ -30,6 +30,7 @@ def discover_network(
     n_shuffles: int = 200,
     n_jobs=-1,
     random_state: Union[int, np.random.Generator, None] = 42,
+    only_return_significant: bool = True,
 ) -> nx.MultiDiGraph:
     r"""
     Infer a causal graph via Optimal Causation Entropy (oCSE).
@@ -107,6 +108,13 @@ def discover_network(
         behavior. Pass a different integer or ``None`` for independent
         replicates (``None`` draws entropy from the OS). A
         ``numpy.random.Generator`` is used as-is and advanced in place.
+    only_return_significant : bool, default=True
+        If True (default), only statistically significant links are added to
+        the returned graph. If False, every tested ``(source, lag)`` candidate
+        for each target is added, with insignificant links marked by the
+        ``significant=False`` edge attribute. This is intended for small
+        networks only (e.g. delay-analysis plots), since it runs a CMI +
+        shuffle test for all ``n * max_lag`` candidates per target.
 
     Returns
     -------
@@ -118,6 +126,10 @@ def discover_network(
         - 'lag': Time delay :math:`\tau` of the causal relationship
         - 'cmi': Conditional mutual information value for this edge
         - 'p_value': Empirical p-value from permutation test
+        - 'significant': Whether the link passed the significance test
+          (only present when ``only_return_significant=False`` adds
+          insignificant links; significant links are then marked
+          ``significant=True``)
 
     Raises
     ------
@@ -277,13 +289,70 @@ def discover_network(
                 bandwidth=bandwidth,
             )
 
-            G.add_edge(
-                var_names[src_var],
-                var_names[i],
-                lag=src_lag,
-                cmi=cmi,
-                p_value=test_result["P_value"],
-            )
+            if only_return_significant:
+                G.add_edge(
+                    var_names[src_var],
+                    var_names[i],
+                    lag=src_lag,
+                    cmi=cmi,
+                    p_value=test_result["P_value"],
+                )
+            else:
+                G.add_edge(
+                    var_names[src_var],
+                    var_names[i],
+                    lag=src_lag,
+                    cmi=cmi,
+                    p_value=test_result["P_value"],
+                    significant=True,
+                )
+
+        if not only_return_significant:
+            # Report every tested candidate, including insignificant links,
+            # so delay-analysis plots can show CMI versus lag. Conditioning
+            # matches the significant edges above (selected set, minus the
+            # candidate itself when it is selected).
+            selected = set(S)
+            n_features = len(feature_names)
+            for cand in range(n_features):
+                if cand in selected:
+                    continue
+                src_var, src_lag = feature_names[cand]
+                X_predictor = X_lagged[:, [cand]]
+                Z_cond = X_lagged[:, S] if S else None
+
+                cmi = conditional_mutual_information(
+                    X_predictor,
+                    Y,
+                    Z_cond,
+                    method=information,
+                    metric=metric,
+                    k=k_means,
+                    bandwidth=bandwidth,
+                )
+
+                test_result = shuffle_test(
+                    X_predictor,
+                    Y,
+                    Z_cond,
+                    cmi,
+                    alpha=alpha_backward,
+                    rng=rng,
+                    n_shuffles=n_shuffles,
+                    information=information,
+                    metric=metric,
+                    k_means=k_means,
+                    bandwidth=bandwidth,
+                )
+
+                G.add_edge(
+                    var_names[src_var],
+                    var_names[i],
+                    lag=src_lag,
+                    cmi=cmi,
+                    p_value=test_result["P_value"],
+                    significant=False,
+                )
 
     return G
 

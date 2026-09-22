@@ -4,6 +4,9 @@ import warnings
 import networkx as nx
 import numpy as np
 import pandas as pd
+import pytest
+
+tigramite = pytest.importorskip("tigramite")
 from tigramite import data_processing as pp
 from tigramite.independence_tests.parcorr import ParCorr
 from tigramite.pcmci import PCMCI

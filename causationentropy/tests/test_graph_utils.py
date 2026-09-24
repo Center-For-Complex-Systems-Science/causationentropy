@@ -1,4 +1,5 @@
 import unittest
+import warnings
 
 import networkx as nx
 import numpy as np
@@ -12,6 +13,7 @@ from tigramite.pcmci import PCMCI
 from tigramite.toymodels import structural_causal_processes as scp
 
 from causationentropy.graph.utils import (
+    apply_test_correction,
     network_to_dataframe,
     networkx_to_pcmci,
     pcmci_network_to_dataframe,
@@ -656,6 +658,119 @@ class TestNetworkToDataFrame(unittest.TestCase):
         self.assertTrue(all(df["Sink"] == "X1"))
         # But different lags
         self.assertEqual(set(df["Lag"]), {1, 2, 3})
+
+    def test_p_adjusted_column(self):
+        """P_Adjusted column appears only when edges carry p_adjusted."""
+        G = nx.MultiDiGraph()
+        G.add_edge("X0", "X1", lag=1, cmi=0.5, p_value=0.001)
+        G.add_edge("X1", "X2", lag=1, cmi=0.3, p_value=0.4)
+
+        plain_df = network_to_dataframe(G)
+        self.assertNotIn("P_Adjusted", plain_df.columns)
+
+        apply_test_correction(G, method="bh")
+        df = network_to_dataframe(G)
+
+        self.assertIn("P_Adjusted", df.columns)
+        # P_Adjusted sits right after P_Value
+        cols = list(df.columns)
+        self.assertEqual(cols[5], "P_Adjusted")
+        self.assertAlmostEqual(df.iloc[0]["P_Adjusted"], 0.002)
+        self.assertAlmostEqual(df.iloc[1]["P_Adjusted"], 0.4)
+
+
+class TestApplyTestCorrection(unittest.TestCase):
+    """Test post-discovery multiple-testing correction on graphs."""
+
+    def _make_graph(self):
+        G = nx.MultiDiGraph()
+        G.add_edge("X0", "X1", lag=1, cmi=0.5, p_value=0.001)
+        G.add_edge("X1", "X2", lag=1, cmi=0.3, p_value=0.4)
+        return G
+
+    def test_applies_p_adjusted_bh(self):
+        """BH adjusted values are stored next to raw p-values."""
+        G = self._make_graph()
+        result = apply_test_correction(G, method="bh")
+
+        self.assertIs(result, G)
+        self.assertAlmostEqual(G["X0"]["X1"][0]["p_adjusted"], 0.002)
+        self.assertAlmostEqual(G["X1"]["X2"][0]["p_adjusted"], 0.4)
+        # Raw values untouched
+        self.assertEqual(G["X0"]["X1"][0]["p_value"], 0.001)
+
+    def test_all_methods(self):
+        """All supported methods run and store finite adjusted values."""
+        for method in ("bonferroni", "bh", "by", "adaptive_bh"):
+            G = self._make_graph()
+            apply_test_correction(G, method=method)
+            for _, _, data in G.edges(data=True):
+                self.assertIn("p_adjusted", data)
+                self.assertTrue(np.isfinite(data["p_adjusted"]))
+
+    def test_invalid_method_and_family(self):
+        """Unknown method or family raises."""
+        with self.assertRaises(ValueError):
+            apply_test_correction(self._make_graph(), method="holm")
+        with self.assertRaises(ValueError):
+            apply_test_correction(self._make_graph(), family="node")
+
+    def test_invalid_n_shuffles(self):
+        """n_shuffles below 1 raises."""
+        with self.assertRaises(ValueError):
+            apply_test_correction(self._make_graph(), n_shuffles=0)
+
+    def test_warns_on_insufficient_shuffles(self):
+        """Too few shuffles for the family size warns."""
+        G = nx.MultiDiGraph()
+        for i in range(50):
+            G.add_edge(f"X{i}", "Y", lag=1, cmi=0.1, p_value=0.001)
+
+        with self.assertWarns(UserWarning):
+            apply_test_correction(G, method="bonferroni", n_shuffles=200)
+
+    def test_no_warning_with_enough_shuffles(self):
+        """Sufficient shuffles and no n_shuffles stay silent."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            apply_test_correction(self._make_graph(), n_shuffles=2000)
+            apply_test_correction(self._make_graph())
+
+        self.assertEqual(len(caught), 0)
+
+    def test_family_target(self):
+        """Per-target families correct each sink separately."""
+        G = nx.MultiDiGraph()
+        G.add_edge("X0", "Y", lag=1, cmi=0.5, p_value=0.02)
+        G.add_edge("X1", "Y", lag=1, cmi=0.4, p_value=0.03)
+        G.add_edge("X0", "Z", lag=1, cmi=0.5, p_value=0.02)
+
+        apply_test_correction(G, method="bh", family="target")
+
+        # Z family has a single test: adjusted equals raw
+        self.assertAlmostEqual(G["X0"]["Z"][0]["p_adjusted"], 0.02)
+        # Y family of two: BH adjusted differ from the single-test value
+        self.assertAlmostEqual(G["X0"]["Y"][0]["p_adjusted"], 0.03)
+        self.assertAlmostEqual(G["X1"]["Y"][0]["p_adjusted"], 0.03)
+
+    def test_missing_p_value(self):
+        """Edges without p_value get p_adjusted=None."""
+        G = nx.MultiDiGraph()
+        G.add_edge("X0", "X1", lag=1, cmi=0.5)
+
+        apply_test_correction(G, method="bh")
+
+        self.assertIsNone(G["X0"]["X1"][0]["p_adjusted"])
+
+    def test_empty_graph(self):
+        """Empty graphs pass through without error."""
+        G = nx.MultiDiGraph()
+        G.add_nodes_from(["X0", "X1"])
+
+        result = apply_test_correction(G, method="bh")
+
+        self.assertIs(result, G)
+        self.assertEqual(G.number_of_edges(), 0)
 
 
 class TestPCMCINetworkToDataFrame(unittest.TestCase):

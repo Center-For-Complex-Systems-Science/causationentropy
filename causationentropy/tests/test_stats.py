@@ -1,7 +1,15 @@
 import numpy as np
 import pytest
 
-from causationentropy.core.stats import Compute_TPR_FPR, auc
+from causationentropy.core.stats import (
+    Compute_TPR_FPR,
+    adaptive_bh_correction,
+    auc,
+    benjamini_hochberg_correction,
+    benjamini_yekutieli_correction,
+    bonferroni_correction,
+    estimate_null_proportion,
+)
 
 
 class TestAUC:
@@ -274,3 +282,232 @@ class TestStatsFunctionProperties:
             assert result == 0.0
         except (ValueError, IndexError):
             pass  # Empty arrays might raise errors, which is acceptable
+
+
+class TestBonferroniCorrection:
+    """Test the Bonferroni FWER correction."""
+
+    def test_bonferroni_basic(self):
+        """Only p-values below alpha / m are rejected."""
+        rejected, p_adj = bonferroni_correction([0.01, 0.02, 0.03, 0.5])
+
+        assert list(rejected) == [True, False, False, False]
+        np.testing.assert_allclose(p_adj, [0.04, 0.08, 0.12, 1.0])
+
+    def test_bonferroni_all_rejected(self):
+        """Strong signals are all rejected."""
+        rejected, p_adj = bonferroni_correction([0.001, 0.002], alpha=0.05)
+
+        assert list(rejected) == [True, True]
+        assert np.all(p_adj <= 0.05)
+
+    def test_bonferroni_none_rejected(self):
+        """Null-like p-values survive."""
+        rejected, p_adj = bonferroni_correction([0.2, 0.4, 0.6, 0.8])
+
+        assert list(rejected) == [False, False, False, False]
+        assert np.all(p_adj > 0.05)
+
+    def test_bonferroni_adjusted_capped_at_one(self):
+        """Adjusted p-values never exceed 1."""
+        _, p_adj = bonferroni_correction([0.5, 0.9])
+
+        assert np.all(p_adj <= 1.0)
+
+    def test_bonferroni_nan_missing(self):
+        """NaN entries are missing tests: never rejected, NaN adjusted."""
+        rejected, p_adj = bonferroni_correction([0.001, np.nan])
+
+        # m counts only the finite entry, so 0.001 * 1 <= 0.05
+        assert list(rejected) == [True, False]
+        assert p_adj[0] == 0.001
+        assert np.isnan(p_adj[1])
+
+    def test_bonferroni_empty(self):
+        """Empty input gives empty outputs."""
+        rejected, p_adj = bonferroni_correction([])
+
+        assert rejected.shape == (0,)
+        assert p_adj.shape == (0,)
+
+    def test_bonferroni_invalid_alpha(self):
+        """Alpha outside (0, 1] raises."""
+        for bad_alpha in (0.0, -0.1, 1.5):
+            with pytest.raises(ValueError):
+                bonferroni_correction([0.01, 0.5], alpha=bad_alpha)
+
+    def test_bonferroni_invalid_p_values(self):
+        """P-values outside [0, 1] or non-1D input raise."""
+        with pytest.raises(ValueError):
+            bonferroni_correction([0.01, 1.5])
+        with pytest.raises(ValueError):
+            bonferroni_correction([-0.1, 0.5])
+        with pytest.raises(ValueError):
+            bonferroni_correction([[0.01, 0.02], [0.03, 0.04]])
+
+
+class TestBenjaminiHochbergCorrection:
+    """Test the Benjamini-Hochberg FDR procedure."""
+
+    def test_bh_basic_more_powerful_than_bonferroni(self):
+        """BH rejects the first three where Bonferroni rejects one."""
+        rejected, _ = benjamini_hochberg_correction([0.01, 0.02, 0.03, 0.5])
+
+        assert list(rejected) == [True, True, True, False]
+
+    def test_bh_adjusted_values(self):
+        """BH-adjusted p-values match the step-up formula."""
+        _, p_adj = benjamini_hochberg_correction([0.01, 0.02, 0.03, 0.5])
+
+        np.testing.assert_allclose(p_adj, [0.04, 0.04, 0.04, 0.5])
+
+    def test_bh_preserves_input_order(self):
+        """Results follow the input order, not the sorted order."""
+        rejected, p_adj = benjamini_hochberg_correction([0.5, 0.01, 0.02, 0.03])
+
+        assert list(rejected) == [False, True, True, True]
+        assert p_adj[0] == 0.5
+        np.testing.assert_allclose(p_adj[1:], [0.04, 0.04, 0.04])
+
+    def test_bh_all_null(self):
+        """Uniform-like p-values give no rejections."""
+        rejected, p_adj = benjamini_hochberg_correction([0.25, 0.5, 0.75, 1.0])
+
+        assert not np.any(rejected)
+        assert np.all(p_adj > 0.05)
+
+    def test_bh_nan_missing(self):
+        """NaN entries are never rejected and stay NaN."""
+        rejected, p_adj = benjamini_hochberg_correction([0.01, np.nan, 0.5])
+
+        assert list(rejected) == [True, False, False]
+        assert np.isnan(p_adj[1])
+
+    def test_bh_empty(self):
+        """Empty input gives empty outputs."""
+        rejected, p_adj = benjamini_hochberg_correction([])
+
+        assert rejected.shape == (0,)
+        assert p_adj.shape == (0,)
+
+    def test_bh_invalid_inputs(self):
+        """Bad alpha or p-values raise."""
+        with pytest.raises(ValueError):
+            benjamini_hochberg_correction([0.01], alpha=0.0)
+        with pytest.raises(ValueError):
+            benjamini_hochberg_correction([2.0])
+
+
+class TestNullProportionAndAdaptiveBH:
+    """Test null-proportion estimation and adaptive BH."""
+
+    def test_estimate_null_proportion(self):
+        """Storey estimator on a known example."""
+        assert estimate_null_proportion([0.01, 0.02, 0.03, 0.04, 0.9]) == 0.4
+
+    def test_estimate_null_proportion_clipped(self):
+        """Estimate never exceeds 1."""
+        assert estimate_null_proportion([0.6, 0.7, 0.8, 0.9]) == 1.0
+
+    def test_estimate_null_proportion_all_signal(self):
+        """No p-value above lambda gives 0."""
+        assert estimate_null_proportion([0.01, 0.02, 0.03]) == 0.0
+
+    def test_estimate_null_proportion_empty(self):
+        """Empty input defaults to all null."""
+        assert estimate_null_proportion([]) == 1.0
+
+    def test_estimate_null_proportion_invalid_lambda(self):
+        """Lambda outside (0, 1) raises."""
+        for bad_lambda in (0.0, 1.0, -0.5, 2.0):
+            with pytest.raises(ValueError):
+                estimate_null_proportion([0.1, 0.9], lambda_=bad_lambda)
+
+    def test_adaptive_bh_recovers_power(self):
+        """Adaptive BH rejects a fourth signal where BH stops at three."""
+        p_values = [0.01, 0.02, 0.03, 0.045, 0.9]
+
+        bh_rejected, _ = benjamini_hochberg_correction(p_values)
+        adap_rejected, _ = adaptive_bh_correction(p_values)
+
+        assert list(bh_rejected) == [True, True, True, False, False]
+        assert list(adap_rejected) == [True, True, True, True, False]
+
+    def test_adaptive_bh_reduces_to_bh_at_pi0_one(self):
+        """With pi0 = 1 both procedures agree."""
+        p_values = [0.01, 0.2, 0.6, 0.8]
+
+        bh_rejected, bh_adj = benjamini_hochberg_correction(p_values)
+        adap_rejected, adap_adj = adaptive_bh_correction(p_values)
+
+        np.testing.assert_array_equal(adap_rejected, bh_rejected)
+        np.testing.assert_allclose(adap_adj, bh_adj)
+
+    def test_adaptive_bh_nan_and_empty(self):
+        """NaN is never rejected; empty input gives empty outputs."""
+        rejected, p_adj = adaptive_bh_correction([0.001, np.nan])
+
+        assert list(rejected) == [True, False]
+        assert np.isnan(p_adj[1])
+
+        rejected, p_adj = adaptive_bh_correction([])
+
+        assert rejected.shape == (0,)
+        assert p_adj.shape == (0,)
+
+    def test_adaptive_bh_invalid_inputs(self):
+        """Bad alpha or lambda raise."""
+        with pytest.raises(ValueError):
+            adaptive_bh_correction([0.01], alpha=1.5)
+        with pytest.raises(ValueError):
+            adaptive_bh_correction([0.01], lambda_=0.0)
+
+
+class TestBenjaminiYekutieliCorrection:
+    """Test the Benjamini-Yekutieli procedure for dependent tests."""
+
+    def test_by_basic(self):
+        """Strong signals pass the tightened threshold."""
+        rejected, p_adj = benjamini_yekutieli_correction([0.001, 0.002, 0.5, 0.9])
+
+        assert list(rejected) == [True, True, False, False]
+        harmonic_4 = 1 + 1 / 2 + 1 / 3 + 1 / 4
+        expected = [0.001 * 4 * harmonic_4, 0.002 * 4 * harmonic_4 / 2, 1.0, 1.0]
+        np.testing.assert_allclose(p_adj, expected)
+
+    def test_by_more_conservative_than_bh(self):
+        """BY rejections are a subset of BH rejections on dependent-like data."""
+        np.random.seed(0)
+        p_values = np.random.beta(0.5, 5, size=50)
+
+        by_rejected, _ = benjamini_yekutieli_correction(p_values)
+        bh_rejected, _ = benjamini_hochberg_correction(p_values)
+
+        assert np.all(~by_rejected | bh_rejected)
+
+    def test_by_stricter_example(self):
+        """BH rejects where BY does not."""
+        by_rejected, _ = benjamini_yekutieli_correction([0.01, 0.02, 0.03, 0.5])
+        bh_rejected, _ = benjamini_hochberg_correction([0.01, 0.02, 0.03, 0.5])
+
+        assert list(bh_rejected) == [True, True, True, False]
+        assert sum(by_rejected) < sum(bh_rejected)
+
+    def test_by_nan_and_empty(self):
+        """NaN is never rejected; empty input gives empty outputs."""
+        rejected, p_adj = benjamini_yekutieli_correction([0.0001, np.nan])
+
+        assert list(rejected) == [True, False]
+        assert np.isnan(p_adj[1])
+
+        rejected, p_adj = benjamini_yekutieli_correction([])
+
+        assert rejected.shape == (0,)
+        assert p_adj.shape == (0,)
+
+    def test_by_invalid_inputs(self):
+        """Bad alpha or p-values raise."""
+        with pytest.raises(ValueError):
+            benjamini_yekutieli_correction([0.01], alpha=0.0)
+        with pytest.raises(ValueError):
+            benjamini_yekutieli_correction([-0.5])

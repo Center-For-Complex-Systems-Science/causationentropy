@@ -904,7 +904,7 @@ def shuffle_test(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
-    early_stop=True,
+    early_stop=False,
 ):
     r"""
     Permutation test for conditional mutual information significance.
@@ -947,12 +947,15 @@ def shuffle_test(
         Random number generator or seed for reproducible results.
     information : str, default='gaussian'
         Information measure estimator type used for conditional mutual information.
-    early_stop : bool, default=True
-        If True, stop drawing shuffles once more null values exceed the
-        observed CMI than ``alpha * n_shuffles``. The final p-value is then
-        guaranteed above ``alpha``, so the test cannot pass; this only
-        skips work for clearly insignificant candidates. Tests that could
-        pass always run the full ``n_shuffles``.
+    early_stop : bool, default=False
+        Opt-in futility stopping. If True, stop drawing shuffles once more
+        null values reach or exceed the observed CMI than
+        ``alpha * n_shuffles``. The final p-value is then guaranteed above
+        ``alpha``, so the test cannot pass; this only skips work for
+        clearly insignificant candidates. Tests that could pass always run
+        the full ``n_shuffles``. The default False preserves the exact
+        legacy behavior (full null distribution, exact permutation
+        p-values).
 
     Returns
     -------
@@ -964,16 +967,34 @@ def shuffle_test(
         - 'Pass': bool, True if observed_cmi >= threshold (statistically significant)
         - 'P_value': float, empirical p-value (proportion of null values >= observed)
         - 'N_Completed': int, number of shuffles actually drawn
+        - 'Early_Stopped': bool, True if drawing stopped early
+        - 'N_Exceeded': int, null values reaching or exceeding the observed
+          CMI among the completed shuffles
 
-    Returns
-    -------
-    result : dict
-        Dictionary containing test results:
+    Notes
+    -----
+    The permutation test is based on the assumption that under the null hypothesis,
+    the predictor X is exchangeable with respect to the target Y when conditioned on Z.
+    This provides a non-parametric approach to significance testing that does not
+    require distributional assumptions.
 
-        - 'Threshold': float, the (1-α) percentile of the null distribution
-        - 'Value': float, the observed conditional mutual information value
-        - 'Pass': bool, True if observed_cmi >= threshold (statistically significant)
-        - 'P_value': float, empirical p-value (proportion of null values >= observed)
+    For computational efficiency, consider reducing n_shuffles for preliminary analyses,
+    though this may reduce the precision of p-value estimates.
+
+    When ``early_stop`` truncates the null distribution, ``Threshold`` and
+    ``P_value`` are computed from the completed shuffles only and therefore
+    differ numerically from full-budget statistics; ``Early_Stopped`` marks
+    such partial results. The full-run p-value is still bounded below by
+    ``N_Exceeded / n_shuffles`` (remaining shuffles can only add
+    exceedances), and since that bound already exceeds ``alpha``, the
+    ``Pass`` decision matches the full run. Both the stopping trigger and
+    the reported p-value count null values ``>=`` the observed CMI, so
+    ties (e.g. from discrete kNN estimates) behave identically in both.
+
+    Early stopping consumes fewer draws from a shared ``rng`` than a full
+    run, so subsequent tests sharing that generator observe a shifted
+    permutation stream compared with ``early_stop=False``. Repeated runs
+    with the same seed remain exactly reproducible.
 
     Notes
     -----
@@ -1003,9 +1024,10 @@ def shuffle_test(
     rng = np.random.default_rng(rng)
     null_cmi = np.empty(n_shuffles)
 
-    # Futility stopping: once strictly more null values exceed the observed
-    # CMI than alpha * n_shuffles, the final p-value must end above alpha,
-    # so the test cannot pass and further shuffles only cost compute.
+    # Futility stopping: once strictly more null values reach or exceed the
+    # observed CMI than alpha * n_shuffles, the final p-value must end above
+    # alpha, so the test cannot pass and further shuffles only cost compute.
+    # The trigger uses >= to match the reported p-value rule exactly.
     stop_limit = alpha * n_shuffles
     exceedances = 0
     n_completed = n_shuffles
@@ -1020,7 +1042,7 @@ def shuffle_test(
             k=k_means,
             bandwidth=bandwidth,
         )
-        if early_stop and null_cmi[i] > observed_cmi:
+        if early_stop and null_cmi[i] >= observed_cmi:
             exceedances += 1
             if exceedances > stop_limit:
                 n_completed = i + 1
@@ -1041,6 +1063,8 @@ def shuffle_test(
         "Pass": passed,
         "P_value": p_value,
         "N_Completed": n_completed,
+        "Early_Stopped": n_completed < n_shuffles,
+        "N_Exceeded": exceedances,
     }
 
 

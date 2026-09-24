@@ -628,11 +628,70 @@ class TestShuffleTestEarlyStopping:
             "causationentropy.core.discovery.conditional_mutual_information",
             side_effect=always_above,
         ):
-            result = shuffle_test(X, Y, None, 0.1, alpha=0.05, n_shuffles=200, rng=0)
+            result = shuffle_test(
+                X,
+                Y,
+                None,
+                0.1,
+                alpha=0.05,
+                n_shuffles=200,
+                rng=0,
+                early_stop=True,
+            )
 
         assert result["N_Completed"] == 11
         assert not result["Pass"]
         assert result["P_value"] > 0.05
+        assert result["Early_Stopped"]
+        assert result["N_Exceeded"] == 11
+        # Documented bound: the full-run p-value stays above alpha.
+        assert result["N_Exceeded"] / 200 > 0.05
+
+    def test_default_runs_full_budget(self):
+        """Without opt-in, even clear nulls run every shuffle."""
+        X = np.arange(16, dtype=float).reshape(16, 1)
+        Y = np.zeros((16, 1))
+
+        def always_above(X_perm, Y_arg, Z, **kwargs):
+            return 1.0
+
+        with patch(
+            "causationentropy.core.discovery.conditional_mutual_information",
+            side_effect=always_above,
+        ):
+            result = shuffle_test(X, Y, None, 0.1, alpha=0.05, n_shuffles=200, rng=0)
+
+        assert result["N_Completed"] == 200
+        assert not result["Early_Stopped"]
+        assert not result["Pass"]
+
+    def test_ties_trigger_stopping(self):
+        """Nulls tying the observation count like exceedances (>= rule)."""
+        X = np.arange(16, dtype=float).reshape(16, 1)
+        Y = np.zeros((16, 1))
+
+        def always_tied(X_perm, Y_arg, Z, **kwargs):
+            return 0.1
+
+        with patch(
+            "causationentropy.core.discovery.conditional_mutual_information",
+            side_effect=always_tied,
+        ):
+            result = shuffle_test(
+                X,
+                Y,
+                None,
+                0.1,
+                alpha=0.05,
+                n_shuffles=200,
+                rng=0,
+                early_stop=True,
+            )
+
+        assert result["N_Completed"] == 11
+        assert result["N_Exceeded"] == 11
+        assert result["P_value"] == 1.0
+        assert not result["Pass"]
 
     def test_runs_full_course_for_signal(self):
         """All nulls below observed runs every shuffle and passes."""
@@ -646,7 +705,16 @@ class TestShuffleTestEarlyStopping:
             "causationentropy.core.discovery.conditional_mutual_information",
             side_effect=always_below,
         ):
-            result = shuffle_test(X, Y, None, 0.1, alpha=0.05, n_shuffles=200, rng=0)
+            result = shuffle_test(
+                X,
+                Y,
+                None,
+                0.1,
+                alpha=0.05,
+                n_shuffles=200,
+                rng=0,
+                early_stop=True,
+            )
 
         assert result["N_Completed"] == 200
         assert result["Pass"]
@@ -697,7 +765,14 @@ class TestShuffleTestEarlyStopping:
             observed = real_cmi(X, Y, None, method="gaussian")
 
             early = shuffle_test(
-                X, Y, None, observed, alpha=0.05, n_shuffles=100, rng=seed
+                X,
+                Y,
+                None,
+                observed,
+                alpha=0.05,
+                n_shuffles=100,
+                rng=seed,
+                early_stop=True,
             )
             full = shuffle_test(
                 X,
@@ -721,10 +796,74 @@ class TestShuffleTestEarlyStopping:
         )
 
         observed = real_cmi(X, Y, None, method="gaussian")
-        result = shuffle_test(X, Y, None, observed, alpha=0.05, n_shuffles=200, rng=0)
+        result = shuffle_test(
+            X,
+            Y,
+            None,
+            observed,
+            alpha=0.05,
+            n_shuffles=200,
+            rng=0,
+            early_stop=True,
+        )
 
         assert 1 <= result["N_Completed"] < 200
         assert not result["Pass"]
+
+    def test_early_stop_shifts_shared_rng_stream(self):
+        """Stopping early consumes fewer draws, shifting later tests' stream."""
+        X = np.arange(16, dtype=float).reshape(16, 1)
+        Y = np.zeros((16, 1))
+        captured = []
+
+        def always_above(X_perm, Y_arg, Z, **kwargs):
+            return 1.0
+
+        def capture_below(X_perm, Y_arg, Z, **kwargs):
+            captured.append(np.asarray(X_perm).copy())
+            return 0.0
+
+        def run_sequence(stop_first):
+            rng = np.random.default_rng(0)
+            with patch(
+                "causationentropy.core.discovery.conditional_mutual_information",
+                side_effect=always_above,
+            ):
+                shuffle_test(
+                    X,
+                    Y,
+                    None,
+                    0.1,
+                    alpha=0.05,
+                    n_shuffles=200,
+                    rng=rng,
+                    early_stop=stop_first,
+                )
+            captured.clear()
+            with patch(
+                "causationentropy.core.discovery.conditional_mutual_information",
+                side_effect=capture_below,
+            ):
+                shuffle_test(
+                    X,
+                    Y,
+                    None,
+                    0.1,
+                    alpha=0.05,
+                    n_shuffles=200,
+                    rng=rng,
+                    early_stop=False,
+                )
+            return captured[0].copy()
+
+        first_after_stop = run_sequence(True)
+        first_after_full = run_sequence(False)
+
+        # Early stopping consumed 11 draws vs 200, so the next test starts
+        # at a different stream position.
+        assert not np.array_equal(first_after_stop, first_after_full)
+        # Same seed still reproduces exactly.
+        np.testing.assert_array_equal(first_after_stop, run_sequence(True))
 
 
 class TestLassoOptimalCausationEntropy:

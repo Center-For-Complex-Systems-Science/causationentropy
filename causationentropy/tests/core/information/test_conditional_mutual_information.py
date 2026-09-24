@@ -881,3 +881,93 @@ class TestKNNConditionalMutualInformation:
         assert cmi > 0  # Should be positive due to dependence
         assert not np.isnan(cmi)
         assert np.isfinite(cmi)
+
+
+def _reference_conditioned_gaussian_cmi(X, Y, Z):
+    def _detcorr(A):
+        C = np.corrcoef(A.T)
+        return 0.0 if np.ndim(C) == 0 else np.linalg.slogdet(C)[1]
+
+    sz = _detcorr(Z)
+    sxz = _detcorr(np.hstack((X, Z)))
+    syz = _detcorr(np.hstack((Y, Z)))
+    sxyz = _detcorr(np.hstack((X, Y, Z)))
+    return 0.5 * (sxz + syz - sz - sxyz)
+
+
+class TestGaussianCMIStageAOptimization:
+    """Stage A validation tests comparing one-joint correlation slicing to reference."""
+
+    @pytest.mark.parametrize(
+        "seed,n,kx,ky,kz",
+        [
+            (0, 40, 1, 1, 1),
+            (1, 100, 1, 1, 1),
+            (7, 100, 2, 1, 2),
+            (42, 100, 3, 2, 4),
+            (101, 500, 2, 2, 3),
+        ],
+    )
+    def test_equivalence_to_reference(self, seed, n, kx, ky, kz):
+        np.random.seed(seed)
+        X = np.random.randn(n, kx)
+        Y = np.random.randn(n, ky)
+        Z = np.random.randn(n, kz)
+
+        expected = _reference_conditioned_gaussian_cmi(X, Y, Z)
+        actual = gaussian_conditional_mutual_information(X, Y, Z)
+
+        np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+    def test_single_corrcoef_call(self):
+        from unittest.mock import patch
+
+        np.random.seed(42)
+        X = np.random.randn(50, 2)
+        Y = np.random.randn(50, 1)
+        Z = np.random.randn(50, 3)
+
+        with patch("numpy.corrcoef", wraps=np.corrcoef) as mock_corr:
+            gaussian_conditional_mutual_information(X, Y, Z)
+            assert mock_corr.call_count == 1
+
+    def test_input_immutability(self):
+        np.random.seed(42)
+        X = np.random.randn(50, 2)
+        Y = np.random.randn(50, 1)
+        Z = np.random.randn(50, 2)
+
+        X_orig = X.copy()
+        Y_orig = Y.copy()
+        Z_orig = Z.copy()
+
+        gaussian_conditional_mutual_information(X, Y, Z)
+
+        np.testing.assert_array_equal(X, X_orig)
+        np.testing.assert_array_equal(Y, Y_orig)
+        np.testing.assert_array_equal(Z, Z_orig)
+
+    def test_constant_and_collinear_columns(self):
+        n = 50
+        X = np.ones((n, 1))  # Constant column
+        Y = np.random.randn(n, 1)
+        Z = np.random.randn(n, 1)
+
+        expected = _reference_conditioned_gaussian_cmi(X, Y, Z)
+        actual = gaussian_conditional_mutual_information(X, Y, Z)
+
+        assert np.isnan(expected) and np.isnan(actual)
+
+    def test_float32_and_float64_dtypes(self):
+        np.random.seed(42)
+        for dtype in [np.float32, np.float64]:
+            X = np.random.randn(60, 2).astype(dtype)
+            Y = np.random.randn(60, 1).astype(dtype)
+            Z = np.random.randn(60, 2).astype(dtype)
+
+            expected = _reference_conditioned_gaussian_cmi(X, Y, Z)
+            actual = gaussian_conditional_mutual_information(X, Y, Z)
+
+            np.testing.assert_allclose(
+                actual, expected, rtol=1e-6 if dtype == np.float32 else 1e-12
+            )

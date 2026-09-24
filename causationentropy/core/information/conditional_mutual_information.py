@@ -67,19 +67,32 @@ def gaussian_conditional_mutual_information(X, Y, Z=None):
     if Z is None:
         return gaussian_mutual_information(X, Y)
 
-    def _detcorr(A):
-        C = np.corrcoef(A.T)
-        # For 1D input, corrcoef returns scalar 1.0, and log(1.0) = 0.0
-        return 0.0 if np.ndim(C) == 0 else np.linalg.slogdet(C)[1]
+    XYZ = np.hstack((X, Y, Z))
+    corr_xyz = np.corrcoef(XYZ.T)
 
-    SZ = _detcorr(Z)
-    SXZ = _detcorr(np.hstack((X, Z)))
-    SYZ = _detcorr(np.hstack((Y, Z)))
-    SXYZ = _detcorr(np.hstack((X, Y, Z)))
+    kx = X.shape[1] if X.ndim > 1 else 1
+    ky = Y.shape[1] if Y.ndim > 1 else 1
+    kz = Z.shape[1] if Z.ndim > 1 else 1
+
+    idx_x = np.arange(0, kx)
+    idx_y = np.arange(kx, kx + ky)
+    idx_z = np.arange(kx + ky, kx + ky + kz)
+
+    idx_xz = np.concatenate((idx_x, idx_z))
+    idx_yz = np.concatenate((idx_y, idx_z))
+    idx_xyz = np.arange(0, kx + ky + kz)
+
+    def _detcorr(indices):
+        sub = corr_xyz[np.ix_(indices, indices)]
+        return np.linalg.slogdet(sub)[1]
+
+    SZ = _detcorr(idx_z)
+    SXZ = _detcorr(idx_xz)
+    SYZ = _detcorr(idx_yz)
+    SXYZ = _detcorr(idx_xyz)
 
     cmi = 0.5 * (SXZ + SYZ - SZ - SXYZ)
     return cmi
-
 
 def kde_conditional_mutual_information(
     X, Y, Z, bandwidth="silverman", kernel="gaussian"

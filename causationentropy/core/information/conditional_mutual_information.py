@@ -94,6 +94,7 @@ def gaussian_conditional_mutual_information(X, Y, Z=None):
     cmi = 0.5 * (SXZ + SYZ - SZ - SXYZ)
     return cmi
 
+
 def kde_conditional_mutual_information(
     X, Y, Z, bandwidth="silverman", kernel="gaussian"
 ):

@@ -112,8 +112,95 @@ def poisson_coupled_oscillators(
     return X, A
 
 
+def _companion_spectral_radius(lag_matrices):
+    """Spectral radius of the companion matrix built from lag matrices.
+
+    Parameters
+    ----------
+    lag_matrices : list of np.ndarray
+        Non-empty list of ``(n, n)`` coefficient matrices for lags
+        1 through ``p``.
+
+    Returns
+    -------
+    radius : float
+        Largest eigenvalue magnitude of the ``(n * p, n * p)`` companion
+        matrix.
+    """
+    n = lag_matrices[0].shape[0]
+    max_lag = len(lag_matrices)
+    companion = np.zeros((n * max_lag, n * max_lag))
+    companion[:n, :] = np.hstack(lag_matrices)
+    if max_lag > 1:
+        companion[n:, :-n] = np.eye(n * (max_lag - 1))
+    return float(np.max(np.abs(np.linalg.eigvals(companion))))
+
+
+def _rescale_to_spectral_radius(lag_matrices, rho):
+    """Rescale lag matrices so the companion spectral radius is ``<= rho``.
+
+    A one-shot ``rho / radius`` scaling is only valid for lag-1 systems:
+    the companion matrix contains fixed shift-identity blocks, so its
+    spectral radius is not linear in the coefficient scale for multi-lag
+    systems. Instead, bisect a scalar multiplier in ``[0, hi]`` (growing
+    ``hi`` first when the system is already stable, mirroring the upward
+    scaling of :func:`linear_stochastic_gaussian_process`), keeping the
+    largest multiplier whose companion radius is ``<= rho``. The returned
+    radius is always re-checked against ``rho``.
+
+    Parameters
+    ----------
+    lag_matrices : list of np.ndarray
+        Coefficient matrices for lags 1 through ``p``. May be empty.
+    rho : float
+        Target spectral radius. Must be positive.
+
+    Returns
+    -------
+    scaled : list of np.ndarray
+        Rescaled coefficient matrices.
+    final_radius : float
+        Companion spectral radius of ``scaled``, guaranteed ``<= rho``.
+
+    Raises
+    ------
+    ValueError
+        If the rescaled system still exceeds ``rho`` (safety net; scale 0
+        is always stable, so this is unreachable in practice).
+    """
+    if not lag_matrices:
+        return [], 0.0
+    if all(float(np.max(np.abs(matrix))) == 0.0 for matrix in lag_matrices):
+        return list(lag_matrices), 0.0
+
+    def radius_at(scale):
+        return _companion_spectral_radius([matrix * scale for matrix in lag_matrices])
+
+    lo, hi = 0.0, 1.0
+    if radius_at(hi) <= rho:
+        for _ in range(64):
+            lo = hi
+            hi *= 2.0
+            if radius_at(hi) > rho:
+                break
+    for _ in range(50):
+        mid = (lo + hi) / 2.0
+        if radius_at(mid) <= rho:
+            lo = mid
+        else:
+            hi = mid
+    scaled = [matrix * lo for matrix in lag_matrices]
+    final_radius = _companion_spectral_radius(scaled)
+    if not final_radius <= rho:
+        raise ValueError(
+            f"Could not stabilize the system to rho={rho} "
+            f"(final radius {final_radius})."
+        )
+    return scaled, final_radius
+
+
 def linear_gaussian_from_graph(G, T=500, coupling=0.7, rho=0.9, epsilon=0.1, seed=42):
-    """Simulate a stable vector autoregression from a directed lag graph.
+    r"""Simulate a stable vector autoregression from a directed lag graph.
 
     Each edge ``source -> sink`` with a ``lag`` attribute defines one term
     of a vector autoregression: the sink at time ``t`` is driven by the
@@ -130,12 +217,12 @@ def linear_gaussian_from_graph(G, T=500, coupling=0.7, rho=0.9, epsilon=0.1, see
         X_i(t) = \\sum_{(j, \\tau) \\to i} w_{j \\to i}^{(\\tau)}
         X_j(t - \\tau) + \\epsilon_i(t)
 
-    where :math:`\\epsilon_i(t)` is Gaussian noise with standard deviation
+    where :math:`\epsilon_i(t)` is Gaussian noise with standard deviation
     ``epsilon``. Edge weights default to ``coupling`` unless the edge
-    carries a ``weight`` attribute. All weights are jointly rescaled so the
-    companion matrix has spectral radius ``rho`` (mirroring
-    :func:`linear_stochastic_gaussian_process`), which keeps the process
-    stationary for ``rho < 1``.
+    carries a ``weight`` attribute. All weights are jointly rescaled (by
+    bisection on a scalar multiplier) so the companion matrix spectral
+    radius is ``<= rho``, which keeps the process stationary for
+    ``rho < 1``.
 
     Parameters
     ----------
@@ -227,15 +314,8 @@ def linear_gaussian_from_graph(G, T=500, coupling=0.7, rho=0.9, epsilon=0.1, see
     lag_matrices = [
         coefficients.get(tau, np.zeros((n, n))) for tau in range(1, max_lag + 1)
     ]
-    if max_lag > 0:
-        companion = np.zeros((n * max_lag, n * max_lag))
-        companion[:n, :] = np.hstack(lag_matrices)
-        if max_lag > 1:
-            companion[n:, :-n] = np.eye(n * (max_lag - 1))
-        max_eigval = np.max(np.abs(np.linalg.eigvals(companion)))
-        if max_eigval > 1e-12:
-            scale = rho / max_eigval
-            lag_matrices = [matrix * scale for matrix in lag_matrices]
+    if lag_matrices:
+        lag_matrices, _ = _rescale_to_spectral_radius(lag_matrices, rho)
 
     X = np.zeros((T, n))
     warmup = max(max_lag, 1)

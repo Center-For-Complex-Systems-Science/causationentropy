@@ -704,6 +704,33 @@ class TestLinearGaussianFromGraph:
         with pytest.raises(ValueError):
             linear_gaussian_from_graph(self._chain_graph(), rho=0.0)
 
+    def test_multilag_stability_rescaling(self):
+        """One-shot rho/radius scaling is invalid for multi-lag systems.
+
+        Scalar VAR(2) with lag weights 1 and 1 has companion radius ~1.618;
+        scaling by 0.9/1.618 leaves radius ~1.074 (unstable). The generator
+        must converge to radius <= rho instead.
+        """
+        from causationentropy.datasets.synthetic import (
+            _companion_spectral_radius,
+            _rescale_to_spectral_radius,
+        )
+
+        matrices = [np.array([[1.0]]), np.array([[1.0]])]
+        assert _companion_spectral_radius(matrices) > 1.0
+
+        scaled, final_radius = _rescale_to_spectral_radius(matrices, 0.9)
+        assert final_radius <= 0.9
+        assert final_radius > 0.9 - 1e-6
+
+        # End to end: the same system simulates bounded series.
+        G = nx.MultiDiGraph()
+        G.add_edge(0, 0, lag=1, weight=1.0)
+        G.add_edge(0, 0, lag=2, weight=1.0)
+        X, _ = linear_gaussian_from_graph(G, T=5000, seed=0)
+        assert np.all(np.isfinite(X))
+        assert np.var(X) < 1e6
+
     def test_discovery_roundtrip(self):
         """discover_network recovers a simulated lag-1 chain."""
         from causationentropy.core.discovery import discover_network

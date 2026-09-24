@@ -540,13 +540,13 @@ class TestDiscoverNetworkRandomState:
         n_shuffles = 4
         captured = []
 
-        def fake_cmi(X_perm, Y_arg, Z, **kwargs):
-            captured.append(np.asarray(X_perm).copy())
+        def fake_gauss_cmi(X_arg, Y_arg, Z_arg=None):
+            captured.append(np.asarray(X_arg).copy())
             return 0.0
 
         with patch(
-            "causationentropy.core.discovery.conditional_mutual_information",
-            side_effect=fake_cmi,
+            "causationentropy.core.information.conditional_mutual_information.gaussian_conditional_mutual_information",
+            side_effect=fake_gauss_cmi,
         ):
             shuffle_test(X, Y, None, 0.1, alpha=0.05, n_shuffles=n_shuffles, rng=0)
             first = captured[:]

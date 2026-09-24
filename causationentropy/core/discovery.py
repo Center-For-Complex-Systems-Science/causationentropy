@@ -985,27 +985,17 @@ def shuffle_test(
     rng = np.random.default_rng(rng)
     null_cmi = np.empty(n_shuffles)
 
-    cache = None
-    from unittest.mock import Mock
-    if information == 'gaussian' and not isinstance(conditional_mutual_information, Mock):
-        from causationentropy.core.information.conditional_mutual_information import _GaussianPermutationCMICache
-        cache = _GaussianPermutationCMICache(X, Y, Z)
-
     for i in range(n_shuffles):
-        idx = rng.permutation(len(X))
-        if cache is not None:
-            null_cmi[i] = cache.evaluate(idx)
-        else:
-            X_perm = X[idx, :]  # shuffle rows
-            null_cmi[i] = conditional_mutual_information(
-                X_perm,
-                Y,
-                Z,
-                method=information,
-                metric=metric,
-                k=k_means,
-                bandwidth=bandwidth,
-            )
+        X_perm = X[rng.permutation(len(X)), :]  # shuffle rows
+        null_cmi[i] = conditional_mutual_information(
+            X_perm,
+            Y,
+            Z,
+            method=information,
+            metric=metric,
+            k=k_means,
+            bandwidth=bandwidth,
+        )
 
     threshold = np.percentile(null_cmi, 100 * (1 - alpha))
     # Calculate p-value: proportion of null values >= observed value

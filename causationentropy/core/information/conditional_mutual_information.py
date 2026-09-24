@@ -67,6 +67,9 @@ def gaussian_conditional_mutual_information(X, Y, Z=None):
     if Z is None:
         return gaussian_mutual_information(X, Y)
 
+    if np.ndim(X) == 1 and np.ndim(Y) == 1 and np.ndim(Z) == 1:
+        return 0.0
+
     XYZ = np.hstack((X, Y, Z))
     corr_xyz = np.corrcoef(XYZ.T)
 

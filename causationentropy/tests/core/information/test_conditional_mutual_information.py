@@ -898,13 +898,16 @@ def _reference_conditioned_gaussian_cmi(X, Y, Z):
 class TestGaussianCMIStageAOptimization:
     """Stage A validation tests comparing one-joint correlation slicing to reference."""
 
-    @pytest.mark.parametrize("seed,n,kx,ky,kz", [
-        (0, 40, 1, 1, 1),
-        (1, 100, 1, 1, 1),
-        (7, 100, 2, 1, 2),
-        (42, 100, 3, 2, 4),
-        (101, 500, 2, 2, 3),
-    ])
+    @pytest.mark.parametrize(
+        "seed,n,kx,ky,kz",
+        [
+            (0, 40, 1, 1, 1),
+            (1, 100, 1, 1, 1),
+            (7, 100, 2, 1, 2),
+            (42, 100, 3, 2, 4),
+            (101, 500, 2, 2, 3),
+        ],
+    )
     def test_equivalence_to_reference(self, seed, n, kx, ky, kz):
         np.random.seed(seed)
         X = np.random.randn(n, kx)
@@ -918,6 +921,7 @@ class TestGaussianCMIStageAOptimization:
 
     def test_single_corrcoef_call(self):
         from unittest.mock import patch
+
         np.random.seed(42)
         X = np.random.randn(50, 2)
         Y = np.random.randn(50, 1)
@@ -964,4 +968,6 @@ class TestGaussianCMIStageAOptimization:
             expected = _reference_conditioned_gaussian_cmi(X, Y, Z)
             actual = gaussian_conditional_mutual_information(X, Y, Z)
 
-            np.testing.assert_allclose(actual, expected, rtol=1e-6 if dtype == np.float32 else 1e-12)
+            np.testing.assert_allclose(
+                actual, expected, rtol=1e-6 if dtype == np.float32 else 1e-12
+            )

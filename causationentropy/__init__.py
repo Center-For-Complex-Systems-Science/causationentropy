@@ -1,4 +1,4 @@
-from . import core, datasets, tests
+from . import core, datasets
 from .core import discovery
 from .core.discovery import discover_network
 from .datasets import synthetic

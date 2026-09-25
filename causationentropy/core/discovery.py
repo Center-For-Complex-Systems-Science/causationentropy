@@ -10,7 +10,7 @@ from typing import Dict, Tuple, Union
 import networkx as nx
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Lasso, LassoLarsIC
+from sklearn.linear_model import Lasso, LassoCV, LassoLarsIC
 
 from causationentropy.core.information.conditional_mutual_information import (
     conditional_mutual_information,
@@ -249,7 +249,15 @@ def discover_network(
                 bandwidth,
             )
         if method == "information_lasso":
-            S = information_lasso_optimal_causation_entropy(X_lagged, Y, rng)
+            S = information_lasso_optimal_causation_entropy(
+                X_lagged,
+                Y,
+                rng,
+                information=information,
+                metric=metric,
+                k_means=k_means,
+                bandwidth=bandwidth,
+            )
         if method == "lasso":
             S = lasso_optimal_causation_entropy(X_lagged, Y, rng)
         for s in S:
@@ -492,14 +500,40 @@ def alternative_optimal_causation_entropy(
 
 
 def information_lasso_optimal_causation_entropy(
-    X, Y, rng, criterion="bic", max_lambda=100, cross_val=10, information="gaussian"
+    X,
+    Y,
+    rng,
+    criterion="bic",
+    max_lambda=100,
+    cross_val=10,
+    information="gaussian",
+    metric="euclidean",
+    k_means=5,
+    bandwidth="silverman",
 ):
-    """
-    Execute information-theoretic variant of oCSE with LASSO regularization.
+    r"""
+    Select predictors with information-weighted LASSO.
 
-    This method combines information-theoretic causal discovery with LASSO regularization
-    to handle high-dimensional predictor spaces. The approach balances causal relationship
-    strength with model complexity.
+    Each candidate first receives a non-negative information weight from its
+    conditional mutual information with the target (with no additional
+    conditioning set in this standalone pathway):
+
+    .. math::
+
+        w_j = \frac{I(X_j; Y)}{\sum_k I(X_k; Y)}.
+
+    The weighted-LASSO objective is
+
+    .. math::
+
+        \min_{\boldsymbol{\beta}}
+        \frac{1}{2n}\|\mathbf{y}-\mathbf{X}\boldsymbol{\beta}\|_2^2
+        + \lambda \sum_j \frac{1}{w_j}|\beta_j|.
+
+    It is solved with the standard scikit-learn LASSO solvers by scaling
+    feature j by w_j. This is the usual reparameterization of a weighted
+    l1 penalty. Candidates with zero information weight receive an infinite
+    effective penalty and cannot enter the model.
 
     Parameters
     ----------
@@ -508,29 +542,83 @@ def information_lasso_optimal_causation_entropy(
     Y : array-like of shape (T, 1)
         Target variable column.
     rng : numpy.random.Generator
-        Random number generator.
+        Random number generator retained for API consistency. The current
+        weighted-LASSO solvers are deterministic.
     criterion : str, default='bic'
-        Information criterion for model selection ('bic' or 'aic').
+        Information criterion used by LassoLarsIC when there are enough
+        samples relative to predictors.
     max_lambda : int, default=100
-        Maximum number of LASSO iterations.
+        Maximum solver iterations for LassoLarsIC. LassoCV uses at least 1000
+        iterations to avoid premature convergence in high dimensions.
     cross_val : int, default=10
-        Cross-validation folds (currently unused).
+        Number of cross-validation folds used by LassoCV in the
+        high-dimensional regime.
     information : str, default='gaussian'
-        Information measure estimator type.
+        Information estimator passed to conditional_mutual_information.
+    metric : str, default='euclidean'
+        Distance metric used by k-NN information estimators.
+    k_means : int, default=5
+        Number of neighbors used by k-NN information estimators.
+    bandwidth : str or float, default='silverman'
+        Bandwidth used by KDE information estimators.
 
     Returns
     -------
     S : list of int
-        Indices of selected predictor variables.
+        Indices of predictors with non-zero weighted-LASSO coefficients.
 
     Notes
     -----
-    This is a simplified implementation that delegates to LASSO. Future versions
-    will incorporate information-theoretic weighting into the regularization.
+    LassoLarsIC is used when the information criterion is identifiable from
+    the sample size. When predictors are at least as numerous as the available
+    samples, LassoCV uses the existing cross_val parameter to choose the
+    regularization strength instead of falling back to a fixed default penalty.
     """
+    del rng  # Retained in the public signature for consistency with other methods.
 
-    # This is a simplified implementation - needs proper information-theoretic weighting
-    return lasso_optimal_causation_entropy(X, Y, rng, criterion, max_lambda, cross_val)
+    n_features = X.shape[1]
+    information_values = np.empty(n_features, dtype=float)
+
+    for j in range(n_features):
+        value = conditional_mutual_information(
+            X[:, [j]],
+            Y,
+            None,
+            method=information,
+            metric=metric,
+            k=k_means,
+            bandwidth=bandwidth,
+        )
+        if not np.isfinite(value):
+            raise ValueError(
+                "Information-LASSO received a non-finite information weight "
+                f"for predictor {j}."
+            )
+        information_values[j] = max(0.0, value)
+
+    total_information = information_values.sum()
+    if total_information <= 0:
+        return []
+
+    weights = information_values / total_information
+    X_weighted = X * weights.reshape(1, -1)
+
+    if X.shape[0] > n_features + 1:
+        model = LassoLarsIC(criterion=criterion, max_iter=max_lambda).fit(
+            X_weighted, Y.flatten()
+        )
+    else:
+        cv_folds = min(cross_val, X.shape[0])
+        if cv_folds < 2:
+            raise ValueError(
+                "Information-LASSO requires at least two samples for "
+                "high-dimensional cross-validation."
+            )
+        model = LassoCV(cv=cv_folds, max_iter=max(1000, max_lambda)).fit(
+            X_weighted, Y.flatten()
+        )
+
+    return np.flatnonzero(model.coef_ != 0).tolist()
 
 
 def lasso_optimal_causation_entropy(

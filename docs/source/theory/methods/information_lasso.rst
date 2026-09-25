@@ -175,6 +175,37 @@ Two-Stage Implementation
        selected = np.where(np.abs(beta_original) > 1e-6)[0]
        return selected, beta_original
 
+Current Standalone Implementation
+---------------------------------
+
+The public method="information_lasso" pathway implements the two-stage
+weighted-LASSO approach above.
+
+For each lagged candidate, the standalone pathway computes
+
+.. math::
+
+   w_j = \frac{I(X_j;Y)}{\sum_k I(X_k;Y)}
+
+with no additional conditioning set. The normalized information weights are
+then used as predictor-specific penalty weights. Equivalently, scaling column
+j of the design matrix by w_j lets the existing LASSO solvers optimize
+
+.. math::
+
+   \frac{1}{2n}\|\mathbf{y}-\mathbf{X}\boldsymbol{\beta}\|_2^2
+   + \lambda \sum_j \frac{1}{w_j}|\beta_j|.
+
+Candidates with zero information receive an infinite effective penalty and are
+not selected. When there are enough samples relative to predictors,
+LassoLarsIC selects the regularization strength using AIC or BIC. In the
+high-dimensional regime, LassoCV uses the existing cross_val parameter.
+
+The information estimator selected through discover_network (for example
+Gaussian, KDE, or k-NN) is also used to construct these weights. Iterative
+reweighting and the separate Information-LASSO screening plus exact oCSE
+refinement pathway are not part of this standalone implementation.
+
 Adaptive Implementation
 ----------------------
 

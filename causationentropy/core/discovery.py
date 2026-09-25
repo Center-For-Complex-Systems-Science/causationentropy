@@ -10,6 +10,7 @@ from typing import Dict, Tuple, Union
 import networkx as nx
 import numpy as np
 import pandas as pd
+from scipy.spatial import cKDTree
 from sklearn.linear_model import Lasso, LassoLarsIC
 
 from causationentropy.core.information.conditional_mutual_information import (
@@ -892,6 +893,49 @@ def backward(
     return S
 
 
+def _build_z_neighbors(Z, shuffle_neighbors):
+    """Build local nearest-neighbor candidate sets in conditioning space Z."""
+    Z = np.asarray(Z, dtype=float)
+    if Z.ndim == 1:
+        Z = Z.reshape(-1, 1)
+    n_samples = Z.shape[0]
+    if n_samples == 0:
+        raise ValueError("Z must contain at least one sample.")
+    if shuffle_neighbors < 1:
+        raise ValueError("shuffle_neighbors must be at least 1.")
+    k = min(int(shuffle_neighbors), n_samples)
+    tree = cKDTree(Z)
+    neighbors = tree.query(Z, k=k, p=np.inf, eps=0.0)[1]
+    neighbors = np.asarray(neighbors, dtype=np.int64)
+    if neighbors.ndim == 1:
+        neighbors = neighbors.reshape(-1, 1)
+    return neighbors
+
+
+def _restricted_permutation(neighbors, rng):
+    """Choose local donor indices while minimizing duplicate reuse."""
+    n_samples = neighbors.shape[0]
+    shuffled_neighbors = neighbors.copy()
+    for row in shuffled_neighbors:
+        rng.shuffle(row)
+    order = rng.permutation(n_samples)
+    permutation = np.empty(n_samples, dtype=np.int64)
+    used = set()
+    for sample_index in order:
+        candidates = shuffled_neighbors[sample_index]
+        chosen = None
+        for candidate in candidates:
+            candidate = int(candidate)
+            if candidate not in used:
+                chosen = candidate
+                break
+        if chosen is None:
+            chosen = int(candidates[-1])
+        permutation[sample_index] = chosen
+        used.add(chosen)
+    return permutation
+
+
 def shuffle_test(
     X,
     Y,
@@ -904,89 +948,82 @@ def shuffle_test(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    shuffle_neighbors=5,
 ):
-    r"""
-    Permutation test for conditional mutual information significance.
+    r"""Test conditional mutual information with permutation surrogates.
 
-    This function performs a permutation test to assess the statistical significance of
-    the conditional mutual information I(X;Y|Z). The test generates a null distribution
-    by computing conditional mutual information on permuted versions of the predictor X,
-    while keeping Y and Z unchanged.
+    When the conditioning set Z is non-empty, surrogate predictors are generated
+    by reassigning rows of X only among local nearest neighbors in Z-space. This
+    approximately preserves the X-Z dependence structure under the conditional
+    independence null. When Z is absent, the function falls back to an ordinary
+    global row permutation.
 
-    The null hypothesis is that X and Y are conditionally independent given Z:
-
+    The returned Monte Carlo p-value uses the finite-sample add-one correction
     .. math::
-
-        H_0: I(X; Y | Z) = 0
-
-    The test statistic follows the distribution:
-
-    .. math::
-
-        \text{CMI}_{\text{null}} \sim \text{Distribution under } H_0
-
-    Statistical significance is assessed by comparing the observed conditional mutual
-    information to the (1-α) percentile of the null distribution.
+        p = \frac{1 + \#\{T_{null} \ge T_{obs}\}}{n_{shuffles} + 1}.
 
     Parameters
     ----------
     X : array-like of shape (T, k_x)
-        Predictor variable(s) under test. Must be 2-D even when k_x=1.
+        Predictor variable(s) under test.
     Y : array-like of shape (T, 1)
-        Target variable column.
+        Target variable.
     Z : array-like of shape (T, k_z) or None
-        Current conditioning set. If None, tests marginal mutual information.
+        Conditioning set. Local restricted shuffling is used when Z is non-empty.
     observed_cmi : float
-        Conditional mutual information value computed on original (unshuffled) data.
+        CMI value computed on the unshuffled data.
     alpha : float, default=0.05
-        Significance level for the test. Lower values require stronger evidence.
+        Significance level used for the percentile threshold.
     n_shuffles : int, default=500
-        Number of random permutations to generate for the null distribution.
+        Number of surrogate draws.
     rng : int, numpy.random.Generator, or None
-        Random number generator or seed for reproducible results.
+        Random seed or generator.
     information : str, default='gaussian'
-        Information measure estimator type used for conditional mutual information.
+        Information estimator used to recompute surrogate CMI values.
+    metric : str, default='euclidean'
+        Metric forwarded to the information estimator.
+    k_means : int, default=5
+        Neighbor parameter forwarded to kNN-based estimators.
+    bandwidth : str or float, default='silverman'
+        Bandwidth forwarded to KDE-based estimators.
+    shuffle_neighbors : int, default=5
+        Number of nearest neighbors in Z-space available as local X donors.
 
     Returns
     -------
-    result : dict
-        Dictionary containing test results:
+    dict
+        Threshold, observed Value, percentile-based Pass decision, and corrected
+        Monte Carlo P_value.
 
-        - 'Threshold': float, the (1-α) percentile of the null distribution
-        - 'Value': float, the observed conditional mutual information value
-        - 'Pass': bool, True if observed_cmi >= threshold (statistically significant)
-        - 'P_value': float, empirical p-value (proportion of null values >= observed)
+    References
+    ----------
+    Runge, J. (2018). Conditional independence testing based on a nearest-neighbor
+    estimator of conditional mutual information. AISTATS/PMLR 84.
 
-    Notes
-    -----
-    The permutation test is based on the assumption that under the null hypothesis,
-    the predictor X is exchangeable with respect to the target Y when conditioned on Z.
-    This provides a non-parametric approach to significance testing that does not
-    require distributional assumptions.
-
-    For computational efficiency, consider reducing n_shuffles for preliminary analyses,
-    though this may reduce the precision of p-value estimates.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from causationentropy.core.discovery import shuffle_test
-    >>>
-    >>> # Generate sample data
-    >>> X = np.random.randn(100, 1)
-    >>> Y = np.random.randn(100, 1)
-    >>> Z = np.random.randn(100, 2)
-    >>> observed = 0.15
-    >>>
-    >>> # Perform permutation test
-    >>> result = shuffle_test(X, Y, Z, observed, alpha=0.05, n_shuffles=1000)
-    >>> print(f"Significant: {result['Pass']}, p-value ≈ {1 - result['Value']/result['Threshold']:.3f}")
+    Phipson, B. and Smyth, G. K. (2010). Permutation P-values should never be zero.
+    Statistical Applications in Genetics and Molecular Biology, 9(1).
     """
+    if n_shuffles < 1:
+        raise ValueError("n_shuffles must be at least 1.")
+    if shuffle_neighbors < 1:
+        raise ValueError("shuffle_neighbors must be at least 1.")
+
     rng = np.random.default_rng(rng)
     null_cmi = np.empty(n_shuffles)
+    neighbors = None
+
+    if Z is not None:
+        Z_array = np.asarray(Z)
+        if Z_array.size > 0 and shuffle_neighbors < len(X):
+            neighbors = _build_z_neighbors(Z_array, shuffle_neighbors)
 
     for i in range(n_shuffles):
-        X_perm = X[rng.permutation(len(X)), :]  # shuffle rows
+        if neighbors is None:
+            permutation = rng.permutation(len(X))
+        else:
+            permutation = _restricted_permutation(neighbors, rng)
+
+        X_perm = X[permutation, :]
         null_cmi[i] = conditional_mutual_information(
             X_perm,
             Y,
@@ -998,13 +1035,14 @@ def shuffle_test(
         )
 
     threshold = np.percentile(null_cmi, 100 * (1 - alpha))
-    # Calculate p-value: proportion of null values >= observed value
-    p_value = np.mean(null_cmi >= observed_cmi)
+    exceedances = int(np.count_nonzero(null_cmi >= observed_cmi))
+    p_value = (1 + exceedances) / (n_shuffles + 1)
+
     return {
-        "Threshold": threshold,
+        "Threshold": float(threshold),
         "Value": observed_cmi,
-        "Pass": observed_cmi >= threshold,
-        "P_value": p_value,
+        "Pass": bool(observed_cmi >= threshold),
+        "P_value": float(p_value),
     }
 
 

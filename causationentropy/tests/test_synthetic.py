@@ -731,6 +731,20 @@ class TestLinearGaussianFromGraph:
         assert np.all(np.isfinite(X))
         assert np.var(X) < 1e6
 
+    def test_nilpotent_systems_keep_weights(self):
+        """DAG couplings (companion radius 0) are not rescaled at all."""
+        from causationentropy.datasets.synthetic import _rescale_to_spectral_radius
+
+        chain = np.zeros((3, 3))
+        chain[1, 0] = 0.7
+        chain[2, 1] = 0.7
+        scaled, final_radius = _rescale_to_spectral_radius(
+            [chain, np.zeros((3, 3))], 0.9
+        )
+
+        assert final_radius == 0.0
+        np.testing.assert_array_equal(scaled[0], chain)
+
     def test_discovery_roundtrip(self):
         """discover_network recovers a simulated lag-1 chain."""
         from causationentropy.core.discovery import discover_network

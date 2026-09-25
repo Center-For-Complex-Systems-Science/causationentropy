@@ -146,7 +146,8 @@ def _rescale_to_spectral_radius(lag_matrices, rho):
     ``hi`` first when the system is already stable, mirroring the upward
     scaling of :func:`linear_stochastic_gaussian_process`), keeping the
     largest multiplier whose companion radius is ``<= rho``. The returned
-    radius is always re-checked against ``rho``.
+    radius is always re-checked against ``rho``. Nilpotent systems (e.g.
+    DAG couplings, radius 0 at any scale) keep their weights unchanged.
 
     Parameters
     ----------
@@ -170,11 +171,15 @@ def _rescale_to_spectral_radius(lag_matrices, rho):
     """
     if not lag_matrices:
         return [], 0.0
-    if all(float(np.max(np.abs(matrix))) == 0.0 for matrix in lag_matrices):
-        return list(lag_matrices), 0.0
 
     def radius_at(scale):
         return _companion_spectral_radius([matrix * scale for matrix in lag_matrices])
+
+    # Nilpotent systems (e.g. DAG couplings, radius 0 at any scale) cannot
+    # be rescaled meaningfully: keep the weights as given.
+    initial = radius_at(1.0)
+    if initial <= 1e-12:
+        return list(lag_matrices), initial
 
     lo, hi = 0.0, 1.0
     if radius_at(hi) <= rho:

@@ -31,6 +31,7 @@ def discover_network(
     n_shuffles: int = 200,
     n_jobs=-1,
     random_state: Union[int, np.random.Generator, None] = 42,
+    only_return_significant: bool = True,
 ) -> nx.MultiDiGraph:
     r"""
     Infer a causal graph via Optimal Causation Entropy (oCSE).
@@ -108,6 +109,13 @@ def discover_network(
         behavior. Pass a different integer or ``None`` for independent
         replicates (``None`` draws entropy from the OS). A
         ``numpy.random.Generator`` is used as-is and advanced in place.
+    only_return_significant : bool, default=True
+        If True (default), only statistically significant links are added to
+        the returned graph. If False, every tested ``(source, lag)`` candidate
+        for each target is added, with insignificant links marked by the
+        ``significant=False`` edge attribute. This is intended for small
+        networks only (e.g. delay-analysis plots), since it runs a CMI +
+        shuffle test for all ``n * max_lag`` candidates per target.
 
     Returns
     -------
@@ -119,6 +127,10 @@ def discover_network(
         - 'lag': Time delay :math:`\tau` of the causal relationship
         - 'cmi': Conditional mutual information value for this edge
         - 'p_value': Empirical p-value from permutation test
+        - 'significant': Whether the link passed the significance test
+          (only present when ``only_return_significant=False`` adds
+          insignificant links; significant links are then marked
+          ``significant=True``)
 
     Raises
     ------
@@ -278,13 +290,70 @@ def discover_network(
                 bandwidth=bandwidth,
             )
 
-            G.add_edge(
-                var_names[src_var],
-                var_names[i],
-                lag=src_lag,
-                cmi=cmi,
-                p_value=test_result["P_value"],
-            )
+            if only_return_significant:
+                G.add_edge(
+                    var_names[src_var],
+                    var_names[i],
+                    lag=src_lag,
+                    cmi=cmi,
+                    p_value=test_result["P_value"],
+                )
+            else:
+                G.add_edge(
+                    var_names[src_var],
+                    var_names[i],
+                    lag=src_lag,
+                    cmi=cmi,
+                    p_value=test_result["P_value"],
+                    significant=True,
+                )
+
+        if not only_return_significant:
+            # Report every tested candidate, including insignificant links,
+            # so delay-analysis plots can show CMI versus lag. Conditioning
+            # matches the significant edges above (selected set, minus the
+            # candidate itself when it is selected).
+            selected = set(S)
+            n_features = len(feature_names)
+            for cand in range(n_features):
+                if cand in selected:
+                    continue
+                src_var, src_lag = feature_names[cand]
+                X_predictor = X_lagged[:, [cand]]
+                Z_cond = X_lagged[:, S] if S else None
+
+                cmi = conditional_mutual_information(
+                    X_predictor,
+                    Y,
+                    Z_cond,
+                    method=information,
+                    metric=metric,
+                    k=k_means,
+                    bandwidth=bandwidth,
+                )
+
+                test_result = shuffle_test(
+                    X_predictor,
+                    Y,
+                    Z_cond,
+                    cmi,
+                    alpha=alpha_backward,
+                    rng=rng,
+                    n_shuffles=n_shuffles,
+                    information=information,
+                    metric=metric,
+                    k_means=k_means,
+                    bandwidth=bandwidth,
+                )
+
+                G.add_edge(
+                    var_names[src_var],
+                    var_names[i],
+                    lag=src_lag,
+                    cmi=cmi,
+                    p_value=test_result["P_value"],
+                    significant=False,
+                )
 
     return G
 
@@ -879,6 +948,7 @@ def shuffle_test(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    early_stop=False,
     shuffle_neighbors=5,
 ):
     r"""Test conditional mutual information with permutation surrogates.
@@ -889,8 +959,11 @@ def shuffle_test(
     independence null. When Z is absent, the function falls back to an ordinary
     global row permutation.
 
-    The returned Monte Carlo p-value uses the finite-sample add-one correction
+    For a completed test, the Monte Carlo p-value uses the finite-sample add-one
+    correction
+
     .. math::
+
         p = \frac{1 + \#\{T_{null} \ge T_{obs}\}}{n_{shuffles} + 1}.
 
     Parameters
@@ -904,7 +977,7 @@ def shuffle_test(
     observed_cmi : float
         CMI value computed on the unshuffled data.
     alpha : float, default=0.05
-        Significance level used for the percentile threshold.
+        Significance level.
     n_shuffles : int, default=500
         Number of surrogate draws.
     rng : int, numpy.random.Generator, or None
@@ -917,14 +990,46 @@ def shuffle_test(
         Neighbor parameter forwarded to kNN-based estimators.
     bandwidth : str or float, default='silverman'
         Bandwidth forwarded to KDE-based estimators.
+    early_stop : bool, default=False
+        Opt-in futility stopping. Drawing stops once the smallest possible
+        full-budget corrected p-value is already greater than alpha, so the
+        candidate cannot pass even if every remaining shuffle is below the
+        observed statistic.
     shuffle_neighbors : int, default=5
         Number of nearest neighbors in Z-space available as local X donors.
 
     Returns
     -------
     dict
-        Threshold, observed Value, percentile-based Pass decision, and corrected
-        Monte Carlo P_value.
+        Dictionary containing:
+
+        - 'Threshold': the (1-alpha) percentile of the completed null values
+        - 'Value': the observed conditional mutual information
+        - 'Pass': whether the corrected permutation p-value passes alpha
+        - 'P_value': corrected p-value over the completed shuffles
+        - 'N_Completed': number of shuffles actually drawn
+        - 'Early_Stopped': whether drawing stopped before the full budget
+        - 'N_Exceeded': completed null values greater than or equal to observed
+
+    Notes
+    -----
+    For a full-budget run, ``Pass`` is defined by the corrected Monte Carlo
+    p-value rather than the percentile threshold. This keeps the reported
+    p-value and the significance decision consistent, including tied null
+    statistics.
+
+    When ``early_stop`` truncates the run, ``Threshold`` and ``P_value`` are
+    based only on the completed shuffles and are therefore partial statistics.
+    The stopping decision uses the full-budget lower bound
+
+    ``(1 + N_Exceeded) / (n_shuffles + 1)``.
+
+    Once this bound exceeds ``alpha``, the final corrected p-value cannot pass,
+    regardless of the remaining shuffles.
+
+    Early stopping consumes fewer random draws than a full run, so subsequent
+    tests sharing the same generator observe a shifted random stream. Repeated
+    runs with the same seed remain reproducible.
 
     References
     ----------
@@ -948,6 +1053,9 @@ def shuffle_test(
         if Z_array.size > 0 and shuffle_neighbors < len(X):
             neighbors = _build_z_neighbors(Z_array, shuffle_neighbors)
 
+    exceedances = 0
+    n_completed = n_shuffles
+
     for i in range(n_shuffles):
         if neighbors is None:
             permutation = rng.permutation(len(X))
@@ -965,15 +1073,32 @@ def shuffle_test(
             bandwidth=bandwidth,
         )
 
+        if null_cmi[i] >= observed_cmi:
+            exceedances += 1
+
+        if early_stop:
+            full_budget_p_lower_bound = (1 + exceedances) / (n_shuffles + 1)
+            if full_budget_p_lower_bound > alpha:
+                n_completed = i + 1
+                break
+
+    null_cmi = null_cmi[:n_completed]
     threshold = np.percentile(null_cmi, 100 * (1 - alpha))
-    exceedances = int(np.count_nonzero(null_cmi >= observed_cmi))
-    p_value = (1 + exceedances) / (n_shuffles + 1)
+    p_value = (1 + exceedances) / (n_completed + 1)
+
+    if n_completed < n_shuffles:
+        passed = False
+    else:
+        passed = p_value <= alpha
 
     return {
         "Threshold": float(threshold),
         "Value": observed_cmi,
-        "Pass": bool(observed_cmi >= threshold),
+        "Pass": bool(passed),
         "P_value": float(p_value),
+        "N_Completed": n_completed,
+        "Early_Stopped": n_completed < n_shuffles,
+        "N_Exceeded": exceedances,
     }
 
 

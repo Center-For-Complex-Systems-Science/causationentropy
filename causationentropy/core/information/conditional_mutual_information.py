@@ -339,9 +339,9 @@ def poisson_conditional_mutual_information(X, Y, Z):
         SzX = X.shape[1]
         SzY = Y.shape[1]
         SzZ = Z.shape[1]
-        indX = np.matrix(np.arange(SzX))
-        indY = np.matrix(np.arange(SzY) + SzX)
-        indZ = np.matrix(np.arange(SzZ) + SzX + SzY)
+        indX = np.arange(SzX)
+        indY = np.arange(SzY) + SzX
+        indZ = np.arange(SzZ) + SzX + SzY
         XYZ = np.concatenate((X, Y, Z), axis=1)
         SXYZ = np.corrcoef(XYZ.T)
         SS = SXYZ
@@ -351,22 +351,18 @@ def poisson_conditional_mutual_information(X, Y, Z):
         SS[SzX : SzX + SzY, SzX : SzX + SzY] = (
             SS[SzX : SzX + SzY, SzX : SzX + SzY] + SXYZ[SzX : SzX + SzY, 0:SzX]
         )
-        S_est1 = SS[
-            np.concatenate((indY.T, indZ.T), axis=0),
-            np.concatenate((indY.T, indZ.T), axis=0),
-        ]
-        S_est2 = SS[
-            np.concatenate((indX.T, indZ.T), axis=0),
-            np.concatenate((indX.T, indZ.T), axis=0),
-        ]
+        yz_idx = np.concatenate((indY, indZ))
+        xz_idx = np.concatenate((indX, indZ))
+        S_est1 = SS[np.ix_(yz_idx, yz_idx)]
+        S_est2 = SS[np.ix_(xz_idx, xz_idx)]
         HYZ = poisson_joint_entropy(S_est1)
-        SindZ = SS[indZ, indZ]
+        SindZ = SS[np.ix_(indZ, indZ)]
         HZ = poisson_joint_entropy(SindZ)
         HXYZ = poisson_joint_entropy(SXYZ - np.diag(Sa))
         HXZ = poisson_joint_entropy(S_est2)
         H_YZ = HYZ - HZ
         H_XYZ = HXYZ - HXZ
-        cmi = H_XYZ - H_YZ
+        cmi = H_YZ - H_XYZ  # I(X;Y|Z) = H(Y|Z) - H(Y|X,Z)
         return cmi
 
 

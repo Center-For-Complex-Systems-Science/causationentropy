@@ -317,6 +317,10 @@ def network_to_dataframe(
         - 'CMI': Conditional mutual information value
         - 'P_Value': Statistical p-value from permutation test
 
+        If any edge carries a ``significant`` attribute (see
+        ``discover_network(..., only_return_significant=False)``), a
+        ``Significant`` column is included as well.
+
         Additional columns are added based on the optional parameters provided:
 
         - 'Method': Discovery method
@@ -361,6 +365,9 @@ def network_to_dataframe(
             "P_Value": data.get("p_value", None),
         }
 
+        if "significant" in data:
+            edge_dict["Significant"] = data.get("significant")
+
         # Add optional metadata columns
         if method is not None:
             edge_dict["Method"] = method
@@ -392,6 +399,8 @@ def network_to_dataframe(
 
     # Reorder columns to have base columns first, then optional metadata
     base_cols = ["Source", "Sink", "Lag", "CMI", "P_Value"]
+    if "Significant" in df.columns:
+        base_cols.append("Significant")
     metadata_order = [
         "Method",
         "Information",

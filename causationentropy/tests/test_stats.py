@@ -1,7 +1,14 @@
 import numpy as np
 import pytest
 
-from causationentropy.core.stats import Compute_TPR_FPR, auc
+from causationentropy.core.stats import (
+    Compute_TPR_FPR,
+    auc,
+    bootstrap_cmi_confidence_interval,
+    bootstrap_confidence_interval,
+    moving_block_bootstrap_indices,
+    stationary_bootstrap_indices,
+)
 
 
 class TestAUC:
@@ -274,3 +281,208 @@ class TestStatsFunctionProperties:
             assert result == 0.0
         except (ValueError, IndexError):
             pass  # Empty arrays might raise errors, which is acceptable
+
+
+class TestMovingBlockBootstrap:
+    """Test moving block bootstrap index resampling."""
+
+    def test_shapes_and_range(self):
+        """Output shape is (B, n) with indices in range."""
+        indices = moving_block_bootstrap_indices(100, 10, 5, seed=0)
+
+        assert indices.shape == (5, 100)
+        assert indices.dtype.kind == "i"
+        assert np.all(indices >= 0)
+        assert np.all(indices < 100)
+
+    def test_blocks_are_contiguous(self):
+        """Each block holds consecutive indices (wrapping circularly)."""
+        indices = moving_block_bootstrap_indices(50, 7, 4, seed=1)
+
+        for row in indices:
+            for start in range(0, 50, 7):
+                block = row[start : start + 7]
+                expected = (block[0] + np.arange(len(block))) % 50
+                np.testing.assert_array_equal(block, expected)
+
+    def test_reproducibility(self):
+        """Same seed repeats; different seed differs."""
+        first = moving_block_bootstrap_indices(60, 8, 3, seed=11)
+        second = moving_block_bootstrap_indices(60, 8, 3, seed=11)
+        third = moving_block_bootstrap_indices(60, 8, 3, seed=12)
+
+        np.testing.assert_array_equal(first, second)
+        assert not np.array_equal(first, third)
+
+    def test_full_length_block(self):
+        """Block length n reproduces shifted full copies."""
+        indices = moving_block_bootstrap_indices(10, 10, 3, seed=0)
+
+        for row in indices:
+            np.testing.assert_array_equal(np.sort(row), np.arange(10))
+
+    def test_invalid_sizes(self):
+        """Out-of-range sizes raise."""
+        with pytest.raises(ValueError):
+            moving_block_bootstrap_indices(0, 1, 5)
+        with pytest.raises(ValueError):
+            moving_block_bootstrap_indices(10, 0, 5)
+        with pytest.raises(ValueError):
+            moving_block_bootstrap_indices(10, 11, 5)
+        with pytest.raises(ValueError):
+            moving_block_bootstrap_indices(10, 5, 0)
+
+
+class TestStationaryBootstrap:
+    """Test stationary bootstrap index resampling."""
+
+    def test_shapes_and_range(self):
+        """Output shape is (B, n) with indices in range."""
+        indices = stationary_bootstrap_indices(100, 10.0, 5, seed=0)
+
+        assert indices.shape == (5, 100)
+        assert np.all(indices >= 0)
+        assert np.all(indices < 100)
+
+    def test_reproducibility(self):
+        """Same seed repeats; different seed differs."""
+        first = stationary_bootstrap_indices(80, 5.0, 3, seed=3)
+        second = stationary_bootstrap_indices(80, 5.0, 3, seed=3)
+        third = stationary_bootstrap_indices(80, 5.0, 3, seed=4)
+
+        np.testing.assert_array_equal(first, second)
+        assert not np.array_equal(first, third)
+
+    def test_mean_block_length_effect(self):
+        """Shorter mean blocks start many more blocks per replicate."""
+        short = stationary_bootstrap_indices(200, 2.0, 20, seed=0)
+        long = stationary_bootstrap_indices(200, 50.0, 20, seed=0)
+
+        def count_breaks(row):
+            return int(np.sum(row[1:] != (row[:-1] + 1) % 200))
+
+        short_breaks = np.mean([count_breaks(row) for row in short])
+        long_breaks = np.mean([count_breaks(row) for row in long])
+        assert short_breaks > 50 > long_breaks
+
+    def test_invalid_sizes(self):
+        """Out-of-range sizes raise."""
+        with pytest.raises(ValueError):
+            stationary_bootstrap_indices(0, 5.0, 3)
+        with pytest.raises(ValueError):
+            stationary_bootstrap_indices(10, 0.5, 3)
+        with pytest.raises(ValueError):
+            stationary_bootstrap_indices(10, 5.0, 0)
+
+
+class TestBootstrapConfidenceInterval:
+    """Test the percentile confidence interval."""
+
+    def test_known_quantiles(self):
+        """Quantiles of 0..100 at 5% are 2.5 and 97.5."""
+        lower, upper = bootstrap_confidence_interval(np.arange(101), alpha=0.05)
+
+        assert lower == 2.5
+        assert upper == 97.5
+
+    def test_constant_input(self):
+        """Constant replicates give a zero-width interval."""
+        lower, upper = bootstrap_confidence_interval(np.full(50, 1.5))
+
+        assert lower == 1.5
+        assert upper == 1.5
+
+    def test_invalid_inputs(self):
+        """Bad alpha, empty, non-1D, or non-finite input raises."""
+        with pytest.raises(ValueError):
+            bootstrap_confidence_interval([0.1, 0.2], alpha=0.0)
+        with pytest.raises(ValueError):
+            bootstrap_confidence_interval([0.1, 0.2], alpha=1.0)
+        with pytest.raises(ValueError):
+            bootstrap_confidence_interval([])
+        with pytest.raises(ValueError):
+            bootstrap_confidence_interval([[0.1], [0.2]])
+        with pytest.raises(ValueError):
+            bootstrap_confidence_interval([0.1, np.nan])
+        with pytest.raises(ValueError):
+            bootstrap_confidence_interval([0.1, np.inf])
+
+
+class TestBootstrapCMIConfidenceInterval:
+    """Test end-to-end CMI intervals with the Gaussian estimator."""
+
+    def _coupled_data(self, seed=0):
+        rng = np.random.default_rng(seed)
+        X = rng.standard_normal((300, 1))
+        Y = X + 0.5 * rng.standard_normal((300, 1))
+        return X, Y
+
+    def test_coupled_interval(self):
+        """Strong coupling gives a positive interval containing the estimate."""
+        X, Y = self._coupled_data()
+        estimate, lower, upper, boot = bootstrap_cmi_confidence_interval(
+            X, Y, n_bootstraps=50, seed=0
+        )
+
+        assert boot.shape == (50,)
+        assert np.all(np.isfinite(boot))
+        assert estimate > 0.5
+        assert 0 < lower <= estimate <= upper
+
+    def test_independent_interval_near_zero(self):
+        """Independent series give an estimate and interval near zero."""
+        rng = np.random.default_rng(1)
+        X = rng.standard_normal((300, 1))
+        Y = rng.standard_normal((300, 1))
+        estimate, lower, upper, _ = bootstrap_cmi_confidence_interval(
+            X, Y, n_bootstraps=50, seed=1
+        )
+
+        assert estimate < 0.05
+        assert lower >= 0.0
+        assert upper < 0.05
+
+    def test_stationary_option(self):
+        """Stationary resampling runs and brackets the estimate."""
+        X, Y = self._coupled_data()
+        estimate, lower, upper, boot = bootstrap_cmi_confidence_interval(
+            X, Y, n_bootstraps=30, use_stationary=True, seed=0
+        )
+
+        assert boot.shape == (30,)
+        assert lower <= estimate <= upper
+
+    def test_reproducibility(self):
+        """Same seed repeats the replicates exactly."""
+        X, Y = self._coupled_data()
+        first = bootstrap_cmi_confidence_interval(X, Y, n_bootstraps=20, seed=5)
+        second = bootstrap_cmi_confidence_interval(X, Y, n_bootstraps=20, seed=5)
+
+        np.testing.assert_array_equal(first[3], second[3])
+        assert first[:3] == second[:3]
+
+    def test_conditioning_set(self):
+        """A conditioning set is accepted and keeps shapes."""
+        rng = np.random.default_rng(2)
+        X = rng.standard_normal((200, 1))
+        Z = rng.standard_normal((200, 1))
+        Y = X + Z + 0.5 * rng.standard_normal((200, 1))
+        estimate, lower, upper, boot = bootstrap_cmi_confidence_interval(
+            X, Y, Z, n_bootstraps=20, seed=2
+        )
+
+        assert boot.shape == (20,)
+        assert estimate > 0
+        assert lower <= upper
+
+    def test_invalid_inputs(self):
+        """Mismatched rows and bad sizes raise."""
+        X, Y = self._coupled_data()
+        with pytest.raises(ValueError):
+            bootstrap_cmi_confidence_interval(X, Y[:-1], n_bootstraps=10)
+        with pytest.raises(ValueError):
+            bootstrap_cmi_confidence_interval(X, Y, np.zeros((10, 1)), n_bootstraps=10)
+        with pytest.raises(ValueError):
+            bootstrap_cmi_confidence_interval(X, Y, n_bootstraps=0)
+        with pytest.raises(ValueError):
+            bootstrap_cmi_confidence_interval(X, Y, alpha=0.0)

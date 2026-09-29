@@ -26,6 +26,9 @@ jobs:
             python-version: '3.8'
           - os: macos-latest
             python-version: '3.9'
+          # NumPy >= 2 (required since #34) has no Python 3.8 builds
+          - os: ubuntu-latest
+            python-version: '3.8'
 
     steps:
     - uses: actions/checkout@v4

@@ -684,7 +684,92 @@ def information_lasso_optimal_causation_entropy(
 
     return np.flatnonzero(model.coef_ != 0).tolist()
 
-\ndef information_screened_optimal_causation_entropy(\n    X,\n    Y,\n    Z_init,\n    rng,\n    retention=0.40,\n    alpha_forward=0.05,\n    alpha_backward=0.05,\n    n_shuffles=200,\n    information="gaussian",\n    metric="euclidean",\n    k_means=5,\n    bandwidth="silverman",\n):\n    r"""Screen with Information-LASSO plus conditional rescue, then refine.\n\n    X contains only external candidate predictors for one target. Target\n    history is supplied separately through Z_init and remains in the standard\n    oCSE conditioning set during restricted refinement.\n    """\n    if not 0 < retention <= 1:\n        raise ValueError("retention must be in (0, 1].")\n\n    n_features = X.shape[1]\n    if n_features == 0:\n        return []\n\n    endpoint = information_lasso_optimal_causation_entropy(\n        X,\n        Y,\n        rng,\n        information=information,\n        metric=metric,\n        k_means=k_means,\n        bandwidth=bandwidth,\n    )\n    endpoint = [int(j) for j in endpoint]\n    selected = set(endpoint)\n\n    target_size = int(math.ceil(retention * n_features))\n    if len(selected) < n_features:\n        target_size = max(target_size, len(selected) + 1)\n    target_size = min(n_features, target_size)\n\n    if len(selected) < target_size:\n        Z_rescue = X[:, endpoint] if endpoint else None\n        scored = []\n        for j in range(n_features):\n            if j in selected:\n                continue\n            score = conditional_mutual_information(\n                X[:, [j]],\n                Y,\n                Z_rescue,\n                method=information,\n                metric=metric,\n                k=k_means,\n                bandwidth=bandwidth,\n            )\n            if not np.isfinite(score):\n                score = -np.inf\n            scored.append((float(score), int(j)))\n\n        scored.sort(key=lambda item: (-item[0], item[1]))\n        selected.update(\n            j for _score, j in scored[: target_size - len(selected)]\n        )\n\n    screened = sorted(selected)\n    refined_local = standard_optimal_causation_entropy(\n        X[:, screened],\n        Y,\n        Z_init,\n        rng,\n        alpha1=alpha_forward,\n        alpha2=alpha_backward,\n        n_shuffles=n_shuffles,\n        information=information,\n        metric=metric,\n        k_means=k_means,\n        bandwidth=bandwidth,\n    )\n    return [screened[int(local_idx)] for local_idx in refined_local]\n\ndef lasso_optimal_causation_entropy(
+
+def information_screened_optimal_causation_entropy(
+    X,
+    Y,
+    Z_init,
+    rng,
+    retention=0.40,
+    alpha_forward=0.05,
+    alpha_backward=0.05,
+    n_shuffles=200,
+    information="gaussian",
+    metric="euclidean",
+    k_means=5,
+    bandwidth="silverman",
+):
+    r"""Screen with Information-LASSO plus conditional rescue, then refine.
+
+    X contains only external candidate predictors for one target. Target
+    history is supplied separately through Z_init and remains in the standard
+    oCSE conditioning set during restricted refinement.
+    """
+    if not 0 < retention <= 1:
+        raise ValueError("retention must be in (0, 1].")
+
+    n_features = X.shape[1]
+    if n_features == 0:
+        return []
+
+    endpoint = information_lasso_optimal_causation_entropy(
+        X,
+        Y,
+        rng,
+        information=information,
+        metric=metric,
+        k_means=k_means,
+        bandwidth=bandwidth,
+    )
+    endpoint = [int(j) for j in endpoint]
+    selected = set(endpoint)
+
+    target_size = int(math.ceil(retention * n_features))
+    if len(selected) < n_features:
+        target_size = max(target_size, len(selected) + 1)
+    target_size = min(n_features, target_size)
+
+    if len(selected) < target_size:
+        Z_rescue = X[:, endpoint] if endpoint else None
+        scored = []
+        for j in range(n_features):
+            if j in selected:
+                continue
+            score = conditional_mutual_information(
+                X[:, [j]],
+                Y,
+                Z_rescue,
+                method=information,
+                metric=metric,
+                k=k_means,
+                bandwidth=bandwidth,
+            )
+            if not np.isfinite(score):
+                score = -np.inf
+            scored.append((float(score), int(j)))
+
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        selected.update(
+            j for _score, j in scored[: target_size - len(selected)]
+        )
+
+    screened = sorted(selected)
+    refined_local = standard_optimal_causation_entropy(
+        X[:, screened],
+        Y,
+        Z_init,
+        rng,
+        alpha1=alpha_forward,
+        alpha2=alpha_backward,
+        n_shuffles=n_shuffles,
+        information=information,
+        metric=metric,
+        k_means=k_means,
+        bandwidth=bandwidth,
+    )
+    return [screened[int(local_idx)] for local_idx in refined_local]
+
+def lasso_optimal_causation_entropy(
     X, Y, rng, criterion="bic", max_lambda=100, cross_val=10
 ):
     r"""

@@ -102,3 +102,73 @@ def test_discover_information_screened_uses_external_candidates(monkeypatch):
         assert y_shape == (38, 1)
         assert z_shape == (38, 2)
         assert retention == 0.35
+
+
+def test_backward_preserves_initial_conditioning_for_screened_refinement(monkeypatch):
+    rng = np.random.default_rng(7)
+    X = rng.normal(size=(50, 3))
+    Y = rng.normal(size=(50, 1))
+    Z_init = rng.normal(size=(50, 2))
+    seen = []
+
+    def fake_cmi(_x, _y, z, **kwargs):
+        seen.append(z.copy())
+        return 1.0
+
+    monkeypatch.setattr(discovery, "conditional_mutual_information", fake_cmi)
+    monkeypatch.setattr(
+        discovery,
+        "shuffle_test",
+        lambda *args, **kwargs: {
+            "Threshold": 0.0,
+            "Value": 1.0,
+            "Pass": True,
+            "P_value": 0.0,
+        },
+    )
+
+    selected = discovery.backward(
+        X,
+        Y,
+        [0, 1],
+        np.random.default_rng(11),
+        n_shuffles=3,
+        Z_init=Z_init,
+    )
+
+    assert selected == [0, 1]
+    assert len(seen) == 2
+    for z in seen:
+        np.testing.assert_allclose(z[:, :2], Z_init)
+
+
+def test_standard_discovery_does_not_retest_target_history(monkeypatch):
+    calls = []
+
+    def fake_standard(X, Y, Z_init, rng, *args, **kwargs):
+        calls.append((X.copy(), Z_init.copy()))
+        return []
+
+    monkeypatch.setattr(
+        discovery,
+        "standard_optimal_causation_entropy",
+        fake_standard,
+    )
+
+    data = np.arange(120, dtype=float).reshape(40, 3)
+    discovery.discover_network(
+        data,
+        method="standard",
+        max_lag=2,
+        n_shuffles=3,
+    )
+
+    assert len(calls) == 3
+    for X_candidates, Z_init in calls:
+        assert X_candidates.shape == (38, 4)
+        assert Z_init.shape == (38, 2)
+        for candidate in X_candidates.T:
+            assert not any(
+                np.array_equal(candidate, conditioned)
+                for conditioned in Z_init.T
+            )

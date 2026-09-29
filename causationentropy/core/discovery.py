@@ -231,6 +231,7 @@ def discover_network(
         print(f"Estimating edges for node {i} ({var_names[i]})")
 
         Y = Y_all[:, [i]]  # shape: (T - max_lag, 1)
+        candidate_ids = list(range(len(feature_names)))
         output_base = None
         report_candidate_ids = None
         if method == "standard":
@@ -238,8 +239,15 @@ def discover_network(
             for tau in range(1, max_lag + 1):
                 Z_init.append(series[max_lag - tau : T - tau, i])  # lagged Y_i
             Z_init = np.column_stack(Z_init)  # shape: (T - max_lag, max_lag)
-            S = standard_optimal_causation_entropy(
-                X_lagged,
+            # Target-history lags are already in Z_init; do not retest them.
+            candidate_ids = [
+                idx
+                for idx, (source, _lag) in enumerate(feature_names)
+                if source != i
+            ]
+            X_candidates = X_lagged[:, candidate_ids]
+            S_local = standard_optimal_causation_entropy(
+                X_candidates,
                 Y,
                 Z_init,
                 rng,
@@ -251,6 +259,9 @@ def discover_network(
                 k_means,
                 bandwidth,
             )
+            S = [candidate_ids[idx] for idx in S_local]
+            output_base = Z_init
+            report_candidate_ids = candidate_ids
         if method == "alternative":
             S = alternative_optimal_causation_entropy(
                 X_lagged,
@@ -496,6 +507,7 @@ def standard_optimal_causation_entropy(
         metric,
         k_means,
         bandwidth,
+        Z_init=Z_init,
     )
 
     return S
@@ -1048,6 +1060,7 @@ def backward(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    Z_init=None,
 ):
     r"""
     Backward elimination phase of optimal Causation Entropy.
@@ -1101,8 +1114,14 @@ def backward(
     S = copy.deepcopy(S_init)  # working copy
 
     for j in rng.permutation(S_init):
-        # conditioning set Z = S \ {j}
-        Z = X_full[:, [k for k in S if k != j]] if len(S) > 1 else None
+        other_ids = [k for k in S if k != j]
+        Z_selected = X_full[:, other_ids] if other_ids else None
+        if Z_init is None:
+            Z = Z_selected
+        elif Z_selected is None:
+            Z = Z_init
+        else:
+            Z = np.hstack((Z_init, Z_selected))
 
         Xj = X_full[:, [j]]
         cmij = conditional_mutual_information(

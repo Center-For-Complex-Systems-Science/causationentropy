@@ -202,9 +202,13 @@ def knn_conditional_mutual_information(X, Y, Z, metric=None, k=1):
         D = np.sort(cdist(JS, JS, metric=effective_metric), axis=1)[:, k]
         epsilon = D
         # Count neighbors within epsilon in marginal spaces
-        Dxz = cdist(np.column_stack((X, Z)), np.column_stack((X, Z)), metric=effective_metric)
+        Dxz = cdist(
+            np.column_stack((X, Z)), np.column_stack((X, Z)), metric=effective_metric
+        )
         nxz = np.sum(Dxz < epsilon[:, None], axis=1) - 1
-        Dyz = cdist(np.column_stack((Y, Z)), np.column_stack((Y, Z)), metric=effective_metric)
+        Dyz = cdist(
+            np.column_stack((Y, Z)), np.column_stack((Y, Z)), metric=effective_metric
+        )
         nyz = np.sum(Dyz < epsilon[:, None], axis=1) - 1
         Dz = cdist(Z, Z, metric=effective_metric)
         nz = np.sum(Dz < epsilon[:, None], axis=1) - 1
@@ -480,9 +484,7 @@ def conditional_mutual_information(
         )
 
     elif method == "knn":
-        cmi = knn_conditional_mutual_information(
-            X, Y, Z, metric=metric, k=k
-        )
+        cmi = knn_conditional_mutual_information(X, Y, Z, metric=metric, k=k)
 
     elif method == "geometric_knn":
         effective_metric = "euclidean" if metric is None else metric

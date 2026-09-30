@@ -24,7 +24,7 @@ def discover_network(
     max_lag: int = 5,
     alpha_forward: float = 0.05,
     alpha_backward: float = 0.05,
-    metric: str = "euclidean",
+    metric: Union[str, None] = None,
     bandwidth="silverman",
     k_means: int = 5,
     n_shuffles: int = 200,

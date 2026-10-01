@@ -714,8 +714,8 @@ def information_screened_optimal_causation_entropy(
     r"""Screen with Information-LASSO plus conditional rescue, then refine.
 
     X contains only external candidate predictors for one target. Target
-    history is supplied separately through Z_init and remains in the standard
-    oCSE conditioning set during restricted refinement.
+    history is supplied separately through Z_init and is preserved in both the
+    conditional-rescue and restricted-oCSE conditioning sets.
     """
     if not 0 < retention <= 1:
         raise ValueError("retention must be in (0, 1].")
@@ -742,7 +742,11 @@ def information_screened_optimal_causation_entropy(
     target_size = min(n_features, target_size)
 
     if len(selected) < target_size:
-        Z_rescue = X[:, endpoint] if endpoint else None
+        Z_rescue = (
+            np.hstack((Z_init, X[:, endpoint]))
+            if endpoint
+            else Z_init
+        )
         scored = []
         for j in range(n_features):
             if j in selected:

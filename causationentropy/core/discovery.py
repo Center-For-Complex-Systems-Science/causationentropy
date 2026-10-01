@@ -514,13 +514,18 @@ def information_lasso_optimal_causation_entropy(
     r"""
     Select predictors with information-weighted LASSO.
 
-    Each candidate first receives a non-negative information weight from its
-    conditional mutual information with the target (with no additional
-    conditioning set in this standalone pathway):
+    Each candidate first receives a non-negative information weight using the
+    empty-conditioning specialization of conditional mutual information:
 
     .. math::
 
+        I(X_j; Y \mid \varnothing) = I(X_j; Y),
+
         w_j = \frac{I(X_j; Y)}{\sum_k I(X_k; Y)}.
+
+    In code, the empty conditioning set is represented by ``Z=None``. This is
+    the intentional standalone Path A definition; non-empty target-history
+    conditioning belongs to the separate screened-oCSE pathway.
 
     The weighted-LASSO objective is
 

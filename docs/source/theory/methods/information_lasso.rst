@@ -44,18 +44,30 @@ where:
 Information-Theoretic Weights
 =============================
 
-The weights :math:`w_j` are derived from conditional mutual information measures:
+The broader info-LASSO family can derive :math:`w_j` from conditional
+mutual information. The standalone Path A implementation in this package is
+the empty-conditioning specialization of that family.
 
-Base Weights
------------
+General Conditional Form
+------------------------
 
-For each potential predictor :math:`X_j^{(t-\tau)}`:
+For each potential predictor :math:`X_j^{(t-\tau)}`, a general conditioned
+weight can be written as:
 
 .. math::
 
    w_{j,\tau} = \frac{I(X_j^{(t-\tau)}; X_i^{(t)} | \mathbf{Z}_i)}{\sum_{k,\tau'} I(X_k^{(t-\tau')}; X_i^{(t)} | \mathbf{Z}_i)}
 
-This normalizes the conditional mutual information values to create relative importance weights.
+For the current standalone ``method="information_lasso"`` pathway,
+:math:`\mathbf{Z}_i = \varnothing`. Therefore
+
+.. math::
+
+   I(X_j; Y | \varnothing) = I(X_j; Y),
+
+and the implemented base weights are marginal-information weights. Conditioned
+screening with a non-empty target-history set is handled separately by the
+screened-oCSE pathway rather than by Path A.
 
 Adaptive Weighting
 ------------------
@@ -185,10 +197,13 @@ For each lagged candidate, the standalone pathway computes
 
 .. math::
 
-   w_j = \frac{I(X_j;Y)}{\sum_k I(X_k;Y)}
+   w_j = \frac{I(X_j;Y | \varnothing)}{\sum_k I(X_k;Y | \varnothing)}
+       = \frac{I(X_j;Y)}{\sum_k I(X_k;Y)}.
 
-with no additional conditioning set. The normalized information weights are
-then used as predictor-specific penalty weights. Equivalently, scaling column
+In code, the empty conditioning set is represented by ``Z=None``. This is an
+intentional scope choice for standalone Path A, not an implicit use of the
+target-history conditioning set. The normalized information weights are then
+used as predictor-specific penalty weights. Equivalently, scaling column
 j of the design matrix by w_j lets the existing LASSO solvers optimize
 
 .. math::

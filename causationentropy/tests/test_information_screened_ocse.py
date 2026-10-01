@@ -22,7 +22,10 @@ def test_information_screened_rescue_then_maps_refined_support(monkeypatch):
         lambda *args, **kwargs: [0],
     )
 
-    def fake_cmi(x, _y, _z, **kwargs):
+    rescue_conditioning = []
+
+    def fake_cmi(x, _y, z, **kwargs):
+        rescue_conditioning.append(z.copy())
         # Candidate 2 is the strongest excluded rescue candidate.
         first = float(x[0, 0])
         return {1.0: 1.0, 2.0: 5.0, 3.0: 2.0}.get(first, 0.0)
@@ -54,6 +57,59 @@ def test_information_screened_rescue_then_maps_refined_support(monkeypatch):
     assert selected == [2]
     np.testing.assert_allclose(captured["screened"], X[:, [0, 2]])
     np.testing.assert_allclose(captured["z_init"], Z_init)
+
+    expected_rescue_conditioning = np.hstack((Z_init, X[:, [0]]))
+    assert len(rescue_conditioning) == 3
+    for z in rescue_conditioning:
+        np.testing.assert_allclose(z, expected_rescue_conditioning)
+
+
+def test_information_screened_rescue_uses_history_when_proposal_is_empty(
+    monkeypatch,
+):
+    X = np.column_stack(
+        [
+            np.linspace(0.0, 1.0, 20),
+            np.linspace(1.0, 2.0, 20),
+        ]
+    )
+    Y = np.linspace(-1.0, 1.0, 20).reshape(-1, 1)
+    Z_init = np.column_stack(
+        [
+            np.linspace(4.0, 5.0, 20),
+            np.linspace(5.0, 6.0, 20),
+        ]
+    )
+    rescue_conditioning = []
+
+    monkeypatch.setattr(
+        discovery,
+        "information_lasso_optimal_causation_entropy",
+        lambda *args, **kwargs: [],
+    )
+
+    def fake_cmi(_x, _y, z, **kwargs):
+        rescue_conditioning.append(z.copy())
+        return 1.0
+
+    monkeypatch.setattr(discovery, "conditional_mutual_information", fake_cmi)
+    monkeypatch.setattr(
+        discovery,
+        "standard_optimal_causation_entropy",
+        lambda *args, **kwargs: [],
+    )
+
+    discovery.information_screened_optimal_causation_entropy(
+        X,
+        Y,
+        Z_init,
+        np.random.default_rng(0),
+        retention=0.5,
+    )
+
+    assert len(rescue_conditioning) == 2
+    for z in rescue_conditioning:
+        np.testing.assert_allclose(z, Z_init)
 
 
 def test_information_screened_rejects_invalid_retention():

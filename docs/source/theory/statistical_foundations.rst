@@ -338,6 +338,7 @@ There is no universal minimum sample size that guarantees reliable causal discov
 .. list-table:: Practical sample-size considerations
    :widths: 30 70
    :header-rows: 1
+
    * - Estimator
      - Practical consideration
    * - Gaussian
@@ -346,6 +347,7 @@ There is no universal minimum sample size that guarantees reliable causal discov
      - Nonparametric estimation generally requires more observations as the dimension of the conditioning set increases.
    * - KDE
      - Bandwidth selection and dimensionality can make estimation data-hungry; assess stability empirically rather than relying on a fixed cutoff.
+
 For a concrete study, simulation-based power or sensitivity analysis is preferable to applying a universal sample-size threshold.
 Significance Level Selection
 ---------------------------

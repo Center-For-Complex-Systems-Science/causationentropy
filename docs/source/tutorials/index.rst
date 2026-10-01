@@ -222,3 +222,9 @@ demonstrating different estimators and use cases:
   Nonparametric causal discovery using Kernel Density Estimation.
 * `Poisson Causal Discovery Example <https://github.com/Center-For-Complex-Systems-Science/causationentropy/blob/main/notebooks/poisson_causal_discovery_example.ipynb>`_ -
   Causal discovery for count and event data with Poisson dynamics.
+
+  Additional Tutorial
+-------------------
+
+For additional workflows covering result inspection, delay analysis, and
+evaluation against known ground truth, see :doc:`basic_usage`.

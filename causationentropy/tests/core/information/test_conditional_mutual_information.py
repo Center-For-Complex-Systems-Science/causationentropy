@@ -904,6 +904,7 @@ class TestKNNConditionalMutualInformation:
         assert np.isclose(cmi_dependent, 0.15374, atol=0.04)
         assert abs(cmi_independent) < 0.05
 
+
 def _reference_conditioned_gaussian_cmi(X, Y, Z):
     def _detcorr(A):
         C = np.corrcoef(A.T)

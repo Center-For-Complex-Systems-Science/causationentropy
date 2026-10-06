@@ -106,7 +106,45 @@ def kde_mutual_information(X, Y, bandwidth="silverman", kernel="gaussian"):
     return mi
 
 
-def knn_mutual_information(X, Y, metric="euclidean", k=1):
+def _add_tie_breaking_noise(arrays, scale=1e-10, seed=0):
+    """
+    Add tiny independent noise to each array so that no two samples coincide.
+
+    The KSG-type estimators count neighbours strictly inside the distance to
+    the k-th neighbour. When a point has k or more exact copies, that distance
+    is 0, the counts become -1 and ``digamma(0)`` returns ``-inf``. Adding
+    low-amplitude noise breaks such ties, as recommended by Kraskov et al.
+    (2004) and done in Tigramite's CMIknn and scikit-learn's
+    ``mutual_info_regression``.
+
+    Parameters
+    ----------
+    arrays : sequence of array-like, each of shape (n_samples, n_features)
+        Variables to perturb. Every array receives its own noise.
+    scale : float, default=1e-10
+        Noise amplitude relative to each column's standard deviation (or to
+        ``max(|mean|, 1)`` for a constant column).
+    seed : int, default=0
+        Seed for the noise, so repeated calls on the same input give the same
+        estimate.
+
+    Returns
+    -------
+    list of np.ndarray
+        Perturbed float copies of ``arrays``, in the same order.
+    """
+    rng = np.random.default_rng(seed)
+    noisy = []
+    for A in arrays:
+        A = np.asarray(A, dtype=float)
+        spread = np.std(A, axis=0)
+        fallback = np.maximum(np.abs(np.mean(A, axis=0)), 1.0)
+        amplitude = scale * np.where(spread > 0, spread, fallback)
+        noisy.append(A + amplitude * rng.standard_normal(A.shape))
+    return noisy
+
+
+def knn_mutual_information(X, Y, metric="chebyshev", k=1):
     r"""
     Estimate mutual information using k-nearest neighbor (KSG) method.
 
@@ -127,8 +165,10 @@ def knn_mutual_information(X, Y, metric="euclidean", k=1):
         First variable.
     Y : array-like of shape (n_samples, n_features_y)
         Second variable.
-    metric : str, default='euclidean'
-        Distance metric for neighborhood calculations.
+    metric : str, default='chebyshev'
+        Distance metric for neighborhood calculations. The KSG estimator
+        assumes the maximum norm (Chebyshev distance); other metrics give
+        biased estimates.
     k : int, default=1
         Number of nearest neighbors to consider.
 
@@ -150,11 +190,17 @@ def knn_mutual_information(X, Y, metric="euclidean", k=1):
     - Small k: Lower bias, higher variance
     - Large k: Higher bias, lower variance
 
+    Tiny noise (relative amplitude 1e-10, fixed seed) is added to X and Y
+    before the neighbour search so that repeated values, such as count data,
+    do not produce infinite or NaN estimates.
+
     References
     ----------
     .. [1] Kraskov, A., Stögbauer, H., Grassberger, P. Estimating mutual information.
            Physical Review E 69, 066138 (2004).
     """
+    X, Y = _add_tie_breaking_noise([X, Y])
+
     # construct the joint space
     n = X.shape[0]
     JS = np.column_stack((X, Y))

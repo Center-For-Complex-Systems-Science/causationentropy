@@ -9,6 +9,7 @@ from causationentropy.core.information.entropy import (
     poisson_joint_entropy,
 )
 from causationentropy.core.information.mutual_information import (
+    _add_tie_breaking_noise,
     gaussian_mutual_information,
     geometric_knn_mutual_information,
     kde_mutual_information,
@@ -140,23 +141,23 @@ def kde_conditional_mutual_information(
 
 
 def knn_conditional_mutual_information(X, Y, Z, metric=None, k=1):
-    """
+    r"""
     Estimate conditional mutual information using k-nearest neighbor method.
 
-    This function implements conditional mutual information estimation using
-    the relationship:
+    This function implements the k-nearest-neighbour estimator of Frenzel and
+    Pompe (2007) and Vejmelka and Paluš (2008), the conditional extension of
+    the KSG estimator:
 
     .. math::
 
-        I(X; Y | Z) = I(X, Y) - I(X, Y; Z)
+        I(X; Y | Z) = \psi(k) - \langle \psi(n_{xz} + 1) + \psi(n_{yz} + 1)
+        - \psi(n_z + 1) \rangle
 
-    where both mutual information terms are estimated using the KSG k-NN estimator.
-
-    The approach leverages the fact that:
-
-    .. math::
-
-        I(X; Y | Z) = I(X; Y) - I(X; Y | Z)
+    where :math:`\epsilon_i` is the distance from sample :math:`i` to its k-th
+    neighbour in the joint :math:`(X, Y, Z)` space, and :math:`n_{xz}`,
+    :math:`n_{yz}` and :math:`n_z` count the samples strictly within
+    :math:`\epsilon_i` in the :math:`(X, Z)`, :math:`(Y, Z)` and :math:`Z`
+    subspaces. If ``Z`` is None, the KSG mutual information estimator is used.
 
     Parameters
     ----------
@@ -167,8 +168,9 @@ def knn_conditional_mutual_information(X, Y, Z, metric=None, k=1):
     Z : array-like of shape (n_samples, n_features_z) or None
         Conditioning variable. If None, computes marginal mutual information.
     metric : str or None, default=None
-        Distance metric for k-NN calculations. Uses Minkowski for the
-        marginal-MI case (Z=None) and Chebyshev for conditional MI.
+        Distance metric for k-NN calculations. If None, uses Chebyshev
+        distance (the maximum norm assumed by the estimator) for both the
+        conditional case and the marginal-MI case (Z=None).
     k : int, default=1
         Number of nearest neighbors.
 
@@ -179,23 +181,30 @@ def knn_conditional_mutual_information(X, Y, Z, metric=None, k=1):
 
     Notes
     -----
-    This implementation uses the decomposition approach rather than direct
-    conditional MI estimation. The accuracy depends on:
+    The joint-space distance and all marginal neighbour counts use the same
+    metric. Tiny noise (relative amplitude 1e-10, fixed seed) is added to X, Y
+    and Z before the neighbour search so that repeated values, such as count
+    data or bootstrap resamples, do not produce infinite or NaN estimates.
+    The accuracy depends on:
 
-    - Quality of marginal MI estimates
     - Dimensionality of the joint space
     - Sample size relative to effective dimensionality
+    - The choice of k
 
     References
     ----------
     .. [1] Kraskov, A., Stögbauer, H., Grassberger, P. Estimating mutual information.
            Physical Review E 69, 066138 (2004).
+    .. [2] Frenzel, S., Pompe, B. Partial mutual information for coupling analysis
+           of multivariate time series. Physical Review Letters 99, 204101 (2007).
+    .. [3] Vejmelka, M., Paluš, M. Inferring the directionality of coupling with
+           conditional mutual information. Physical Review E 77, 026214 (2008).
     """
+    effective_metric = "chebyshev" if metric is None else metric
     if Z is None:
-        effective_metric = "minkowski" if metric is None else metric
         return knn_mutual_information(X, Y, metric=effective_metric, k=k)
     else:
-        effective_metric = "chebyshev" if metric is None else metric
+        X, Y, Z = _add_tie_breaking_noise([X, Y, Z])
         JS = np.column_stack((X, Y, Z))
         # Find the K-th smallest distance in the joint space using the
         # same metric that is used for all marginal neighbor counts.

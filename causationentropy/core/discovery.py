@@ -213,6 +213,7 @@ def discover_network(
     G.add_nodes_from(var_names)
 
     # Step 3: Loop over each variable and infer parents from lagged predictors
+    selected_sets = []
     for i in range(n):
         print(f"Estimating edges for node {i} ({var_names[i]})")
 
@@ -307,7 +308,13 @@ def discover_network(
                     significant=True,
                 )
 
-        if not only_return_significant:
+        selected_sets.append((i, Y, list(S)))
+
+    # Report the remaining candidates only after every target is done, so the
+    # extra shuffle tests below don't change the random stream used by the
+    # forward/backward selection of later targets.
+    if not only_return_significant:
+        for i, Y, S in selected_sets:
             # Report every tested candidate, including insignificant links,
             # so delay-analysis plots can show CMI versus lag. Conditioning
             # matches the significant edges above (selected set, minus the

@@ -378,15 +378,14 @@ class TestGeometricKnnConditionalMutualInformation:
         X = np.random.normal(0, 1, (n, 2))
         Y = np.random.normal(0, 1, (n, 1))
 
-        # I(X;Y|Z) with Z=None should equal I(X;Y) with default k=1
+        # I(X;Y|Z) with Z=None should equal I(X;Y) computed with the same k.
         cmi = geometric_knn_conditional_mutual_information(X, Y, Z=None, k=3)
 
         from causationentropy.core.information.mutual_information import (
             geometric_knn_mutual_information,
         )
 
-        # The function uses default k=1 when Z=None, so compare with k=1
-        mi = geometric_knn_mutual_information(X, Y, k=1)
+        mi = geometric_knn_mutual_information(X, Y, k=3)
 
         assert np.isclose(cmi, mi, rtol=1e-10)
 

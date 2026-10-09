@@ -31,6 +31,7 @@ def discover_network(
     n_jobs=-1,
     random_state: Union[int, np.random.Generator, None] = 42,
     only_return_significant: bool = True,
+    kd_tree: bool = True,
 ) -> nx.MultiDiGraph:
     r"""
     Infer a causal graph via Optimal Causation Entropy (oCSE).
@@ -115,6 +116,13 @@ def discover_network(
         ``significant=False`` edge attribute. This is intended for small
         networks only (e.g. delay-analysis plots), since it runs a CMI +
         shuffle test for all ``n * max_lag`` candidates per target.
+    kd_tree : bool, default=True
+        For ``information='knn'`` or ``'geometric_knn'``, use a KD-Tree for
+        neighbor search instead of building full O(N^2) distance matrices.
+        This gives numerically equivalent results to ``kd_tree=False`` in
+        roughly O(N log N) time and without materializing an N x N distance
+        matrix, which matters for long time series. Ignored by the
+        'gaussian', 'kde', and 'poisson' information types.
 
     Returns
     -------
@@ -234,6 +242,7 @@ def discover_network(
                 metric,
                 k_means,
                 bandwidth,
+                kd_tree,
             )
         if method == "alternative":
             S = alternative_optimal_causation_entropy(
@@ -247,6 +256,7 @@ def discover_network(
                 metric,
                 k_means,
                 bandwidth,
+                kd_tree,
             )
         if method == "information_lasso":
             S = information_lasso_optimal_causation_entropy(X_lagged, Y, rng)
@@ -272,6 +282,7 @@ def discover_network(
                 metric=metric,
                 k=k_means,
                 bandwidth=bandwidth,
+                kd_tree=kd_tree,
             )
 
             # Compute p-value using shuffle test
@@ -287,6 +298,7 @@ def discover_network(
                 metric=metric,
                 k_means=k_means,
                 bandwidth=bandwidth,
+                kd_tree=kd_tree,
             )
 
             if only_return_significant:
@@ -329,6 +341,7 @@ def discover_network(
                     metric=metric,
                     k=k_means,
                     bandwidth=bandwidth,
+                    kd_tree=kd_tree,
                 )
 
                 test_result = shuffle_test(
@@ -343,6 +356,7 @@ def discover_network(
                     metric=metric,
                     k_means=k_means,
                     bandwidth=bandwidth,
+                    kd_tree=kd_tree,
                 )
 
                 G.add_edge(
@@ -369,6 +383,7 @@ def standard_optimal_causation_entropy(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    kd_tree=True,
 ):
     r"""
     Execute the standard optimal Causation Entropy algorithm with initial conditioning set.
@@ -410,7 +425,17 @@ def standard_optimal_causation_entropy(
     """
 
     forward_pass = standard_forward(
-        X, Y, Z_init, rng, alpha1, n_shuffles, information, metric, k_means, bandwidth
+        X,
+        Y,
+        Z_init,
+        rng,
+        alpha1,
+        n_shuffles,
+        information,
+        metric,
+        k_means,
+        bandwidth,
+        kd_tree,
     )
 
     S = backward(
@@ -424,6 +449,7 @@ def standard_optimal_causation_entropy(
         metric,
         k_means,
         bandwidth,
+        kd_tree,
     )
 
     return S
@@ -440,6 +466,7 @@ def alternative_optimal_causation_entropy(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    kd_tree=True,
 ):
     """
     Execute the alternative optimal Causation Entropy algorithm without initial conditioning.
@@ -472,7 +499,7 @@ def alternative_optimal_causation_entropy(
     """
 
     forward_pass = alternative_forward(
-        X, Y, rng, alpha1, n_shuffles, information, metric, k_means, bandwidth
+        X, Y, rng, alpha1, n_shuffles, information, metric, k_means, bandwidth, kd_tree
     )
 
     S = backward(
@@ -486,6 +513,7 @@ def alternative_optimal_causation_entropy(
         metric,
         k_means,
         bandwidth,
+        kd_tree,
     )
 
     return S
@@ -595,6 +623,7 @@ def alternative_forward(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    kd_tree=True,
 ):
     r"""
     Forward selection phase of oCSE without initial conditioning set.
@@ -660,6 +689,7 @@ def alternative_forward(
                 metric=metric,
                 k=k_means,
                 bandwidth=bandwidth,
+                kd_tree=kd_tree,
             )
 
         # 2. pick best
@@ -680,6 +710,7 @@ def alternative_forward(
             metric=metric,
             k_means=k_means,
             bandwidth=bandwidth,
+            kd_tree=kd_tree,
         )["Pass"]
         if not passed:
             break
@@ -702,6 +733,7 @@ def standard_forward(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    kd_tree=True,
 ):
     r"""
     Standard forward selection phase of oCSE with initial conditioning set.
@@ -766,6 +798,7 @@ def standard_forward(
                 metric=metric,
                 k=k_means,
                 bandwidth=bandwidth,
+                kd_tree=kd_tree,
             )
 
         # 2. take the arg‑max
@@ -787,6 +820,7 @@ def standard_forward(
             metric=metric,
             k_means=k_means,
             bandwidth=bandwidth,
+            kd_tree=kd_tree,
         )["Pass"]
 
         if not passed:
@@ -812,6 +846,7 @@ def backward(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    kd_tree=True,
 ):
     r"""
     Backward elimination phase of optimal Causation Entropy.
@@ -870,7 +905,14 @@ def backward(
 
         Xj = X_full[:, [j]]
         cmij = conditional_mutual_information(
-            Xj, Y, Z, method=information, metric=metric, k=k_means, bandwidth=bandwidth
+            Xj,
+            Y,
+            Z,
+            method=information,
+            metric=metric,
+            k=k_means,
+            bandwidth=bandwidth,
+            kd_tree=kd_tree,
         )
 
         passed = shuffle_test(
@@ -885,6 +927,7 @@ def backward(
             metric=metric,
             k_means=k_means,
             bandwidth=bandwidth,
+            kd_tree=kd_tree,
         )["Pass"]
         if not passed:
             S.remove(j)  # prune j
@@ -905,6 +948,7 @@ def shuffle_test(
     k_means=5,
     bandwidth="silverman",
     early_stop=False,
+    kd_tree=True,
 ):
     r"""
     Permutation test for conditional mutual information significance.
@@ -1041,6 +1085,7 @@ def shuffle_test(
             metric=metric,
             k=k_means,
             bandwidth=bandwidth,
+            kd_tree=kd_tree,
         )
         if early_stop and null_cmi[i] >= observed_cmi:
             exceedances += 1

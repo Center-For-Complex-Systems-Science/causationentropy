@@ -6,6 +6,8 @@ from scipy.special import gamma, i0, i1
 from scipy.stats import nbinom
 from sklearn.neighbors import KernelDensity
 
+from causationentropy.core.information.neighbors import knn_indices
+
 
 def l2dist(a, b):
     r"""
@@ -112,7 +114,7 @@ def kde_entropy(X, bandwidth="silverman", kernel="gaussian"):
     return Hx
 
 
-def geometric_knn_entropy(X, Xdist, k=1):
+def geometric_knn_entropy(X, Xdist=None, k=1, metric="euclidean", kd_tree=True):
     r"""
     Estimate entropy using geometric k-nearest neighbor method.
 
@@ -134,10 +136,20 @@ def geometric_knn_entropy(X, Xdist, k=1):
     ----------
     X : array-like of shape (N, d)
         Input data matrix where N is the number of samples and d is the dimensionality.
-    Xdist : array-like of shape (N, N)
-        Pairwise distance matrix between all points in X.
+    Xdist : array-like of shape (N, N), optional
+        Pairwise distance matrix between all points in X. When provided, the
+        k nearest neighbors are read directly from this matrix (useful for
+        reusing an already-computed distance matrix, or for tests that need
+        to control the exact neighbor geometry). When omitted, neighbors are
+        found directly from X using ``kd_tree``/``metric`` without ever
+        materializing the full O(N^2) distance matrix.
     k : int, default=1
         Number of nearest neighbors to consider for entropy estimation.
+    metric : str, default='euclidean'
+        Distance metric used to find neighbors when `Xdist` is not supplied.
+    kd_tree : bool, default=True
+        When `Xdist` is not supplied, use a KD-Tree for an O(N log N)
+        neighbor search instead of building the full O(N^2) distance matrix.
 
     Returns
     -------
@@ -161,10 +173,14 @@ def geometric_knn_entropy(X, Xdist, k=1):
            entropy and mutual information. Chaos 28, 033113 (2018).
     """
     N, d = X.shape
-    Xknn = np.zeros((N, k), dtype=int)
 
-    for i in range(N):
-        Xknn[i, :] = np.argsort(Xdist[i, :])[1 : k + 1]
+    if Xdist is not None:
+        Xknn = np.zeros((N, k), dtype=int)
+        for i in range(N):
+            Xknn[i, :] = np.argsort(Xdist[i, :])[1 : k + 1]
+    else:
+        Xknn = knn_indices(X, k, metric=metric, kd_tree=kd_tree)
+
     H_X = np.log(N) + np.log(np.pi ** (d / 2) / gamma(1 + d / 2))
 
     # Compute distance-based term with safety checks

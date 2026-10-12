@@ -17,8 +17,10 @@ python -m benchmarks.run --profile full --output benchmark-results
   With `p=0.2`, `n=20` yields ~77 true edges, matching the issue report.
 * **Edge matching:** exact `(source, target, lag)`; all ground-truth
   edges are lag 1, so lag-2 discoveries count as false positives.
-* **Self-lags:** included in the main counts (the generator produces no
-  self-loops, so any self-lag discovery is a false positive).
+* **Self-lags:** reported separately from cross-links. Standard oCSE
+  conditions on the target's own lags, so it cannot discover self-lags
+  by construction; counting them in the main score would penalise it on
+  generators with autoregression. Cross-links are the main metric.
 * **CE config:** `method="standard"`, Gaussian, serial (`n_jobs=1`),
   `alpha_forward=alpha_backward=0.05`, profile-dependent `n_shuffles`.
 * **PCMCI config:** `ParCorr`, `tau_max=max_lag`, `pc_alpha=0.05`.

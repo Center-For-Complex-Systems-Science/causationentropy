@@ -1,8 +1,9 @@
 """Edge-set normalization and graph-recovery metrics for issue #18.
 
 Canonical rule (see ``benchmarks/README.md``): a true positive requires an
-exact ``(source, target, lag)`` match. Self-lag links are included in the
-main counts.
+exact ``(source, target, lag)`` match. Cross-links are the main metric;
+self-lags are reported separately because the standard oCSE method
+conditions on the target's own lags and cannot discover them.
 """
 
 from __future__ import annotations
@@ -47,14 +48,18 @@ def normalize_pcmci_edges(graph) -> set:
 
 
 def score_edges(truth: set, predicted: set) -> dict:
-    """Score ``predicted`` against ``truth`` with exact-match counting."""
+    """Score ``predicted`` against ``truth`` with exact-match counting.
+
+    Returns overall counts plus a cross-link / self-lag breakdown
+    (``cross_*`` is the main metric; ``self_*`` is reported separately).
+    """
     tp = len(truth & predicted)
     fp = len(predicted - truth)
     fn = len(truth - predicted)
     precision = tp / (tp + fp) if (tp + fp) else 0.0
     recall = tp / (tp + fn) if (tp + fn) else 0.0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
-    return {
+    out = {
         "TP": tp,
         "FP": fp,
         "FN": fn,
@@ -64,3 +69,31 @@ def score_edges(truth: set, predicted: set) -> dict:
         "n_truth": len(truth),
         "n_predicted": len(predicted),
     }
+    truth_self = {e for e in truth if e[0] == e[1]}
+    predicted_self = {e for e in predicted if e[0] == e[1]}
+    cross_truth = truth - truth_self
+    cross_predicted = predicted - predicted_self
+    cross_tp = len(cross_truth & cross_predicted)
+    cross_fp = len(cross_predicted - cross_truth)
+    cross_fn = len(cross_truth - cross_predicted)
+    cross_precision = cross_tp / (cross_tp + cross_fp) if (cross_tp + cross_fp) else 0.0
+    cross_recall = cross_tp / (cross_tp + cross_fn) if (cross_tp + cross_fn) else 0.0
+    cross_f1 = (
+        2 * cross_precision * cross_recall / (cross_precision + cross_recall)
+        if (cross_precision + cross_recall)
+        else 0.0
+    )
+    out.update(
+        {
+            "cross_TP": cross_tp,
+            "cross_FP": cross_fp,
+            "cross_FN": cross_fn,
+            "cross_precision": cross_precision,
+            "cross_recall": cross_recall,
+            "cross_F1": cross_f1,
+            "self_TP": len(truth_self & predicted_self),
+            "self_FP": len(predicted_self - truth_self),
+            "self_FN": len(truth_self - predicted_self),
+        }
+    )
+    return out

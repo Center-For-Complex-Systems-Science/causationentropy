@@ -68,6 +68,7 @@ def run_profile(
     from causationentropy.graph.utils import pcmci_to_networkx
 
     rows = []
+    pcmci_available = not skip_pcmci
     for n, T in sizes:
         for seed in seeds:
             data, truth, node_order = generate_case(n, T, seed)
@@ -98,15 +99,16 @@ def run_profile(
                     flush=True,
                 )
 
-            if skip_pcmci:
+            if not pcmci_available:
                 continue
             try:
                 results, pcmci_time = run_pcmci_parcorr(
                     data, tau_max=max_lag, pc_alpha=pc_alpha
                 )
             except ImportError as exc:
-                print(f"WARNING: {exc} Skipping PCMCI baseline.", file=sys.stderr)
-                return rows
+                print(f"WARNING: {exc} Continuing with CE only.", file=sys.stderr)
+                pcmci_available = False
+                continue
             pcmci_graph = pcmci_to_networkx(results)
             pcmci_scores = score_edges(truth, normalize_pcmci_edges(pcmci_graph))
             row = {
@@ -133,8 +135,20 @@ def aggregate(rows):
     """Aggregate per-seed rows to one row per (method, n, T).
 
     Runtime is the median across seeds; accuracy is micro-averaged
-    (TP/FP/FN summed, then precision/recall/F1 derived).
+    (TP/FP/FN summed, then precision/recall/F1 derived). Cross-links are
+    the main metric; self-lag counts are reported separately.
     """
+
+    def _prf(tp, fp, fn):
+        precision = tp / (tp + fp) if (tp + fp) else 0.0
+        recall = tp / (tp + fn) if (tp + fn) else 0.0
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if (precision + recall)
+            else 0.0
+        )
+        return precision, recall, f1
+
     groups = {}
     for row in rows:
         groups.setdefault((row["method"], row["n"], row["T"]), []).append(row)
@@ -146,13 +160,11 @@ def aggregate(rows):
         tp = sum(r["TP"] for r in group)
         fp = sum(r["FP"] for r in group)
         fn = sum(r["FN"] for r in group)
-        precision = tp / (tp + fp) if (tp + fp) else 0.0
-        recall = tp / (tp + fn) if (tp + fn) else 0.0
-        f1 = (
-            2 * precision * recall / (precision + recall)
-            if (precision + recall)
-            else 0.0
-        )
+        precision, recall, f1 = _prf(tp, fp, fn)
+        cross_tp = sum(r["cross_TP"] for r in group)
+        cross_fp = sum(r["cross_FP"] for r in group)
+        cross_fn = sum(r["cross_FN"] for r in group)
+        cross_precision, cross_recall, cross_f1 = _prf(cross_tp, cross_fp, cross_fn)
         summary.append(
             {
                 "method": method,
@@ -169,6 +181,15 @@ def aggregate(rows):
                 "precision": precision,
                 "recall": recall,
                 "F1": f1,
+                "cross_TP": cross_tp,
+                "cross_FP": cross_fp,
+                "cross_FN": cross_fn,
+                "cross_precision": cross_precision,
+                "cross_recall": cross_recall,
+                "cross_F1": cross_f1,
+                "self_TP": sum(r["self_TP"] for r in group),
+                "self_FP": sum(r["self_FP"] for r in group),
+                "self_FN": sum(r["self_FN"] for r in group),
             }
         )
     return summary
@@ -182,18 +203,23 @@ def markdown_table(summary, max_lag: int, n_shuffles: int, pc_alpha: float) -> s
         f"`max_lag`/`tau_max`={max_lag}.",
         f"CE: Gaussian oCSE (`method='standard'`), serial (`n_jobs=1`), "
         f"`n_shuffles={n_shuffles}`. PCMCI: `ParCorr`, `pc_alpha={pc_alpha}`.",
-        "Matching: exact `(source, target, lag)`; runtime is the median "
-        "across seeds, accuracy micro-averaged (TP/FP/FN summed).",
+        "Matching: exact `(source, target, lag)`. Cross-links are the main "
+        "metric; self-lags are reported separately because standard oCSE "
+        "conditions on the target's own lags and cannot discover them. "
+        "Runtime is the median across seeds, accuracy micro-averaged "
+        "(TP/FP/FN summed).",
         "",
-        "| method | n | T | seeds | runtime median s | TP | FP | FN | precision | recall | F1 |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
+        "| method | n | T | seeds | runtime median s | cross TP | cross FP | cross FN | cross precision | cross recall | cross F1 | self TP | self FP | self FN |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for entry in summary:
         lines.append(
             f"| {entry['method']} | {entry['n']} | {entry['T']} | "
             f"{entry['n_seeds']} | {entry['runtime_median_s']:.1f} | "
-            f"{entry['TP']} | {entry['FP']} | {entry['FN']} | "
-            f"{entry['precision']:.3f} | {entry['recall']:.3f} | {entry['F1']:.3f} |"
+            f"{entry['cross_TP']} | {entry['cross_FP']} | {entry['cross_FN']} | "
+            f"{entry['cross_precision']:.3f} | {entry['cross_recall']:.3f} | "
+            f"{entry['cross_F1']:.3f} | "
+            f"{entry['self_TP']} | {entry['self_FP']} | {entry['self_FN']} |"
         )
     return "\n".join(lines) + "\n"
 

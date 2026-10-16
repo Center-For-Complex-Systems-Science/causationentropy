@@ -12,15 +12,12 @@ Dynamical Systems
 
 .. autofunction:: causationentropy.datasets.synthetic.linear_stochastic_gaussian_process
 
+Data From a Chosen Graph
+------------------------
+
+.. autofunction:: causationentropy.datasets.synthetic.linear_gaussian_from_graph
+
 Coupled Oscillators
 -------------------
 
 .. autofunction:: causationentropy.datasets.synthetic.poisson_coupled_oscillators
-
-Module Contents
----------------
-
-.. automodule:: causationentropy.datasets.synthetic
-   :members:
-   :undoc-members:
-   :show-inheritance:

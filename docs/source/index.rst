@@ -67,6 +67,7 @@ Here is an example:
    api/linalg
    api/plotting
    api/stats
+   api/graph
 
 
 .. toctree::

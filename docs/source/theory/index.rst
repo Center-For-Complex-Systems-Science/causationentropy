@@ -12,6 +12,7 @@ including mathematical foundations, algorithmic details, and methodological comp
    methods/standard_oce
    methods/alternative_oce
    methods/information_lasso
+   methods/information_screened_ocse
    methods/lasso_methods
    information_theory
    statistical_foundations
@@ -65,4 +66,5 @@ Next Steps
 - :doc:`methods/standard_oce`: Detailed explanation of the standard oCSE algorithm  
 - :doc:`methods/alternative_oce`: Alternative oCSE formulation without initial conditioning
 - :doc:`methods/information_lasso`: Information-theoretic variant with LASSO regularization
+- :doc:`methods/information_screened_ocse`: Conservative information screening followed by restricted oCSE
 - :doc:`methods/lasso_methods`: Pure LASSO-based approaches for comparison

@@ -113,6 +113,27 @@ stage still performs the significance-based causal selection.
 Current Scope
 =============
 
+Standard-path conditioning is corrected independently of screening; see
+:doc:`standard_oce`. Both full and restricted searches must use that same
+baseline for a meaningful comparison. Existing positional arguments retain
+their order; pass the new retention control by name.
+
+Evaluation distinguishes three quantities:
+
+* True-parent recall: the fraction of generating external parent-lag pairs in
+  the screen. Parent-complete target rate separately measures whether every
+  generating parent of a target survives, excluding targets with no parents.
+* Full-oCSE-support coverage: the fraction of the finite-sample full-oCSE
+  selection in the screen. This is an agreement diagnostic, not ground truth.
+* Final graph precision/recall/F1 after restricted refinement, plus total CMI
+  evaluations and runtime including screening.
+
+Measure these over sample sizes and realized retention fractions. A
+proposal-only ablation removes rescue but changes candidate count; a
+budget-matched marginal-fill ablation retains the proposal and fills to the
+same size without conditioning on the proposal. Report both to distinguish
+the value of conditional rescue from simply keeping more candidates.
+
 The current implementation does not claim a finite-sample sure-screening
 theorem and does not guarantee that every causal parent is retained for every
 finite dataset. The relevant empirical quantity is therefore the

@@ -25,14 +25,14 @@ def discover_network(
     max_lag: int = 5,
     alpha_forward: float = 0.05,
     alpha_backward: float = 0.05,
-    metric: str = "euclidean",
+    metric: Union[str, None] = None,
     bandwidth="silverman",
     k_means: int = 5,
     n_shuffles: int = 200,
-    screen_retention: float = 0.40,
     n_jobs=-1,
     random_state: Union[int, np.random.Generator, None] = 42,
     only_return_significant: bool = True,
+    screen_retention: float = 0.40,
 ) -> nx.MultiDiGraph:
     r"""
     Infer a causal graph via Optimal Causation Entropy (oCSE).
@@ -103,10 +103,6 @@ def discover_network(
     n_shuffles : int, default=200
         Number of permutations for statistical significance testing. Higher values
         provide more accurate p-value estimates but increase computational cost.
-    screen_retention : float, default=0.40
-        Target fraction of external lagged candidates retained by the
-        information_screened method before restricted oCSE refinement.
-        Ignored by other methods.
     n_jobs : int, default=-1
         Number of parallel jobs for computation. -1 uses all available processors.
     random_state : int, numpy.random.Generator, or None, default=42
@@ -123,6 +119,10 @@ def discover_network(
         ``significant=False`` edge attribute. This is intended for small
         networks only (e.g. delay-analysis plots), since it runs a CMI +
         shuffle test for all ``n * max_lag`` candidates per target.
+    screen_retention : float, default=0.40
+        Soft target fraction of external lagged candidates retained by the
+        information_screened method before restricted oCSE refinement.
+        Ignored by other methods. Appended to preserve existing positional calls.
 
     Returns
     -------
@@ -227,6 +227,7 @@ def discover_network(
     G.add_nodes_from(var_names)
 
     # Step 3: Loop over each variable and infer parents from lagged predictors
+    selected_sets = []
     for i in range(n):
         print(f"Estimating edges for node {i} ({var_names[i]})")
 
@@ -241,9 +242,7 @@ def discover_network(
             Z_init = np.column_stack(Z_init)  # shape: (T - max_lag, max_lag)
             # Target-history lags are already in Z_init; do not retest them.
             candidate_ids = [
-                idx
-                for idx, (source, _lag) in enumerate(feature_names)
-                if source != i
+                idx for idx, (source, _lag) in enumerate(feature_names) if source != i
             ]
             X_candidates = X_lagged[:, candidate_ids]
             S_local = standard_optimal_causation_entropy(
@@ -287,15 +286,10 @@ def discover_network(
             )
         if method == "information_screened":
             Z_init = np.column_stack(
-                [
-                    series[max_lag - tau : T - tau, i]
-                    for tau in range(1, max_lag + 1)
-                ]
+                [series[max_lag - tau : T - tau, i] for tau in range(1, max_lag + 1)]
             )
             candidate_ids = [
-                idx
-                for idx, (source, _lag) in enumerate(feature_names)
-                if source != i
+                idx for idx, (source, _lag) in enumerate(feature_names) if source != i
             ]
             screened_local = information_screened_optimal_causation_entropy(
                 X_lagged[:, candidate_ids],
@@ -324,8 +318,8 @@ def discover_network(
             Y_target = Y  # target variable
 
             # Conditioning set: all other selected predictors for this target.
-            # Screened oCSE also keeps the target-history baseline used by the
-            # restricted refinement.
+            # Standard and screened oCSE keep the target-history baseline used
+            # throughout forward/backward refinement.
             other_selected = [idx for idx in S if idx != s]
             Z_selected = X_lagged[:, other_selected] if other_selected else None
             if output_base is None:
@@ -379,7 +373,13 @@ def discover_network(
                     significant=True,
                 )
 
-        if not only_return_significant:
+        selected_sets.append((i, Y, list(S), output_base, report_candidate_ids))
+
+    # Report the remaining candidates only after every target is done, so the
+    # extra shuffle tests below don't change the random stream used by the
+    # forward/backward selection of later targets.
+    if not only_return_significant:
+        for i, Y, S, output_base, report_candidate_ids in selected_sets:
             # Report every tested candidate, including insignificant links,
             # so delay-analysis plots can show CMI versus lag. Conditioning
             # matches the significant edges above (selected set, minus the
@@ -742,11 +742,7 @@ def information_screened_optimal_causation_entropy(
     target_size = min(n_features, target_size)
 
     if len(selected) < target_size:
-        Z_rescue = (
-            np.hstack((Z_init, X[:, endpoint]))
-            if endpoint
-            else Z_init
-        )
+        Z_rescue = np.hstack((Z_init, X[:, endpoint])) if endpoint else Z_init
         scored = []
         for j in range(n_features):
             if j in selected:
@@ -765,9 +761,7 @@ def information_screened_optimal_causation_entropy(
             scored.append((float(score), int(j)))
 
         scored.sort(key=lambda item: (-item[0], item[1]))
-        selected.update(
-            j for _score, j in scored[: target_size - len(selected)]
-        )
+        selected.update(j for _score, j in scored[: target_size - len(selected)])
 
     screened = sorted(selected)
     refined_local = standard_optimal_causation_entropy(
@@ -784,6 +778,7 @@ def information_screened_optimal_causation_entropy(
         bandwidth=bandwidth,
     )
     return [screened[int(local_idx)] for local_idx in refined_local]
+
 
 def lasso_optimal_causation_entropy(
     X, Y, rng, criterion="bic", max_lambda=100, cross_val=10
@@ -1072,13 +1067,13 @@ def backward(
     This function performs backward elimination to remove spurious causal relationships
     identified during forward selection. For each predictor selected in the forward phase,
     it tests whether the predictor maintains statistical significance when conditioned on
-    all other selected predictors.
+    all other selected predictors and any fixed initial conditioning set.
 
     For each predictor :math:`X_j` in the selected set, the test evaluates:
 
     .. math::
 
-        I(X_j^{(t)}; Y^{(t+\tau)} | \mathbf{S}_{-j}^{(t)}) > \text{threshold}
+        I(X_j^{(t)}; Y^{(t+\tau)} | \mathbf{Z}_{init}, \mathbf{S}_{-j}^{(t)}) > \text{threshold}
 
     where :math:`\mathbf{S}_{-j}^{(t)}` represents all selected predictors except :math:`X_j`.
 
@@ -1098,6 +1093,10 @@ def backward(
         Number of permutation shuffles for statistical testing.
     information : str, default='gaussian'
         Information measure estimator type.
+
+    Z_init : array-like of shape (T, p), optional
+        Fixed conditioning baseline retained during every backward test.
+        The default None preserves unconditioned alternative-oCSE behavior.
 
     Returns
     -------
@@ -1163,6 +1162,7 @@ def shuffle_test(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    early_stop=False,
 ):
     r"""
     Permutation test for conditional mutual information significance.
@@ -1205,6 +1205,15 @@ def shuffle_test(
         Random number generator or seed for reproducible results.
     information : str, default='gaussian'
         Information measure estimator type used for conditional mutual information.
+    early_stop : bool, default=False
+        Opt-in futility stopping. If True, stop drawing shuffles once more
+        null values reach or exceed the observed CMI than
+        ``alpha * n_shuffles``. The final p-value is then guaranteed above
+        ``alpha``, so the test cannot pass; this only skips work for
+        clearly insignificant candidates. Tests that could pass always run
+        the full ``n_shuffles``. The default False preserves the exact
+        legacy behavior (full null distribution, exact permutation
+        p-values).
 
     Returns
     -------
@@ -1215,6 +1224,35 @@ def shuffle_test(
         - 'Value': float, the observed conditional mutual information value
         - 'Pass': bool, True if observed_cmi >= threshold (statistically significant)
         - 'P_value': float, empirical p-value (proportion of null values >= observed)
+        - 'N_Completed': int, number of shuffles actually drawn
+        - 'Early_Stopped': bool, True if drawing stopped early
+        - 'N_Exceeded': int, null values reaching or exceeding the observed
+          CMI among the completed shuffles
+
+    Notes
+    -----
+    The permutation test is based on the assumption that under the null hypothesis,
+    the predictor X is exchangeable with respect to the target Y when conditioned on Z.
+    This provides a non-parametric approach to significance testing that does not
+    require distributional assumptions.
+
+    For computational efficiency, consider reducing n_shuffles for preliminary analyses,
+    though this may reduce the precision of p-value estimates.
+
+    When ``early_stop`` truncates the null distribution, ``Threshold`` and
+    ``P_value`` are computed from the completed shuffles only and therefore
+    differ numerically from full-budget statistics; ``Early_Stopped`` marks
+    such partial results. The full-run p-value is still bounded below by
+    ``N_Exceeded / n_shuffles`` (remaining shuffles can only add
+    exceedances), and since that bound already exceeds ``alpha``, the
+    ``Pass`` decision matches the full run. Both the stopping trigger and
+    the reported p-value count null values ``>=`` the observed CMI, so
+    ties (e.g. from discrete kNN estimates) behave identically in both.
+
+    Early stopping consumes fewer draws from a shared ``rng`` than a full
+    run, so subsequent tests sharing that generator observe a shifted
+    permutation stream compared with ``early_stop=False``. Repeated runs
+    with the same seed remain exactly reproducible.
 
     Notes
     -----
@@ -1244,6 +1282,13 @@ def shuffle_test(
     rng = np.random.default_rng(rng)
     null_cmi = np.empty(n_shuffles)
 
+    # Futility stopping: once strictly more null values reach or exceed the
+    # observed CMI than alpha * n_shuffles, the final p-value must end above
+    # alpha, so the test cannot pass and further shuffles only cost compute.
+    # The trigger uses >= to match the reported p-value rule exactly.
+    stop_limit = alpha * n_shuffles
+    exceedances = 0
+    n_completed = n_shuffles
     for i in range(n_shuffles):
         X_perm = X[rng.permutation(len(X)), :]  # shuffle rows
         null_cmi[i] = conditional_mutual_information(
@@ -1255,15 +1300,29 @@ def shuffle_test(
             k=k_means,
             bandwidth=bandwidth,
         )
+        if early_stop and null_cmi[i] >= observed_cmi:
+            exceedances += 1
+            if exceedances > stop_limit:
+                n_completed = i + 1
+                break
 
+    null_cmi = null_cmi[:n_completed]
     threshold = np.percentile(null_cmi, 100 * (1 - alpha))
     # Calculate p-value: proportion of null values >= observed value
     p_value = np.mean(null_cmi >= observed_cmi)
+    if n_completed < n_shuffles:
+        # Stopped early: the p-value is guaranteed above alpha.
+        passed = False
+    else:
+        passed = observed_cmi >= threshold
     return {
         "Threshold": threshold,
         "Value": observed_cmi,
-        "Pass": observed_cmi >= threshold,
+        "Pass": passed,
         "P_value": p_value,
+        "N_Completed": n_completed,
+        "Early_Stopped": n_completed < n_shuffles,
+        "N_Exceeded": exceedances,
     }
 
 

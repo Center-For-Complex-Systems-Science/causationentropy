@@ -83,3 +83,6 @@ venv.bak/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Local benchmark artifacts (issue #18)
+benchmark-results/

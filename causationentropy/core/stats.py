@@ -1,5 +1,11 @@
+from typing import Tuple, Union
+
 import numpy as np
 from scipy.integrate import trapezoid
+
+from causationentropy.core.information.conditional_mutual_information import (
+    conditional_mutual_information,
+)
 
 
 def auc(TPRs, FPRs):
@@ -178,3 +184,820 @@ def Compute_TPR_FPR(A, B):
     FPR = false_positives / total_negatives if total_negatives > 0 else 0.0
 
     return (TPR, FPR)
+
+
+def moving_block_bootstrap_indices(
+    n: int,
+    block_length: int,
+    n_bootstraps: int,
+    seed: Union[int, np.random.Generator, None] = 42,
+) -> np.ndarray:
+    r"""
+    Draw moving-block bootstrap resamples of ``range(n)``.
+
+    The standard bootstrap assumes i.i.d. data, which time series violate.
+    The moving block bootstrap instead resamples overlapping blocks of
+    consecutive observations, preserving local temporal dependence within
+    each block. With ``n`` time points and block length ``l``, a bootstrap
+    replicate is ``[B_1, B_2, ...]`` where each ``B_i`` is a block of
+    length ``l`` starting at a uniformly drawn time point (wrapping around
+    the end circularly); blocks are concatenated and truncated to ``n``.
+
+    Parameters
+    ----------
+    n : int
+        Number of time points. Must be at least 1.
+    block_length : int
+        Length ``l`` of each overlapping block. Must satisfy
+        ``1 <= block_length <= n``. Larger values preserve more dependence
+        but give fewer independent blocks.
+    n_bootstraps : int
+        Number of bootstrap replicates. Must be at least 1.
+    seed : int, numpy.random.Generator, or None, default=42
+        Random seed or generator for reproducibility.
+
+    Returns
+    -------
+    indices : np.ndarray of shape (n_bootstraps, n) with dtype int
+        Resampled time indices; ``indices[b]`` is the ``b``-th replicate.
+
+    Raises
+    ------
+    ValueError
+        If the sizes are out of range.
+
+    Examples
+    --------
+    >>> from causationentropy.core.stats import moving_block_bootstrap_indices
+    >>>
+    >>> indices = moving_block_bootstrap_indices(100, 10, 5, seed=0)
+    >>> indices.shape
+    (5, 100)
+
+    References
+    ----------
+    .. [1] Künsch, H. R. "The jackknife and the bootstrap for general
+           stationary observations." Annals of Statistics 17, 1217-1241
+           (1989).
+
+    See Also
+    --------
+    stationary_bootstrap_indices : Bootstrap with random block lengths.
+    bootstrap_confidence_interval : Percentile interval from replicates.
+    """
+    if n < 1:
+        raise ValueError("n must be at least 1.")
+    if not 1 <= block_length <= n:
+        raise ValueError("block_length must satisfy 1 <= block_length <= n.")
+    if n_bootstraps < 1:
+        raise ValueError("n_bootstraps must be at least 1.")
+    rng = np.random.default_rng(seed)
+
+    n_blocks = int(np.ceil(n / block_length))
+    starts = rng.integers(0, n, size=(n_bootstraps, n_blocks))
+    offsets = np.arange(block_length)
+    blocks = (starts[..., None] + offsets) % n
+    return blocks.reshape(n_bootstraps, -1)[:, :n]
+
+
+def stationary_bootstrap_indices(
+    n: int,
+    mean_block_length: float,
+    n_bootstraps: int,
+    seed: Union[int, np.random.Generator, None] = 42,
+) -> np.ndarray:
+    r"""
+    Draw stationary-bootstrap resamples of ``range(n)``.
+
+    Unlike the moving block bootstrap, block lengths here are random with
+    a geometric distribution of mean ``mean_block_length``, which makes the
+    resampled series itself stationary and preserves temporal dependence.
+    Blocks start at uniformly drawn time points (wrapping circularly) and
+    are concatenated until ``n`` indices are collected, then truncated.
+
+    Parameters
+    ----------
+    n : int
+        Number of time points. Must be at least 1.
+    mean_block_length : float
+        Mean block length; the per-step continuation probability is
+        ``1 - 1 / mean_block_length``. Must be at least 1.
+    n_bootstraps : int
+        Number of bootstrap replicates. Must be at least 1.
+    seed : int, numpy.random.Generator, or None, default=42
+        Random seed or generator for reproducibility.
+
+    Returns
+    -------
+    indices : np.ndarray of shape (n_bootstraps, n) with dtype int
+        Resampled time indices; ``indices[b]`` is the ``b``-th replicate.
+
+    Raises
+    ------
+    ValueError
+        If the sizes are out of range.
+
+    Examples
+    --------
+    >>> from causationentropy.core.stats import stationary_bootstrap_indices
+    >>>
+    >>> indices = stationary_bootstrap_indices(100, 10.0, 5, seed=0)
+    >>> indices.shape
+    (5, 100)
+
+    References
+    ----------
+    .. [1] Politis, D. N., Romano, J. P. "The stationary bootstrap."
+           Journal of the American Statistical Association 89, 1303-1313
+           (1994).
+
+    See Also
+    --------
+    moving_block_bootstrap_indices : Bootstrap with fixed block lengths.
+    bootstrap_confidence_interval : Percentile interval from replicates.
+    """
+    if n < 1:
+        raise ValueError("n must be at least 1.")
+    if mean_block_length < 1:
+        raise ValueError("mean_block_length must be at least 1.")
+    if n_bootstraps < 1:
+        raise ValueError("n_bootstraps must be at least 1.")
+    rng = np.random.default_rng(seed)
+
+    indices = np.zeros((n_bootstraps, n), dtype=int)
+    for b in range(n_bootstraps):
+        filled = 0
+        while filled < n:
+            start = int(rng.integers(0, n))
+            length = int(rng.geometric(1.0 / mean_block_length))
+            block = (start + np.arange(length)) % n
+            take = min(length, n - filled)
+            indices[b, filled : filled + take] = block[:take]
+            filled += take
+    return indices
+
+
+def bootstrap_confidence_interval(
+    bootstrap_estimates, alpha: float = 0.05
+) -> Tuple[float, float]:
+    r"""
+    Build a percentile bootstrap confidence interval.
+
+    Given ``B`` bootstrap replicates
+    :math:`\{\\hat{I}^{(b)}\\}_{b=1}^B` of an information estimate, the
+    interval is:
+
+    .. math::
+
+        [\\hat{I}_{(\\alpha/2)}, \\hat{I}_{(1-\\alpha/2)}]
+
+    where the bounds are the corresponding quantiles of the bootstrap
+    distribution.
+
+    Parameters
+    ----------
+    bootstrap_estimates : array-like of shape (B,)
+        One-dimensional finite bootstrap replicate values.
+    alpha : float, default=0.05
+        Significance level in (0, 1); the interval covers
+        ``1 - alpha`` of the bootstrap distribution.
+
+    Returns
+    -------
+    lower : float
+        Lower interval bound (``100 * alpha / 2`` percentile).
+    upper : float
+        Upper interval bound (``100 * (1 - alpha / 2)`` percentile).
+
+    Raises
+    ------
+    ValueError
+        If the input is not a non-empty one-dimensional array of finite
+        values, or ``alpha`` is not in (0, 1).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from causationentropy.core.stats import bootstrap_confidence_interval
+    >>>
+    >>> bootstrap_confidence_interval(np.arange(101), alpha=0.05)
+    (2.5, 97.5)
+
+    References
+    ----------
+    .. [1] Efron, B. "Bootstrap methods: another look at the jackknife."
+           Annals of Statistics 7, 1-26 (1979).
+
+    See Also
+    --------
+    moving_block_bootstrap_indices : Resample time series in blocks.
+    stationary_bootstrap_indices : Resample with random block lengths.
+    bootstrap_cmi_confidence_interval : Interval for conditional MI.
+    """
+    if not 0.0 < alpha < 1.0:
+        raise ValueError("alpha must lie in (0, 1).")
+    values = np.asarray(bootstrap_estimates, dtype=float)
+    if values.ndim != 1 or values.size == 0:
+        raise ValueError("bootstrap_estimates must be a non-empty 1-D array-like.")
+    if not np.all(np.isfinite(values)):
+        raise ValueError("bootstrap_estimates must contain only finite values.")
+    lower = float(np.quantile(values, alpha / 2))
+    upper = float(np.quantile(values, 1 - alpha / 2))
+    return lower, upper
+
+
+def bootstrap_cmi_confidence_interval(
+    X,
+    Y,
+    Z=None,
+    method: str = "gaussian",
+    n_bootstraps: int = 200,
+    alpha: float = 0.05,
+    block_length: int = None,
+    mean_block_length: float = 10.0,
+    use_stationary: bool = False,
+    metric: str = "euclidean",
+    k: int = 5,
+    bandwidth: str = "silverman",
+    seed: Union[int, np.random.Generator, None] = 42,
+) -> Tuple[float, float, float, np.ndarray]:
+    r"""
+    Estimate conditional mutual information with a bootstrap confidence interval.
+
+    Computes :math:`I(X; Y \\mid Z)` on the observed rows plus on
+    ``n_bootstraps`` block-bootstrap resamples of the rows, then reports
+    the percentile interval (see :func:`bootstrap_confidence_interval`).
+    Rows of ``X``, ``Y`` and ``Z`` are resampled jointly so each replicate
+    preserves the contemporaneous joint distribution, while blocks preserve
+    local temporal dependence. Use the stationary bootstrap for strongly
+    autocorrelated series.
+
+    Parameters
+    ----------
+    X : array-like of shape (T, k_x)
+        Predictor variable(s). Must be 2-D even when ``k_x=1``.
+    Y : array-like of shape (T, k_y)
+        Target variable(s).
+    Z : array-like of shape (T, k_z) or None
+        Conditioning set. If None, intervals marginal mutual information.
+    method : str, default='gaussian'
+        Information estimator passed to ``conditional_mutual_information``.
+    n_bootstraps : int, default=200
+        Number of bootstrap replicates. Must be at least 1.
+    alpha : float, default=0.05
+        Significance level in (0, 1) for the interval.
+    block_length : int, optional
+        Fixed block length for the moving block bootstrap. If None,
+        defaults to ``max(1, round(T ** (1/3)))``. Ignored when
+        ``use_stationary`` is True.
+    mean_block_length : float, default=10.0
+        Mean block length for the stationary bootstrap. Only used when
+        ``use_stationary`` is True.
+    use_stationary : bool, default=False
+        If True, use the stationary bootstrap; otherwise the moving block
+        bootstrap.
+    metric : str, default='euclidean'
+        Distance metric for k-NN based estimators.
+    k : int, default=5
+        Number of neighbors for k-NN based estimators.
+    bandwidth : str, default='silverman'
+        Bandwidth selection method for KDE.
+    seed : int, numpy.random.Generator, or None, default=42
+        Random seed or generator for reproducibility.
+
+    Returns
+    -------
+    estimate : float
+        Conditional mutual information on the observed data.
+    lower : float
+        Lower confidence bound.
+    upper : float
+        Upper confidence bound.
+    bootstrap_estimates : np.ndarray of shape (n_bootstraps,)
+        The per-replicate estimates forming the interval.
+
+    Raises
+    ------
+    ValueError
+        If ``X``/``Y``/``Z`` disagree on ``T``, or bootstrap sizes are out
+        of range.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from causationentropy.core.stats import (
+    ...     bootstrap_cmi_confidence_interval,
+    ... )
+    >>>
+    >>> rng = np.random.default_rng(0)
+    >>> X = rng.standard_normal((300, 1))
+    >>> Y = X + 0.5 * rng.standard_normal((300, 1))
+    >>> est, lo, hi, _ = bootstrap_cmi_confidence_interval(
+    ...     X, Y, n_bootstraps=50, seed=0
+    ... )
+    >>> lo <= est <= hi
+    True
+
+    See Also
+    --------
+    moving_block_bootstrap_indices : Fixed-length block resampling.
+    stationary_bootstrap_indices : Random-length block resampling.
+    bootstrap_confidence_interval : Percentile interval from replicates.
+    """
+    if not 0.0 < alpha < 1.0:
+        raise ValueError("alpha must lie in (0, 1).")
+    if n_bootstraps < 1:
+        raise ValueError("n_bootstraps must be at least 1.")
+    X = np.asarray(X)
+    Y = np.asarray(Y)
+    if X.ndim != 2 or Y.ndim != 2 or X.shape[0] != Y.shape[0]:
+        raise ValueError("X and Y must be 2-D with the same number of rows.")
+    if Z is not None:
+        Z = np.asarray(Z)
+        if Z.ndim != 2 or Z.shape[0] != X.shape[0]:
+            raise ValueError("Z must be None or 2-D with the same rows as X.")
+    n = X.shape[0]
+
+    if use_stationary:
+        indices = stationary_bootstrap_indices(
+            n, mean_block_length, n_bootstraps, seed=seed
+        )
+    else:
+        if block_length is None:
+            block_length = max(1, int(round(n ** (1.0 / 3.0))))
+        indices = moving_block_bootstrap_indices(
+            n, block_length, n_bootstraps, seed=seed
+        )
+
+    estimate = float(
+        conditional_mutual_information(
+            X, Y, Z, method=method, metric=metric, k=k, bandwidth=bandwidth
+        )
+    )
+    bootstrap_estimates = np.array(
+        [
+            conditional_mutual_information(
+                X[rows],
+                Y[rows],
+                None if Z is None else Z[rows],
+                method=method,
+                metric=metric,
+                k=k,
+                bandwidth=bandwidth,
+            )
+            for rows in indices
+        ],
+        dtype=float,
+    )
+    lower, upper = bootstrap_confidence_interval(bootstrap_estimates, alpha=alpha)
+    return estimate, lower, upper, bootstrap_estimates
+
+
+def _validate_p_values(p_values) -> np.ndarray:
+    """Validate and normalize a collection of p-values.
+
+    Parameters
+    ----------
+    p_values : array-like of shape (m,)
+        One-dimensional collection of p-values. ``NaN`` entries are allowed
+        and treated as missing tests.
+
+    Returns
+    -------
+    p : np.ndarray of shape (m,)
+        Validated float array.
+
+    Raises
+    ------
+    ValueError
+        If the input is not one-dimensional or any finite entry lies
+        outside [0, 1].
+    """
+    p = np.asarray(p_values, dtype=float)
+    if p.ndim != 1:
+        raise ValueError("p_values must be a one-dimensional array-like.")
+    finite = p[~np.isnan(p)]
+    if finite.size > 0 and (np.any(finite < 0.0) or np.any(finite > 1.0)):
+        raise ValueError("All finite p-values must lie in [0, 1].")
+    return p
+
+
+def _validate_alpha(alpha: float) -> None:
+    """Validate a significance level.
+
+    Raises
+    ------
+    ValueError
+        If alpha is not in (0, 1].
+    """
+    if not 0.0 < alpha <= 1.0:
+        raise ValueError("alpha must lie in (0, 1].")
+
+
+def bonferroni_correction(
+    p_values, alpha: float = 0.05
+) -> Tuple[np.ndarray, np.ndarray]:
+    r"""
+    Apply the Bonferroni correction for multiple testing.
+
+    In causal discovery, ``m`` hypotheses of the form
+    :math:`H_{0,k}: I(X_{j_k}^{(t-\\tau_k)}; X_i^{(t)} \\mid \\mathbf{Z}_i^{(t)}) = 0`
+    are tested simultaneously. Testing each at level ``alpha`` inflates the
+    family-wise error rate (FWER):
+
+    .. math::
+
+        \\text{FWER} = P(\\text{at least one false rejection})
+
+    The Bonferroni correction rejects :math:`H_{0,k}` when
+    :math:`p_k \\leq \\alpha / m`, which controls the FWER at ``alpha``. It
+    is conservative (low power) when ``m`` is large, and most appropriate
+    when few true relationships exist or strong FWER control is required.
+
+    Parameters
+    ----------
+    p_values : array-like of shape (m,)
+        One-dimensional collection of p-values, e.g. the ``P_Value`` column
+        of :func:`causationentropy.graph.utils.network_to_dataframe` output.
+        ``NaN`` entries are treated as missing tests: they are excluded from
+        ``m``, never rejected, and get an adjusted p-value of ``NaN``.
+    alpha : float, default=0.05
+        Desired family-wise error rate. Must lie in (0, 1].
+
+    Returns
+    -------
+    rejected : np.ndarray of shape (m,) with dtype bool
+        Whether each null hypothesis is rejected, in input order.
+    p_adjusted : np.ndarray of shape (m,)
+        Bonferroni-adjusted p-values, ``min(p * m, 1)``, in input order.
+
+    Notes
+    -----
+    For stage-wise application in oCSE forward/backward selection, apply
+    this correction separately to each stage's family of p-values.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from causationentropy.core.stats import bonferroni_correction
+    >>>
+    >>> rejected, p_adj = bonferroni_correction([0.01, 0.02, 0.03, 0.5])
+    >>> print(rejected)
+    [ True False False False]
+
+    References
+    ----------
+    .. [1] Bonferroni, C. "Teoria statistica delle classi e calcolo delle
+           probabilita." Pubblicazioni del R. Istituto Superiore di Scienze
+           Economiche e Commerciali di Firenze 8, 3-62 (1936).
+
+    See Also
+    --------
+    benjamini_hochberg_correction : Control the false discovery rate.
+    benjamini_yekutieli_correction : FDR control under arbitrary dependence.
+    adaptive_bh_correction : Adaptive FDR control with null estimation.
+    """
+    _validate_alpha(alpha)
+    p = _validate_p_values(p_values)
+    m = int(np.sum(~np.isnan(p)))
+
+    rejected = np.zeros(p.shape, dtype=bool)
+    p_adjusted = np.full(p.shape, np.nan)
+    if m == 0:
+        return rejected, p_adjusted
+
+    finite = ~np.isnan(p)
+    p_adjusted[finite] = np.minimum(p[finite] * m, 1.0)
+    rejected[finite] = p[finite] <= alpha / m
+    return rejected, p_adjusted
+
+
+def benjamini_hochberg_correction(
+    p_values, alpha: float = 0.05
+) -> Tuple[np.ndarray, np.ndarray]:
+    r"""
+    Apply the Benjamini-Hochberg procedure to control the false discovery rate.
+
+    The false discovery rate (FDR) is the expected proportion of false
+    rejections among all rejections:
+
+    .. math::
+
+        \\text{FDR} = \\mathbb{E}\\left[\\frac{V}{\\max(R, 1)}\\right]
+
+    where :math:`V` is the number of false rejections and :math:`R` is the
+    total number of rejections. The procedure orders the p-values
+    :math:`p_{(1)} \\leq p_{(2)} \\leq \\cdots \\leq p_{(m)}`, finds the
+    largest :math:`k` with :math:`p_{(k)} \\leq \\frac{k}{m}\\alpha`, and
+    rejects :math:`H_{0,(1)}, \\ldots, H_{0,(k)}`. This controls the FDR at
+    ``alpha`` while offering substantially more power than Bonferroni when
+    many true relationships exist.
+
+    Parameters
+    ----------
+    p_values : array-like of shape (m,)
+        One-dimensional collection of p-values. ``NaN`` entries are treated
+        as missing tests: they are excluded from ``m``, never rejected, and
+        get an adjusted p-value of ``NaN``.
+    alpha : float, default=0.05
+        Desired false discovery rate. Must lie in (0, 1].
+
+    Returns
+    -------
+    rejected : np.ndarray of shape (m,) with dtype bool
+        Whether each null hypothesis is rejected, in input order.
+    p_adjusted : np.ndarray of shape (m,)
+        BH-adjusted p-values in input order, i.e. the smallest FDR level at
+        which each hypothesis would be rejected.
+
+    Notes
+    -----
+    For stage-wise application in oCSE forward/backward selection, apply
+    this correction separately to each stage's family of p-values.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from causationentropy.core.stats import benjamini_hochberg_correction
+    >>>
+    >>> rejected, p_adj = benjamini_hochberg_correction([0.01, 0.02, 0.03, 0.5])
+    >>> print(rejected)
+    [ True  True  True False]
+
+    References
+    ----------
+    .. [1] Benjamini, Y., Hochberg, Y. "Controlling the false discovery
+           rate: a practical and powerful approach to multiple testing."
+           Journal of the Royal Statistical Society B 57, 289-300 (1995).
+
+    See Also
+    --------
+    bonferroni_correction : Control the family-wise error rate.
+    benjamini_yekutieli_correction : FDR control under arbitrary dependence.
+    adaptive_bh_correction : Adaptive FDR control with null estimation.
+    """
+    _validate_alpha(alpha)
+    p = _validate_p_values(p_values)
+
+    rejected = np.zeros(p.shape, dtype=bool)
+    p_adjusted = np.full(p.shape, np.nan)
+    finite_idx = np.flatnonzero(~np.isnan(p))
+    m = finite_idx.size
+    if m == 0:
+        return rejected, p_adjusted
+
+    order = np.argsort(p[finite_idx], kind="mergesort")
+    sorted_p = p[finite_idx[order]]
+    ranks = np.arange(1, m + 1)
+
+    # Largest k with p_(k) <= k / m * alpha
+    passing = sorted_p <= ranks / m * alpha
+    if np.any(passing):
+        k_max = int(np.flatnonzero(passing)[-1]) + 1
+        rejected[finite_idx[order[:k_max]]] = True
+
+    # Adjusted p-values: min over j >= i of p_(j) * m / j, capped at 1
+    raw_adjusted = sorted_p * m / ranks
+    bh_adjusted = np.minimum.accumulate(raw_adjusted[::-1])[::-1]
+    p_adjusted[finite_idx[order]] = np.minimum(bh_adjusted, 1.0)
+    return rejected, p_adjusted
+
+
+def estimate_null_proportion(p_values, lambda_: float = 0.5) -> float:
+    r"""
+    Estimate the proportion of true null hypotheses.
+
+    Uses Storey's estimator:
+
+    .. math::
+
+        \\hat{\\pi}_0 = \\frac{\\text{num}\\{p_i > \\lambda\\}}{m(1 - \\lambda)}
+
+    True null p-values are (approximately) uniform, so p-values above
+    ``lambda_`` are attributed to the null fraction. The estimate is
+    clipped to [0, 1].
+
+    Parameters
+    ----------
+    p_values : array-like of shape (m,)
+        One-dimensional collection of p-values. ``NaN`` entries are treated
+        as missing tests and excluded from ``m``.
+    lambda_ : float, default=0.5
+        Tuning parameter in (0, 1). Larger values reduce bias but increase
+        variance.
+
+    Returns
+    -------
+    pi0 : float
+        Estimated null proportion in [0, 1].
+
+    Raises
+    ------
+    ValueError
+        If ``lambda_`` is not in (0, 1).
+
+    Examples
+    --------
+    >>> from causationentropy.core.stats import estimate_null_proportion
+    >>>
+    >>> estimate_null_proportion([0.01, 0.02, 0.03, 0.04, 0.9])
+    0.4
+
+    References
+    ----------
+    .. [1] Storey, J. D. "A direct approach to false discovery rates."
+           Journal of the Royal Statistical Society B 64, 479-498 (2002).
+
+    See Also
+    --------
+    adaptive_bh_correction : Use this estimate for adaptive FDR control.
+    """
+    if not 0.0 < lambda_ < 1.0:
+        raise ValueError("lambda_ must lie in (0, 1).")
+    p = _validate_p_values(p_values)
+    finite = p[~np.isnan(p)]
+    if finite.size == 0:
+        return 1.0
+    pi0 = float(np.sum(finite > lambda_) / (finite.size * (1.0 - lambda_)))
+    return float(np.clip(pi0, 0.0, 1.0))
+
+
+def adaptive_bh_correction(
+    p_values, alpha: float = 0.05, lambda_: float = 0.5
+) -> Tuple[np.ndarray, np.ndarray]:
+    r"""
+    Apply adaptive Benjamini-Hochberg FDR control.
+
+    The standard BH procedure implicitly assumes all hypotheses are null.
+    When many true relationships exist, estimating the null proportion
+    :math:`\\hat{\\pi}_0` (see :func:`estimate_null_proportion`) and using
+    the threshold
+
+    .. math::
+
+        p_{(k)} \\leq \\frac{k}{m \\hat{\\pi}_0}\\alpha
+
+    recovers power while still controlling the FDR at ``alpha``. When
+    :math:`\\hat{\\pi}_0 = 1` this reduces exactly to
+    :func:`benjamini_hochberg_correction`.
+
+    Parameters
+    ----------
+    p_values : array-like of shape (m,)
+        One-dimensional collection of p-values. ``NaN`` entries are treated
+        as missing tests: they are excluded from ``m``, never rejected, and
+        get an adjusted p-value of ``NaN``.
+    alpha : float, default=0.05
+        Desired false discovery rate. Must lie in (0, 1].
+    lambda_ : float, default=0.5
+        Tuning parameter in (0, 1) for the null-proportion estimate.
+
+    Returns
+    -------
+    rejected : np.ndarray of shape (m,) with dtype bool
+        Whether each null hypothesis is rejected, in input order.
+    p_adjusted : np.ndarray of shape (m,)
+        Adaptively adjusted p-values in input order.
+
+    Notes
+    -----
+    For stage-wise application in oCSE forward/backward selection, apply
+    this correction separately to each stage's family of p-values.
+
+    Examples
+    --------
+    >>> from causationentropy.core.stats import adaptive_bh_correction
+    >>>
+    >>> rejected, _ = adaptive_bh_correction([0.01, 0.02, 0.03, 0.04, 0.9])
+    >>> print(rejected)
+    [ True  True  True  True False]
+
+    References
+    ----------
+    .. [1] Benjamini, Y., Hochberg, Y. "Controlling the false discovery
+           rate: a practical and powerful approach to multiple testing."
+           Journal of the Royal Statistical Society B 57, 289-300 (1995).
+    .. [2] Storey, J. D. "A direct approach to false discovery rates."
+           Journal of the Royal Statistical Society B 64, 479-498 (2002).
+
+    See Also
+    --------
+    benjamini_hochberg_correction : Non-adaptive FDR control.
+    benjamini_yekutieli_correction : FDR control under arbitrary dependence.
+    estimate_null_proportion : The null-proportion estimator used here.
+    """
+    _validate_alpha(alpha)
+    p = _validate_p_values(p_values)
+    pi0 = estimate_null_proportion(p, lambda_=lambda_)
+
+    rejected = np.zeros(p.shape, dtype=bool)
+    p_adjusted = np.full(p.shape, np.nan)
+    finite_idx = np.flatnonzero(~np.isnan(p))
+    m = finite_idx.size
+    if m == 0:
+        return rejected, p_adjusted
+
+    order = np.argsort(p[finite_idx], kind="mergesort")
+    sorted_p = p[finite_idx[order]]
+    ranks = np.arange(1, m + 1)
+
+    if pi0 <= 0.0:
+        # Every finite p-value is at most lambda_: all signal.
+        rejected[finite_idx] = True
+        p_adjusted[finite_idx] = np.minimum(sorted_p, 1.0)[
+            np.argsort(order, kind="mergesort")
+        ]
+        return rejected, p_adjusted
+
+    passing = sorted_p <= ranks / (m * pi0) * alpha
+    if np.any(passing):
+        k_max = int(np.flatnonzero(passing)[-1]) + 1
+        rejected[finite_idx[order[:k_max]]] = True
+
+    raw_adjusted = sorted_p * m * pi0 / ranks
+    adaptive_adjusted = np.minimum.accumulate(raw_adjusted[::-1])[::-1]
+    p_adjusted[finite_idx[order]] = np.minimum(adaptive_adjusted, 1.0)
+    return rejected, p_adjusted
+
+
+def benjamini_yekutieli_correction(
+    p_values, alpha: float = 0.05
+) -> Tuple[np.ndarray, np.ndarray]:
+    r"""
+    Apply the Benjamini-Yekutieli procedure for FDR control under dependence.
+
+    Shuffle-test p-values from the same data reuse are dependent, so the
+    standard Benjamini-Hochberg guarantee (independence or positive
+    dependence) may not hold. The Benjamini-Yekutieli procedure controls
+    the FDR under arbitrary dependence by tightening the threshold with
+    the harmonic number :math:`c(m) = \\sum_{j=1}^{m} 1/j`:
+
+    .. math::
+
+        p_{(k)} \\leq \\frac{k}{m \\, c(m)}\\alpha
+
+    rejecting :math:`H_{0,(1)}, \\ldots, H_{0,(k)}` for the largest such
+    :math:`k`. It is more conservative than
+    :func:`benjamini_hochberg_correction` and appropriate when the
+    dependence structure between tests is unknown.
+
+    Parameters
+    ----------
+    p_values : array-like of shape (m,)
+        One-dimensional collection of p-values. ``NaN`` entries are treated
+        as missing tests: they are excluded from ``m``, never rejected, and
+        get an adjusted p-value of ``NaN``.
+    alpha : float, default=0.05
+        Desired false discovery rate. Must lie in (0, 1].
+
+    Returns
+    -------
+    rejected : np.ndarray of shape (m,) with dtype bool
+        Whether each null hypothesis is rejected, in input order.
+    p_adjusted : np.ndarray of shape (m,)
+        BY-adjusted p-values in input order, i.e. the smallest FDR level at
+        which each hypothesis would be rejected.
+
+    Examples
+    --------
+    >>> from causationentropy.core.stats import benjamini_yekutieli_correction
+    >>>
+    >>> rejected, _ = benjamini_yekutieli_correction([0.001, 0.002, 0.5, 0.9])
+    >>> print(rejected)
+    [ True  True False False]
+
+    References
+    ----------
+    .. [1] Benjamini, Y., Yekutieli, D. "The control of the false
+           discovery rate in multiple testing under dependency."
+           Annals of Statistics 29, 1165-1188 (2001).
+
+    See Also
+    --------
+    benjamini_hochberg_correction : FDR control under independence.
+    bonferroni_correction : Control the family-wise error rate.
+    """
+    _validate_alpha(alpha)
+    p = _validate_p_values(p_values)
+
+    rejected = np.zeros(p.shape, dtype=bool)
+    p_adjusted = np.full(p.shape, np.nan)
+    finite_idx = np.flatnonzero(~np.isnan(p))
+    m = finite_idx.size
+    if m == 0:
+        return rejected, p_adjusted
+
+    harmonic = float(np.sum(1.0 / np.arange(1, m + 1)))
+    order = np.argsort(p[finite_idx], kind="mergesort")
+    sorted_p = p[finite_idx[order]]
+    ranks = np.arange(1, m + 1)
+
+    passing = sorted_p <= ranks / (m * harmonic) * alpha
+    if np.any(passing):
+        k_max = int(np.flatnonzero(passing)[-1]) + 1
+        rejected[finite_idx[order[:k_max]]] = True
+
+    raw_adjusted = sorted_p * m * harmonic / ranks
+    by_adjusted = np.minimum.accumulate(raw_adjusted[::-1])[::-1]
+    p_adjusted[finite_idx[order]] = np.minimum(by_adjusted, 1.0)
+    return rejected, p_adjusted

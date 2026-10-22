@@ -881,3 +881,25 @@ class TestKNNConditionalMutualInformation:
         assert cmi > 0  # Should be positive due to dependence
         assert not np.isnan(cmi)
         assert np.isfinite(cmi)
+
+    def test_knn_cmi_default_chebyshev_gaussian_regression(self):
+        """Test the default Chebyshev metric on a Gaussian CMI problem."""
+        np.random.seed(42)
+        n = 1000
+
+        X = np.random.normal(0, 1, (n, 1))
+        Z = np.random.normal(0, 1, (n, 2))
+
+        # For Y = 0.6 X + 0.8 Z_0 + eps, with eps ~ N(0, 1),
+        # the true I(X;Y|Z) is 0.5 * log(1 + 0.6**2) ~= 0.15374.
+        Y_dependent = 0.6 * X + 0.8 * Z[:, [0]] + np.random.normal(0, 1, (n, 1))
+
+        # Independent control case.
+        Y_independent = np.random.normal(0, 1, (n, 1))
+
+        # Do not pass metric explicitly: this verifies the new default.
+        cmi_dependent = knn_conditional_mutual_information(X, Y_dependent, Z, k=5)
+        cmi_independent = knn_conditional_mutual_information(X, Y_independent, Z, k=5)
+
+        assert np.isclose(cmi_dependent, 0.15374, atol=0.04)
+        assert abs(cmi_independent) < 0.05

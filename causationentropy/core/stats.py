@@ -1,3 +1,4 @@
+import warnings
 from typing import Tuple, Union
 
 import numpy as np
@@ -416,7 +417,7 @@ def bootstrap_cmi_confidence_interval(
     block_length: int = None,
     mean_block_length: float = 10.0,
     use_stationary: bool = False,
-    metric: str = "euclidean",
+    metric: Union[str, None] = None,
     k: int = 5,
     bandwidth: str = "silverman",
     seed: Union[int, np.random.Generator, None] = 42,
@@ -456,8 +457,9 @@ def bootstrap_cmi_confidence_interval(
     use_stationary : bool, default=False
         If True, use the stationary bootstrap; otherwise the moving block
         bootstrap.
-    metric : str, default='euclidean'
-        Distance metric for k-NN based estimators.
+    metric : str or None, default=None
+        Distance metric for k-NN based estimators. None uses each estimator's
+        own default (Chebyshev for ``"knn"``, Euclidean for ``"geometric_knn"``).
     k : int, default=5
         Number of neighbors for k-NN based estimators.
     bandwidth : str, default='silverman'
@@ -481,6 +483,13 @@ def bootstrap_cmi_confidence_interval(
     ValueError
         If ``X``/``Y``/``Z`` disagree on ``T``, or bootstrap sizes are out
         of range.
+
+    Warns
+    -----
+    UserWarning
+        If ``method`` is ``"knn"`` or ``"geometric_knn"``. Resampling with
+        replacement repeats rows, which biases nearest-neighbour estimates,
+        so these intervals should not be relied on.
 
     Examples
     --------
@@ -517,6 +526,15 @@ def bootstrap_cmi_confidence_interval(
         if Z.ndim != 2 or Z.shape[0] != X.shape[0]:
             raise ValueError("Z must be None or 2-D with the same rows as X.")
     n = X.shape[0]
+    if method in ("knn", "geometric_knn"):
+        warnings.warn(
+            "Bootstrap resamples repeat rows, and repeated rows shrink "
+            "nearest-neighbour distances, so intervals from k-NN based "
+            f"estimators (method={method!r}) are biased. Prefer "
+            "method='gaussian' for bootstrap intervals.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     if use_stationary:
         indices = stationary_bootstrap_indices(

@@ -367,7 +367,13 @@ def poisson_conditional_mutual_information(X, Y, Z):
         HXZ = poisson_joint_entropy(S_est2)
         H_YZ = HYZ - HZ
         H_XYZ = HXYZ - HXZ
-        cmi = H_YZ - H_XYZ  # I(X;Y|Z) = H(Y|Z) - H(Y|X,Z)
+        # H_YZ and H_XYZ are differences of poisson_joint_entropy terms built
+        # from the adjusted matrix SS, not plain conditional entropies, so the
+        # identity I(X;Y|Z) = H(Y|Z) - H(Y|X,Z) does not apply term by term.
+        # This order matches the original implementation (Compute_CMI_Poisson
+        # in jefish003/NetworkInference) and gives positive values for
+        # dependent data.
+        cmi = H_XYZ - H_YZ
         return cmi
 
 

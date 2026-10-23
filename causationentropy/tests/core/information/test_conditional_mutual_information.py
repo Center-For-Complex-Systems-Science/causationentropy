@@ -628,7 +628,9 @@ class TestPoissonConditionalMutualInformation:
         # Call directly
         cmi_direct = poisson_conditional_mutual_information(X, Y, Z)
 
-        assert np.isclose(cmi_main, cmi_direct, rtol=1e-15)
+        # The main interface clamps negative estimates to zero. X, Y and Z are
+        # independent here, so the raw estimate can fall on either side of zero.
+        assert np.isclose(cmi_main, max(0.0, cmi_direct), rtol=1e-15)
 
     def test_poisson_cmi_edge_cases(self):
         """Test Poisson CMI edge cases."""
@@ -669,6 +671,24 @@ class TestPoissonConditionalMutualInformation:
 
         # X and Y should have positive MI since they share base_rate
         assert cmi_no_z > 0
+        # Z is independent of both, so conditioning on it keeps the CMI positive
+        assert cmi_with_z > 0
+
+    def test_poisson_cmi_sign_dependent_vs_independent(self):
+        """Raw Poisson CMI is positive for dependence and close to zero otherwise."""
+        rng = np.random.default_rng(0)
+        dependent, independent = [], []
+        for _ in range(20):
+            X = rng.poisson(2.0, (300, 1)).astype(float)
+            Z = rng.poisson(2.0, (300, 1)).astype(float)
+            Y_dep = rng.poisson(1.0 + 0.5 * X + 0.3 * Z).astype(float)
+            Y_ind = rng.poisson(2.0, (300, 1)).astype(float)
+            dependent.append(poisson_conditional_mutual_information(X, Y_dep, Z))
+            independent.append(poisson_conditional_mutual_information(X, Y_ind, Z))
+
+        assert min(dependent) > 0
+        assert np.mean(dependent) > 0.2
+        assert abs(np.mean(independent)) < 0.05
 
 
 class TestKDEConditionalMutualInformation:

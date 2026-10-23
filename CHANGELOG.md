@@ -24,6 +24,7 @@
 - Block-bootstrap confidence intervals: `moving_block_bootstrap_indices`, `stationary_bootstrap_indices`, `bootstrap_confidence_interval` and `bootstrap_cmi_confidence_interval` (#40).
 - Optional futility early stopping in `shuffle_test` (`early_stop=True`). It is only available when calling `shuffle_test` directly (#41).
 - Multiple-testing corrections `bonferroni_correction`, `benjamini_hochberg_correction`, `benjamini_yekutieli_correction`, `adaptive_bh_correction` and `estimate_null_proportion`, plus `apply_test_correction` to correct the p-values of a discovered network after discovery (adds a `P_Adjusted` column to `network_to_dataframe`). Discovery itself does not apply a correction (#37).
+- Equation discovery with entropic regression (AlMomani, Sun and Bollt, Chaos, 2020): `EntropicRegression` finds a sparse equation for each state variable in a polynomial library, with `entropic_regression`, `polynomial_library` and `central_difference` in the new `causationentropy.core.estimators` module (#8).
 - Tutorials and expanded theory documentation (#30, #49, #50).
 
 ### Changed

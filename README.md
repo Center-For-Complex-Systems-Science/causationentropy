@@ -95,7 +95,7 @@ from causationentropy import discover_network
 network = discover_network(
     data,
     method='standard',          # 'standard', 'alternative', base lines: 'information_lasso', or 'lasso'
-    information='gaussian',     # 'gaussian', 'knn', 'kde', 'geometric_knn', or 'poisson'
+    information='gaussian',     # 'gaussian', 'knn', 'kde', 'geometric_knn', 'poisson', or 'symbolic'
     max_lag=5,                  # Maximum time lag to consider
     alpha_forward=0.05,         # Forward selection significance
     alpha_backward=0.05,        # Backward elimination significance

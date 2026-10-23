@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 from scipy.spatial.distance import cdist
 from scipy.special import digamma
@@ -7,12 +9,15 @@ from causationentropy.core.information.entropy import (
     kde_entropy,
     poisson_entropy,
     poisson_joint_entropy,
+    symbolic_entropy,
+    symbolize,
 )
 from causationentropy.core.information.mutual_information import (
     gaussian_mutual_information,
     geometric_knn_mutual_information,
     kde_mutual_information,
     knn_mutual_information,
+    symbolic_mutual_information,
 )
 
 
@@ -371,6 +376,84 @@ def poisson_conditional_mutual_information(X, Y, Z):
         return cmi
 
 
+def symbolic_conditional_mutual_information(
+    X: np.ndarray,
+    Y: np.ndarray,
+    Z: Optional[np.ndarray] = None,
+    n_symbols: int = 2,
+    partition: str = "quantile",
+) -> float:
+    r"""
+    Plug-in conditional mutual information of symbolized data, in nats.
+
+    Every variable is symbolized with
+    :func:`~causationentropy.core.information.entropy.symbolize` (a partition of each
+    variable's range, as in Cafaro et al. [1]_), and the conditional mutual information
+    of Eq. (15) in [1]_ is estimated from empirical symbol frequencies:
+
+    .. math::
+
+        \hat I(X; Y | Z) = \hat H(X, Z) + \hat H(Y, Z) - \hat H(Z) - \hat H(X, Y, Z).
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples,) or (n_samples, n_features_x)
+        First variable.
+    Y : np.ndarray, shape (n_samples,) or (n_samples, n_features_y)
+        Second variable.
+    Z : np.ndarray, shape (n_samples,) or (n_samples, n_features_z), or None
+        Conditioning variable. If None, returns the mutual information I(X; Y).
+    n_symbols : int, default=2
+        Number of symbols per variable.
+    partition : {'quantile', 'uniform', 'precomputed'}, default='quantile'
+        Partition type.
+
+    Returns
+    -------
+    float
+        Conditional mutual information estimate in nats.
+
+    Notes
+    -----
+    Cafaro et al. [1]_ show that the inferred causal structure can depend sensitively
+    on the partition, so ``n_symbols`` and ``partition`` should be chosen with care.
+    The plug-in estimate is biased upward when the number of occupied joint symbols is
+    not small compared with the sample size [2]_; in :func:`discover_network` the
+    permutation test uses the same estimator for its null distribution.
+    Time complexity is :math:`O(n \log n)` per call.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> rng = np.random.default_rng(0)
+    >>> z = rng.integers(0, 2, 1000)
+    >>> x = z.copy(); y = z.copy()
+    >>> round(symbolic_conditional_mutual_information(x, y, z, partition="precomputed"), 6)
+    0.0
+
+    References
+    ----------
+    .. [1] C. Cafaro, W. M. Lord, J. Sun, and E. M. Bollt, "Causation entropy from
+           symbolic representations of dynamical systems," Chaos 25, 043106 (2015).
+           arXiv:1507.07262.
+    .. [2] L. Paninski, "Estimation of entropy and mutual information," Neural
+           Computation 15(6), 1191-1253 (2003).
+    """
+    if Z is None:
+        return symbolic_mutual_information(
+            X, Y, n_symbols=n_symbols, partition=partition
+        )
+
+    SX = symbolize(X, n_symbols=n_symbols, partition=partition)
+    SY = symbolize(Y, n_symbols=n_symbols, partition=partition)
+    SZ = symbolize(Z, n_symbols=n_symbols, partition=partition)
+
+    def H(*parts):
+        return symbolic_entropy(np.hstack(parts), partition="precomputed")
+
+    return H(SX, SZ) + H(SY, SZ) - H(SZ) - H(SX, SY, SZ)
+
+
 def conditional_mutual_information(
     X,
     Y,
@@ -380,6 +463,8 @@ def conditional_mutual_information(
     k=6,
     bandwidth="silverman",
     kernel="gaussian",
+    n_symbols: int = 2,
+    partition: str = "quantile",
 ):
     """
     Compute conditional mutual information using specified estimation method.
@@ -417,6 +502,7 @@ def conditional_mutual_information(
         - 'knn': k-nearest neighbor (KSG) estimator
         - 'geometric_knn': Geometric k-NN with manifold corrections
         - 'poisson': For discrete count data with Poisson assumptions
+        - 'symbolic': Plug-in estimate on symbolized data (Cafaro et al., 2015)
 
     metric : str or None, default=None
         Distance metric for k-NN based methods.
@@ -426,6 +512,10 @@ def conditional_mutual_information(
         Bandwidth parameter for KDE methods.
     kernel : str, default='gaussian'
         Kernel function for KDE methods.
+    n_symbols : int, default=2
+        Number of symbols per variable for the 'symbolic' method.
+    partition : {'quantile', 'uniform', 'precomputed'}, default='quantile'
+        Partition type for the 'symbolic' method.
 
     Returns
     -------
@@ -495,6 +585,11 @@ def conditional_mutual_information(
     elif method == "poisson":
         cmi = poisson_conditional_mutual_information(X, Y, Z)
 
+    elif method == "symbolic":
+        cmi = symbolic_conditional_mutual_information(
+            X, Y, Z, n_symbols=n_symbols, partition=partition
+        )
+
     else:
         supported_methods = [
             "gaussian",
@@ -503,6 +598,7 @@ def conditional_mutual_information(
             "knn",
             "geometric_knn",
             "poisson",
+            "symbolic",
         ]
         raise ValueError(
             f"Method '{method}' unavailable. Supported methods: {supported_methods}"

@@ -84,6 +84,8 @@ def discover_network(
         - 'kde': Kernel density estimation
         - 'geometric_knn': Geometric mean k-NN estimator
         - 'poisson': Poisson distribution assumption
+        - 'symbolic': Plug-in estimate on symbolized data (Cafaro et al., 2015);
+          each variable is split at its median (two symbols)
     max_lag : int, default=5
         Maximum time lag to consider in causal relationships. The algorithm examines
         lags from 1 to max_lag (inclusive).
@@ -176,7 +178,14 @@ def discover_network(
 
     if method not in ["standard", "alternative", "information_lasso", "lasso"]:
         raise NotImplementedError(f"discover_network: method={method} not supported.")
-    supported_information_types = ["gaussian", "knn", "kde", "geometric_knn", "poisson"]
+    supported_information_types = [
+        "gaussian",
+        "knn",
+        "kde",
+        "geometric_knn",
+        "poisson",
+        "symbolic",
+    ]
     if information not in supported_information_types:
         raise NotImplementedError(
             f"discover_network: information={information} not supported. "

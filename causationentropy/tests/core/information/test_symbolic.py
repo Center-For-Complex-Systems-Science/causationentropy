@@ -79,7 +79,7 @@ class TestSymbolize:
     @pytest.mark.parametrize("partition", ["quantile", "uniform", "precomputed"])
     @pytest.mark.parametrize("bad", [np.nan, np.inf])
     def test_non_finite_values_are_rejected(self, partition, bad):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="finite"):
             symbolize(np.array([1.0, bad, 2.0, 3.0]), partition=partition)
 
 

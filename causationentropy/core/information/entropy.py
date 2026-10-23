@@ -394,8 +394,8 @@ def symbolize(
     Raises
     ------
     ValueError
-        If ``n_symbols < 2``, the partition type is unknown, or precomputed data are
-        not integer-valued.
+        If ``n_symbols < 2``, the partition type is unknown, the data contain NaN or
+        infinite values, or precomputed data are not integer-valued.
 
     Examples
     --------
@@ -422,6 +422,8 @@ def symbolize(
         raise ValueError(f"n_symbols must be at least 2, got {n_symbols}.")
 
     X = X.astype(float)
+    if not np.all(np.isfinite(X)):
+        raise ValueError("symbolize requires finite values (no NaN or inf).")
     symbols = np.empty(X.shape, dtype=np.int64)
     for j in range(X.shape[1]):
         col = X[:, j]
@@ -494,8 +496,8 @@ def symbolic_entropy(
     --------
     >>> import numpy as np
     >>> x = np.array([0, 1, 2, 3])
-    >>> round(symbolic_entropy(x, partition="precomputed"), 6) == round(np.log(4), 6)
-    True
+    >>> round(symbolic_entropy(x, partition="precomputed"), 6)  # log(4)
+    1.386294
 
     References
     ----------

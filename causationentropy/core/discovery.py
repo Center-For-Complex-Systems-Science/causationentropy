@@ -85,7 +85,7 @@ def discover_network(
         - 'geometric_knn': Geometric mean k-NN estimator
         - 'poisson': Poisson distribution assumption
         - 'symbolic': Plug-in estimate on symbolized data (Cafaro et al., 2015);
-          each variable is split at its median (two symbols)
+          each variable is split near its median (two symbols)
     max_lag : int, default=5
         Maximum time lag to consider in causal relationships. The algorithm examines
         lags from 1 to max_lag (inclusive).

@@ -33,6 +33,7 @@
 - `causationentropy` no longer imports its `tests` package (#34).
 
 ### Fixed
+- KDE entropy with `bandwidth="silverman"` or `"scott"` now scales features by a robust spread estimate and applies the entropy Jacobian correction, making MI/CMI invariant to measurement units (#62). Explicit numeric bandwidths remain in the original data units.
 - `Compute_TPR_FPR` no longer counts diagonal entries as false positives, which could push the FPR above 1. This changes reported FPR values (#38).
 - `kde_entropy` now stays in log space, so low-density samples no longer turn the entropy into `-inf` (#42).
 - The conditional Poisson estimator now uses full covariance submatrices (`np.ix_`) instead of only their diagonal entries, which changes its values (#42). The sign change made in the same PR broke Poisson discovery and is reverted in #51.

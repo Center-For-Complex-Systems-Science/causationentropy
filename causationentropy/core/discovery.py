@@ -936,6 +936,19 @@ def _restricted_permutation(neighbors, rng):
     return permutation
 
 
+def _indeterminate_shuffle_result(observed_cmi, n_completed=0, exceedances=0):
+    """Report undefined significance without asserting a spurious discovery."""
+    return {
+        "Threshold": float("nan"),
+        "Value": observed_cmi,
+        "Pass": False,
+        "P_value": float("nan"),
+        "N_Completed": n_completed,
+        "Early_Stopped": False,
+        "N_Exceeded": exceedances,
+    }
+
+
 def shuffle_test(
     X,
     Y,
@@ -1031,6 +1044,10 @@ def shuffle_test(
     tests sharing the same generator observe a shifted random stream. Repeated
     runs with the same seed remain reproducible.
 
+    Non-finite observed or surrogate CMI values make the significance test
+    indeterminate. In that case, ``Pass`` is False, ``P_value`` and ``Threshold``
+    are NaN, and ``N_Completed`` counts the surrogate draws attempted.
+
     References
     ----------
     Runge, J. (2018). Conditional independence testing based on a nearest-neighbor
@@ -1043,6 +1060,8 @@ def shuffle_test(
         raise ValueError("n_shuffles must be at least 1.")
     if shuffle_neighbors < 1:
         raise ValueError("shuffle_neighbors must be at least 1.")
+    if not np.isfinite(observed_cmi):
+        return _indeterminate_shuffle_result(observed_cmi)
 
     rng = np.random.default_rng(rng)
     null_cmi = np.empty(n_shuffles)
@@ -1072,6 +1091,8 @@ def shuffle_test(
             k=k_means,
             bandwidth=bandwidth,
         )
+        if not np.isfinite(null_cmi[i]):
+            return _indeterminate_shuffle_result(observed_cmi, i + 1, exceedances)
 
         if null_cmi[i] >= observed_cmi:
             exceedances += 1

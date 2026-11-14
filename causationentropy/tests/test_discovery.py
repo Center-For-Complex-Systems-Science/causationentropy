@@ -617,7 +617,7 @@ class TestShuffleTestEarlyStopping:
         return X, Y
 
     def test_stops_early_for_clear_null(self):
-        """All nulls above observed stops after floor(alpha*B) + 1 draws."""
+        """Clear nulls stop once the corrected full-budget p-value cannot pass."""
         X = np.arange(16, dtype=float).reshape(16, 1)
         Y = np.zeros((16, 1))
 
@@ -639,13 +639,13 @@ class TestShuffleTestEarlyStopping:
                 early_stop=True,
             )
 
-        assert result["N_Completed"] == 11
+        assert result["N_Completed"] == 10
         assert not result["Pass"]
         assert result["P_value"] > 0.05
         assert result["Early_Stopped"]
-        assert result["N_Exceeded"] == 11
+        assert result["N_Exceeded"] == 10
         # Documented bound: the full-run p-value stays above alpha.
-        assert result["N_Exceeded"] / 200 > 0.05
+        assert (1 + result["N_Exceeded"]) / 201 > 0.05
 
     def test_default_runs_full_budget(self):
         """Without opt-in, even clear nulls run every shuffle."""
@@ -665,8 +665,8 @@ class TestShuffleTestEarlyStopping:
         assert not result["Early_Stopped"]
         assert not result["Pass"]
 
-    def test_ties_trigger_stopping(self):
-        """Nulls tying the observation count like exceedances (>= rule)."""
+    def test_ties_match_full_run_decision(self):
+        """All-tied nulls fail under both early and full corrected-p paths."""
         X = np.arange(16, dtype=float).reshape(16, 1)
         Y = np.zeros((16, 1))
 
@@ -677,7 +677,7 @@ class TestShuffleTestEarlyStopping:
             "causationentropy.core.discovery.conditional_mutual_information",
             side_effect=always_tied,
         ):
-            result = shuffle_test(
+            early = shuffle_test(
                 X,
                 Y,
                 None,
@@ -687,11 +687,28 @@ class TestShuffleTestEarlyStopping:
                 rng=0,
                 early_stop=True,
             )
+            full = shuffle_test(
+                X,
+                Y,
+                None,
+                0.1,
+                alpha=0.05,
+                n_shuffles=200,
+                rng=0,
+                early_stop=False,
+            )
 
-        assert result["N_Completed"] == 11
-        assert result["N_Exceeded"] == 11
-        assert result["P_value"] == 1.0
-        assert not result["Pass"]
+        assert early["N_Completed"] == 10
+        assert early["N_Exceeded"] == 10
+        assert early["P_value"] == 1.0
+        assert not early["Pass"]
+
+        assert full["N_Completed"] == 200
+        assert full["N_Exceeded"] == 200
+        assert full["P_value"] == 1.0
+        assert not full["Pass"]
+
+        assert early["Pass"] == full["Pass"]
 
     def test_runs_full_course_for_signal(self):
         """All nulls below observed runs every shuffle and passes."""
@@ -718,7 +735,7 @@ class TestShuffleTestEarlyStopping:
 
         assert result["N_Completed"] == 200
         assert result["Pass"]
-        assert result["P_value"] == 0.0
+        assert result["P_value"] == 1 / 201
 
     def test_early_stop_disabled_runs_full(self):
         """early_stop=False draws every shuffle even for clear nulls."""
@@ -859,7 +876,7 @@ class TestShuffleTestEarlyStopping:
         first_after_stop = run_sequence(True)
         first_after_full = run_sequence(False)
 
-        # Early stopping consumed 11 draws vs 200, so the next test starts
+        # Early stopping consumed 10 draws vs 200, so the next test starts
         # at a different stream position.
         assert not np.array_equal(first_after_stop, first_after_full)
         # Same seed still reproduces exactly.

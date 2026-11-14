@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
 from causationentropy.core.discovery import (
     _build_z_neighbors,
@@ -130,3 +131,44 @@ def test_shuffle_test_local_path_is_reproducible_with_same_seed():
         shuffle_neighbors=5,
     )
     assert result_1 == result_2
+
+
+@pytest.mark.parametrize("invalid", [np.nan, np.inf, -np.inf])
+def test_shuffle_test_rejects_nonfinite_observed_cmi(invalid):
+    X = np.arange(20, dtype=float).reshape(-1, 1)
+    Y = np.arange(20, dtype=float).reshape(-1, 1)
+    Z = np.arange(20, dtype=float).reshape(-1, 1)
+
+    result = shuffle_test(X, Y, Z, invalid, n_shuffles=20, rng=0)
+    assert not result["Pass"]
+    assert np.isnan(result["P_value"])
+    assert np.isnan(result["Threshold"])
+    assert result["N_Completed"] == 0
+
+
+def test_shuffle_test_rejects_undefined_gaussian_observation():
+    X = np.zeros((30, 1))
+    Y = np.zeros((30, 1))
+    Z = np.arange(30, dtype=float).reshape(-1, 1)
+    observed = conditional_mutual_information(X, Y, Z, method="gaussian")
+    assert np.isnan(observed)
+
+    result = shuffle_test(X, Y, Z, observed, n_shuffles=99, rng=0)
+    assert not result["Pass"]
+    assert np.isnan(result["P_value"])
+    assert result["N_Completed"] == 0
+
+
+@pytest.mark.parametrize("invalid", [np.nan, np.inf, -np.inf])
+def test_shuffle_test_rejects_nonfinite_surrogate_cmi(invalid):
+    X = np.arange(20, dtype=float).reshape(-1, 1)
+    Y = np.arange(20, dtype=float).reshape(-1, 1)
+
+    with patch(
+        "causationentropy.core.discovery.conditional_mutual_information",
+        return_value=invalid,
+    ):
+        result = shuffle_test(X, Y, None, observed_cmi=0.1, n_shuffles=20, rng=0)
+    assert not result["Pass"]
+    assert np.isnan(result["P_value"])
+    assert result["N_Completed"] == 1

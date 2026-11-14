@@ -38,3 +38,7 @@
 - `kde_entropy` now stays in log space, so low-density samples no longer turn the entropy into `-inf` (#42).
 - The conditional Poisson estimator now uses full covariance submatrices (`np.ix_`) instead of only their diagonal entries, which changes its values (#42). The sign change made in the same PR broke Poisson discovery and is reverted in #51.
 - Compatibility with current NumPy and Matplotlib releases (#25).
+
+### CI
+- Run the Python 3.9 job on `ubuntu-22.04`; `ubuntu-latest` (Ubuntu 26.04)
+  no longer has a Python 3.9 build available through `actions/setup-python`.

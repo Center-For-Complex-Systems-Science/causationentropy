@@ -57,6 +57,12 @@ python -m pytest causationentropy/tests/ --cov=causationentropy --cov-report=xml
 
 ### Basic Usage
 
+Before discovery, make the data stationary: remove trend and seasonality
+and confirm the result with a stationarity test. If your workflow uses
+symbolized dynamics, symbolize the series first — ``discover_network`` does
+not transform its input. See the
+[data preparation guide](https://causationentropy.readthedocs.io/en/latest/tutorials/basic_usage.html#preparing-your-data).
+
 Get the relationships as a Pandas data frame:
 ```python
 import pandas as pd

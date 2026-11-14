@@ -1,3 +1,12 @@
+## [Unreleased]
+### Documentation
+- Document that data must be deseasonalized and made stationary before
+  ``discover_network``, and that symbolization is preprocessing (#58).
+
+### CI
+- Run the Python 3.9 job on ``ubuntu-22.04``; ``ubuntu-latest`` (26.04) no
+  longer has a 3.9 build in ``actions/setup-python``.
+
 ## [0.1.0] - 2025-09-15
 ### Added
 - All math code parsed to new API

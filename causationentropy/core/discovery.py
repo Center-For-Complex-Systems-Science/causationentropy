@@ -140,6 +140,17 @@ def discover_network(
 
     Notes
     -----
+    The input is assumed to be a **stationary** time series. Remove trend and
+    seasonality before calling this function; a unit-root or strongly seasonal
+    process can produce spurious links. Check the prepared series with a
+    stationarity test such as ADF or KPSS, and difference it if a unit root
+    remains.
+
+    If the analysis uses symbolic dynamics, **symbolize the data first**.
+    This function does not symbolize its input: the selected estimator
+    receives the values exactly as given, so symbols must be produced by the
+    caller (using the same partition for every variable and lag).
+
     The algorithm's computational complexity is approximately :math:`O(T \cdot n^2 \cdot \tau_{max} \cdot N_{shuffle})`,
     where :math:`T` is the time series length, :math:`n` is the number of variables,
     :math:`\tau_{max}` is the maximum lag, and :math:`N_{shuffle}` is the number of permutations.

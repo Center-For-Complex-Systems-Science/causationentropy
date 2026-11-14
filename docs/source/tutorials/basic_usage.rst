@@ -4,6 +4,90 @@ Basic Usage
 This tutorial demonstrates common workflows for causal network discovery
 with the Causation Entropy library.
 
+Preparing Your Data
+-------------------
+
+``discover_network`` assumes the input is a **stationary** multivariate
+time series. Trend and seasonality violate that assumption and can produce
+spurious links, so remove them before running discovery:
+
+1. **Deseasonalize.** Subtract the seasonal component, for example the
+   per-season mean or the seasonal term from an STL decomposition.
+2. **Detrend.** Remove a deterministic trend, by fitting and subtracting a
+   trend or by differencing.
+3. **Check stationarity.** Confirm the result with a test such as the
+   augmented Dickey-Fuller (ADF, null hypothesis: a unit root) or KPSS
+   (null hypothesis: stationary). Difference the series if a unit root
+   remains.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+
+   data = pd.read_csv("data.csv", index_col=0, parse_dates=True)
+
+   # 1. Remove a repeating seasonal component (e.g. 24 hourly observations).
+   period = 24
+   seasonal_mean = data.groupby(
+       np.arange(len(data)) % period
+   ).transform("mean")
+   deseasonalized = data - seasonal_mean
+
+   # 2. Remove a linear trend.
+   t = np.arange(len(deseasonalized))
+   trend = deseasonalized.apply(
+       lambda col: np.polyval(np.polyfit(t, col, 1), t)
+   )
+   prepared = deseasonalized - trend
+
+   # 3. Check stationarity before discovery, e.g. with statsmodels:
+   # from statsmodels.tsa.stattools import adfuller
+   # p_value = adfuller(prepared.iloc[:, 0])[1]   # p < 0.05 suggests stationarity
+
+If differencing is needed, call ``discover_network`` on the differenced
+series and remember that a discovered lag is a lag in the differenced data,
+not in the original levels. Apply the same transformation to every variable
+so that relationships between variables remain comparable.
+
+Symbolized Data
+^^^^^^^^^^^^^^^
+
+Some analyses use symbolic dynamics, where each observation is mapped to a
+symbol before estimating entropy. **Symbolization is preprocessing: it must
+be done before calling ``discover_network``.** The estimators treat the
+values they receive as the data itself and do not symbolize internally.
+
+.. code-block:: python
+
+   import pandas as pd
+
+   data = pd.read_csv("data.csv")
+
+   # Map each variable to n_symbols quantile-based symbols (0 .. n_symbols-1).
+   n_symbols = 2
+   symbolic = data.apply(
+       lambda col: pd.qcut(
+           col, n_symbols, labels=False, duplicates="drop"
+       )
+   )
+
+   # Pass the symbolized values to an estimator that expects symbols, e.g.
+   # network = discover_network(
+   #     symbolic.to_numpy(),
+   #     information="symbolic",
+   #     max_lag=2,
+   #     random_state=42,
+   # )
+
+The estimators documented in this tutorial (``gaussian``, ``knn``, ``kde``,
+``geometric_knn``, ``poisson``) treat their input as continuous or count
+data, not as symbols. Check which estimators your version provides and
+symbolize first when using a symbolic one.
+
+Choose the partition once and apply the same one to every variable and lag;
+recomputing bin edges per lag makes symbols inconsistent across time.
+
 Loading Data and Discovering a Network
 --------------------------------------
 

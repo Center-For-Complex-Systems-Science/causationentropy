@@ -1,7 +1,7 @@
 # CausationEntropy
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Documentation Status](https://readthedocs.org/projects/causationentropy/badge/?version=stable)](https://causationentropy.readthedocs.io/en/stable/?badge=stable)
 [![codecov](https://codecov.io/gh/Center-For-Complex-Systems-Science/causationentropy/branch/main/graph/badge.svg)](https://app.codecov.io/gh/Center-For-Complex-Systems-Science/causationentropy)
 [![Tests](https://github.com/Center-For-Complex-Systems-Science/causationentropy/workflows/Tests/badge.svg)](https://github.com/Center-For-Complex-Systems-Science/causationentropy/actions)
@@ -50,7 +50,7 @@ pip install -e .
 python -m pytest causationentropy/tests/ --cov=causationentropy
 ```
 
-With overage loally:
+With coverage locally:
 ```bash
 python -m pytest causationentropy/tests/ --cov=causationentropy --cov-report=xml --cov-report=term-missing -v
 ```
@@ -101,6 +101,7 @@ network = discover_network(
     alpha_backward=0.05,        # Backward elimination significance
     n_shuffles=200,             # Permutation test iterations
     random_state=42,            # Permutation-test seed; pass None or another int for independent replicates
+    only_return_significant=True,  # False also returns the tested, non-significant links (Significant column)
 )
 ```
 
@@ -126,8 +127,10 @@ discovered = discover_network(data)
 - **Multiple Algorithms**: Standard, alternative, information lasso, and lasso variants of oCSE
 - **Flexible Information Estimators**: Gaussian, k-NN, KDE, geometric k-NN, and Poisson methods  
 - **Statistical Rigor**: Permutation-based significance testing with comprehensive test coverage
-- **Synthetic Data**: Built-in generators for testing and validation
-- **Visualization**: Network plotting and analysis tools
+- **Multiple-Testing Correction**: Post-discovery Bonferroni, Benjamini-Hochberg, Benjamini-Yekutieli and adaptive BH correction of edge p-values
+- **Confidence Intervals**: Moving-block and stationary bootstrap intervals for conditional mutual information
+- **Synthetic Data**: Built-in generators for testing and validation, including data generated from a networkx graph you choose
+- **Visualization**: Network plotting, delay-analysis plots and analysis tools
   
 ## Mathematical Foundation
 
@@ -147,9 +150,9 @@ The algorithm implements a two-phase approach:
 
 📚 **[Read the full documentation on ReadTheDocs](https://causationentropy.readthedocs.io/)**
 
-- **[API Reference](https://causationentropy.readthedocs.io/en/latest/api/)**: Complete function and class documentation
-- **[User Guide](https://causationentropy.readthedocs.io/en/latest/user_guide/)**: Detailed tutorials and examples
-- **[Theory](https://causationentropy.readthedocs.io/en/latest/theory/)**: Mathematical background and algorithms
+- **[API Reference](https://causationentropy.readthedocs.io/en/latest/api/network_discovery.html)**: Complete function and class documentation
+- **[User Guide](https://causationentropy.readthedocs.io/en/latest/tutorials/index.html)**: Detailed tutorials and examples
+- **[Theory](https://causationentropy.readthedocs.io/en/latest/theory/index.html)**: Mathematical background and algorithms
 - **Examples**: Check the `notebooks/` directory
 - **Research Papers**: See the `theory glossary` in the [documentation](https://causationentropy.readthedocs.io/en/latest/theory/index.html)
 
@@ -185,8 +188,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE.txt) 
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/kslote1/causationentropy/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/kslote1/causationentropy/discussions)
+- **Issues**: [GitHub Issues](https://github.com/Center-For-Complex-Systems-Science/causationentropy/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Center-For-Complex-Systems-Science/causationentropy/discussions)
 - **Email**: kslote1@gmail.com
 
 ## Acknowledgments

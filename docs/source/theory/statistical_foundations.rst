@@ -2,11 +2,10 @@
 Statistical Foundations
 =======================
 
-This section covers the statistical principles underlying the Causation Entropy 
-framework, including hypothesis testing, multiple comparisons, bootstrap methods, 
-and theoretical guarantees. Understanding these foundations is essential for proper 
+This section covers the statistical principles underlying the Causation Entropy
+framework, including hypothesis testing, multiple comparisons, bootstrap methods,
+and theoretical guarantees. Understanding these foundations is essential for proper
 application and interpretation of causal discovery results.
-
 Hypothesis Testing Framework
 ===========================
 
@@ -24,12 +23,10 @@ In causal discovery, the fundamental hypothesis test is:
    H_1: I(X_j^{(t-\tau)}; X_i^{(t)} | \mathbf{Z}_i^{(t)}) > 0
 
 **Interpretation:**
-- :math:`H_0`: No causal relationship (conditional independence)
-- :math:`H_1`: Causal relationship exists (conditional dependence)
-
-**Key Insight:** Conditional independence testing forms the backbone of 
+- :math:`H_0`: Conditional independence; interpreting this as absence of a direct causal link requires the assumptions of the causal model
+- :math:`H_1`: Conditional dependence; conditional dependence alone does not establish a causal relationship without the relevant causal assumptions
+**Key Insight:** Conditional independence testing forms the backbone of
 information-theoretic causal discovery.
-
 Test Statistics and Distributions
 ---------------------------------
 
@@ -40,7 +37,7 @@ The test statistic is the conditional mutual information:
    T = \hat{I}(X_j^{(t-\tau)}; X_i^{(t)} | \mathbf{Z}_i^{(t)})
 
 **Distribution Under Null:**
-For most information estimators, the null distribution is not analytically tractable. 
+For most information estimators, the null distribution is not analytically tractable.
 This motivates non-parametric approaches like permutation testing.
 
 **Asymptotic Properties:**
@@ -49,9 +46,7 @@ Under regularity conditions, for the Gaussian estimator:
 .. math::
 
    2n \cdot \hat{I}(X;Y|Z) \xrightarrow{d} \chi^2_{df}
-
-where :math:`df$ depends on the dimensionalities of :math:`X$, :math:`Y$, and :math:`Z$.
-
+where :math:`df` depends on the dimensionalities of :math:`X`, :math:`Y`, and :math:`Z`.
 Permutation Testing
 ==================
 
@@ -59,7 +54,7 @@ Theoretical Foundation
 ---------------------
 
 **Permutation Distribution:**
-Generate :math:`B$ permutations :math:`\{X^{(b)}\}_{b=1}^B$ and compute:
+Generate :math:`B` permutations :math:`\{X^{(b)}\}_{b=1}^B` and compute:
 
 .. math::
 
@@ -70,19 +65,17 @@ Generate :math:`B$ permutations :math:`\{X^{(b)}\}_{b=1}^B$ and compute:
 .. math::
 
    p = \frac{1 + \sum_{b=1}^B \mathbb{I}(T^{(b)} \geq T_{\text{obs}})}{B + 1}
-
 Permutation Strategies
 ---------------------
 
 **Simple Permutation:**
-Randomly shuffle :math:`X$ across all observations.
+Randomly shuffle :math:`X` across all observations.
 
 **Conditional Permutation:**
-For continuous :math:`Z$, this is challenging. Alternatives include:
-
-1. **Residual Permutation:** Permute residuals from :math:`X \sim f(Z)$
-2. **Local Permutation:** Permute within neighborhoods of similar :math:`Z$ values
-3. **Model-Based Permutation:** Fit :math:`p(X|Z)$ and generate synthetic data
+For continuous :math:`Z`, this is challenging. Alternatives include:
+1. **Residual Permutation:** Permute residuals from :math:`X \sim f(Z)`
+2. **Local Permutation:** Permute within neighborhoods of similar :math:`Z` values
+3. **Model-Based Permutation:** Fit :math:`p(X|Z)` and generate synthetic data
 
 **Block Permutation:**
 For time series data, preserve temporal structure:
@@ -90,45 +83,40 @@ For time series data, preserve temporal structure:
 .. math::
 
    \text{Block}(X, l) = [X_{i:i+l-1}, X_{j:j+l-1}, \ldots]
-
-where blocks of length :math:`l$ are permuted rather than individual observations.
-
+where blocks of length :math:`l` are permuted rather than individual observations.
 Statistical Properties
 ---------------------
 
 **Exactness:**
-Permutation tests provide exact control of Type I error under :math:`H_0$.
+Permutation tests provide exact finite-sample Type I error control when the permutation scheme is valid under :math:`H_0` (for example, when the relevant observations are exchangeable).
 
 **Power:**
 Power depends on:
 - Effect size (true conditional mutual information)
-- Sample size :math:`n$
-- Number of permutations :math:`B$
+- Sample size :math:`n`
+- Number of permutations :math:`B`
 - Quality of information estimator
 
 **Computational Cost:**
-Total cost is :math:`O((B+1) \cdot C_{\text{estimator}})$ where :math:`C_{\text{estimator}}$ 
+Total cost is :math:`O((B+1) \cdot C_{\text{estimator}})` where :math:`C_{\text{estimator}}`
 is the cost of computing one conditional mutual information estimate.
-
-
 Sequential Testing in oCSE
 ==========================
 
 Forward Selection Testing
 -------------------------
 
-At each forward selection step :math:`s$:
-
-1. Test all remaining candidates: :math:`\{H_{0,k}\}_{k \in \mathcal{R}_s}$
+At each forward selection step :math:`s`:
+1. Test all remaining candidates: :math:`\{H_{0,k}\}_{k \in \mathcal{R}_s}`
 2. Apply multiple testing correction within the step
 3. Select the most significant candidate (if any pass the threshold)
 
 **Step-wise FDR Control:**
+
 .. math::
+
    \alpha_s = \alpha \cdot \frac{|\mathcal{R}_s|}{|\mathcal{R}_1|}
-
 This allocates the error budget proportionally across steps.
-
 Backward Elimination Testing
 ----------------------------
 
@@ -143,10 +131,9 @@ Test each selected predictor for continued significance:
 - Multiple testing across different removal orders
 
 **Solutions:**
-- Use more conservative :math:`\alpha$ for backward phase
+- Use more conservative :math:`\alpha` for backward phase
 - Apply FDR control across all backward tests
 - Use stability-based selection criteria
-
 Bootstrap Methods
 =================
 
@@ -154,34 +141,33 @@ Bootstrap Confidence Intervals
 ------------------------------
 
 **Procedure:**
-1. Generate :math:`B$ bootstrap samples :math:`\{(\mathbf{X}^{(b)}, \mathbf{Y}^{(b)})\}_{b=1}^B$
-2. Compute :math:`\{\hat{I}^{(b)}\}_{b=1}^B$ for each bootstrap sample
-3. Construct confidence interval: :math:`[\hat{I}_{(\alpha/2)}, \hat{I}_{(1-\alpha/2)}]$
+1. Generate :math:`B` bootstrap samples :math:`\{(\mathbf{X}^{(b)}, \mathbf{Y}^{(b)})\}_{b=1}^B`
+2. Compute :math:`\{\hat{I}^{(b)}\}_{b=1}^B` for each bootstrap sample
+3. Construct confidence interval: :math:`[\hat{I}_{(\alpha/2)}, \hat{I}_{(1-\alpha/2)}]`
 
 **Time Series Bootstrap:**
 Standard bootstrap assumes i.i.d. data. For time series:
 
 **Block Bootstrap:**
-.. math::
-   \text{Bootstrap Sample} = [B_1, B_2, \ldots, B_k]
 
-where :math:`B_i$ are overlapping blocks of length :math:`l$.
+.. math::
+
+   \text{Bootstrap Sample} = [B_1, B_2, \ldots, B_k]
+where :math:`B_i` are overlapping blocks of length :math:`l`.
 
 **Stationary Bootstrap:**
 Random block lengths with geometric distribution.
-
 Bootstrap-based Variable Selection
 ----------------------------------
 
 **Stability Selection:**
-For each bootstrap sample, perform variable selection and compute 
+For each bootstrap sample, perform variable selection and compute
 selection probability:
 
 .. math::
 
    \Pi_j = P(\text{variable } j \text{ selected}) = \frac{1}{B} \sum_{b=1}^B \mathbb{I}(j \in \hat{\mathbf{S}}^{(b)})
-
-Select variables with :math:`\Pi_j \geq \pi_{\text{threshold}}$ (typically 0.6-0.8).
+Select variables with :math:`\Pi_j \geq \pi_{\text{threshold}}` (typically 0.6-0.8).
 
 **Theoretical Guarantees:**
 Under appropriate conditions, stability selection provides FDR control:
@@ -189,7 +175,36 @@ Under appropriate conditions, stability selection provides FDR control:
 .. math::
 
    \mathbb{E}[\text{FDR}] \leq \frac{1}{2\pi_{\text{threshold}} - 1} \cdot \frac{\mathbb{E}[V]}{|\hat{\mathbf{S}}|}
+Multiple-Testing Corrections in the Library
+---------------------------------------------
 
+After causal discovery, multiple-testing corrections can be applied to the
+p-values of the retained edges with
+:func:`causationentropy.graph.utils.apply_test_correction`.
+The available methods are:
+- ``bonferroni`` for family-wise error-rate control.
+- ``bh`` for Benjamini-Hochberg false discovery-rate control.
+- ``by`` for Benjamini-Yekutieli false discovery-rate control under arbitrary dependence.
+- ``adaptive_bh`` for an adaptive Benjamini-Hochberg procedure.
+The ``family`` argument determines which hypotheses are corrected together:
+``family="graph"`` applies one correction across the graph, while
+``family="target"`` applies a separate correction to the incoming edges of
+each target node. The correction adds ``p_adjusted`` to edge attributes and
+``P_Adjusted`` to the output of :func:`network_to_dataframe`. This is a
+reporting adjustment over the retained edges; it does not retroactively
+correct the full set of candidate links that were considered during network
+discovery.
+When ``n_shuffles`` is supplied, the correction function also checks whether
+the permutation p-value resolution is sufficient for the requested correction
+and emits a warning when some rejections may be impossible.
+Reproducibility and Permutation Stopping
+-----------------------------------------
+
+The discovery API accepts ``random_state`` so that the randomization used by
+causal discovery can be reproduced. The permutation test also exposes an
+opt-in ``early_stop`` argument. When enabled, clearly insignificant tests can
+stop before all requested shuffles have been generated; tests that could still
+pass the significance threshold continue to the full number of shuffles.
 Theoretical Guarantees
 =====================
 
@@ -204,11 +219,10 @@ An estimator is selection consistent if:
    P(\hat{\mathbf{S}} = \mathbf{S}_{\text{true}}) \to 1 \text{ as } n \to \infty
 
 **Conditions for oCSE:**
-1. **Information Estimator Consistency:** :math:`\hat{I} \xrightarrow{P} I$
-2. **Significance Level Scaling:** :math:`\alpha_n \to 0$ appropriately
-3. **Sparsity:** :math:`|\mathbf{S}_{\text{true}}| = o(n)$
+1. **Information Estimator Consistency:** :math:`\hat{I} \xrightarrow{P} I`
+2. **Significance Level Scaling:** :math:`\alpha_n \to 0` appropriately
+3. **Sparsity:** :math:`|\mathbf{S}_{\text{true}}| = o(n)`
 4. **Signal Strength:** Minimum true CMI bounded away from 0
-
 Estimation Error Bounds
 ----------------------
 
@@ -217,27 +231,23 @@ For Gaussian estimators, the estimation error satisfies:
 .. math::
 
    |\hat{I} - I| = O_p\left(\sqrt{\frac{d \log n}{n}}\right)
-
-where :math:`d$ is the effective dimensionality.
+where :math:`d` is the effective dimensionality.
 
 **Implications for Causal Discovery:**
-- Need :math:`n \gg d \log n$ for reliable estimation
-- True relationships must have CMI significantly larger than :math:`\sqrt{\frac{d \log n}{n}}$
-
+- Need :math:`n \gg d \log n` for reliable estimation
+- True relationships must have CMI significantly larger than :math:`\sqrt{\frac{d \log n}{n}}`
 High-Dimensional Theory
 ----------------------
 
-**Conditions for :math:`p > n$:**
+**Conditions for :math:`p > n`:**
 When the number of potential predictors exceeds sample size:
-
-1. **Sparsity:** :math:`s = |\mathbf{S}_{\text{true}}| \ll n$
+1. **Sparsity:** :math:`s = |\mathbf{S}_{\text{true}}| \ll n`
 2. **Restricted Eigenvalue Condition:** For information matrices
 3. **Signal-to-Noise Ratio:** True CMI values sufficiently large
 
 **Phase Transitions:**
-In high-dimensional regimes, there are sharp phase transitions where 
-selection becomes possible/impossible based on the scaling of :math:`n$, :math:`p$, and :math:`s$.
-
+In high-dimensional regimes, there are sharp phase transitions where
+selection becomes possible/impossible based on the scaling of :math:`n`, :math:`p`, and :math:`s`.
 Power Analysis
 =============
 
@@ -252,28 +262,25 @@ The power of a conditional independence test is:
 
 **Factors Affecting Power:**
 - **Effect Size:** Larger true CMI increases power
-- **Sample Size:** Power increases with :math:`n$
+- **Sample Size:** Power increases with :math:`n`
 - **Dimensionality:** Higher dimensions reduce power (curse of dimensionality)
 - **Information Estimator:** Different estimators have different power characteristics
-
 Sample Size Calculations
 ------------------------
 
 **Rule of Thumb for Gaussian Estimator:**
-To detect CMI of size :math:`\delta$ with power :math:`1-\beta$:
+To detect CMI of size :math:`\delta` with power :math:`1-\beta`:
 
 .. math::
 
    n \gtrsim \frac{(z_{\alpha} + z_{\beta})^2}{\delta^2} \cdot d
-
-where :math:`d$ is the effective dimensionality.
+where :math:`d` is the effective dimensionality.
 
 **Simulation-Based Power Analysis:**
 1. Specify effect sizes of interest
 2. Generate synthetic data under alternative hypothesis
 3. Apply testing procedure and compute empirical power
-4. Repeat for different sample sizes to find required :math:`n$
-
+4. Repeat for different sample sizes to find required :math:`n`
 Robustness and Sensitivity
 ==========================
 
@@ -290,7 +297,6 @@ Information estimators vary in sensitivity to outliers:
 - **Trimmed estimators:** Remove extreme observations
 - **M-estimators:** Downweight outliers in computation
 - **Robust covariance:** Use robust estimates in Gaussian methods
-
 Model Misspecification
 ----------------------
 
@@ -305,15 +311,14 @@ Time-varying relationships violate stationarity assumptions:
 - Use adaptive window methods
 - Apply tests for structural breaks
 - Consider time-varying parameter models
-
 Sensitivity Analysis
 -------------------
 
 **Parameter Sensitivity:**
 Assess robustness to hyperparameter choices:
 - Information estimator parameters (bandwidth, k)
-- Significance levels (:math:`\alpha$)
-- Maximum lag (:math:`\tau_{\max}$)
+- Significance levels (:math:`\alpha`)
+- Maximum lag (:math:`\tau_{\max}`)
 
 **Cross-Validation:**
 Use held-out data to validate discovered relationships:
@@ -321,49 +326,35 @@ Use held-out data to validate discovered relationships:
 .. math::
 
    \text{CV-Score} = \frac{1}{K} \sum_{k=1}^K I_{\text{test},k}(\hat{\mathbf{S}}_{\text{train},k})
-
 Practical Guidelines
 ===================
 
 Sample Size Requirements
 -----------------------
 
-**Minimum Sample Sizes by Estimator:**
+**Sample Size Guidance:**
+There is no universal minimum sample size that guarantees reliable causal discovery. Required sample size depends on effect size, dimensionality, dependence structure, estimator settings, and the number of hypotheses being tested. Use the following qualitative guidance rather than fixed cutoffs:
 
-.. list-table:: Sample Size Guidelines
-   :widths: 25 25 25 25
+.. list-table:: Practical sample-size considerations
+   :widths: 30 70
    :header-rows: 1
 
    * - Estimator
-     - Low Dim (d≤5)
-     - Medium Dim (5<d≤20)
-     - High Dim (d>20)
+     - Practical consideration
    * - Gaussian
-     - n ≥ 50
-     - n ≥ 100
-     - n ≥ 500
+     - Can be data-efficient when its distributional assumptions are reasonable; assess uncertainty for the actual dimensionality and sample size.
    * - k-NN
-     - n ≥ 100
-     - n ≥ 500
-     - n ≥ 1000+
+     - Nonparametric estimation generally requires more observations as the dimension of the conditioning set increases.
    * - KDE
-     - n ≥ 200
-     - n ≥ 1000
-     - Not recommended
+     - Bandwidth selection and dimensionality can make estimation data-hungry; assess stability empirically rather than relying on a fixed cutoff.
 
+For a concrete study, simulation-based power or sensitivity analysis is preferable to applying a universal sample-size threshold.
 Significance Level Selection
 ---------------------------
 
-**Forward Selection:** Use more stringent :math:`\alpha$ to control false positives
-- Conservative: :math:`\alpha = 0.01$
-- Standard: :math:`\alpha = 0.05$
-- Liberal: :math:`\alpha = 0.10$ (exploratory analysis)
-
-**Backward Elimination:** Can use less stringent :math:`\alpha$ for pruning
-- Typical: :math:`\alpha_{\text{backward}} = 1.5 \times \alpha_{\text{forward}}$
-
-**Multiple Testing:** Always apply appropriate corrections when testing multiple relationships simultaneously.
-
+**Forward Selection:** Choose :math:`\alpha` according to the desired error-control procedure and the role of the analysis. The library default is :math:`0.05`, but this should not be treated as a universal requirement.
+**Backward Elimination:** Document the significance level and correction strategy used for pruning. A different threshold can be appropriate, but it should be motivated rather than treated as a universal multiplier.
+**Multiple Testing:** When several hypotheses are interpreted together, use an appropriate multiple-testing procedure and report which hypotheses form the correction family.
 Diagnostic Procedures
 ====================
 
@@ -382,7 +373,6 @@ Compare model performance using information-theoretic criteria:
 .. math::
 
    \text{AIC}_{\text{info}} = -2 \sum_{j \in \hat{\mathbf{S}}} \hat{I}_j + 2|\hat{\mathbf{S}}|
-
 Stability Analysis
 -----------------
 
@@ -395,7 +385,6 @@ Assess selection stability across bootstrap samples:
 
 **Cross-Validation Stability:**
 Use K-fold CV to assess robustness to data splitting.
-
 Future Directions
 ================
 
@@ -405,27 +394,23 @@ Methodological Advances
 1. **Adaptive Testing:** Data-driven significance level selection
 2. **Sequential FDR:** Improved multiple testing for sequential selection
 3. **Robust Information Measures:** Estimators less sensitive to outliers
-4. **High-Dimensional Theory:** Better understanding of :math:`p >> n$ regimes
+4. **High-Dimensional Theory:** Better understanding of :math:`p >> n` regimes
 5. **Causal-Specific Tests:** Tests designed specifically for causal relationships
-
 Computational Improvements
 --------------------------
 
 1. **Parallel Testing:** Efficient parallel algorithms for permutation tests
 2. **Approximate Methods:** Fast approximate significance testing
-
 Conclusion
 =========
 
-The statistical foundations of optimal Causal Entropy provide the theoretical framework 
+The statistical foundations of Causation Entropy provide the theoretical framework
 for reliable causal discovery. Key principles include:
-
 - **Rigorous Hypothesis Testing:** All causal claims should be statistically validated
 - **Multiple Testing Awareness:** Control for multiple comparisons when testing many relationships
 - **Bootstrap Methods:** Use resampling for uncertainty quantification and stability assessment
 - **Power Considerations:** Ensure sufficient sample sizes for reliable detection
 - **Robustness Checks:** Validate methods across different assumptions and parameter choices
-
-Understanding these statistical foundations is crucial for proper application and 
-interpretation of causal discovery results. Practitioners should always validate 
+Understanding these statistical foundations is crucial for proper application and
+interpretation of causal discovery results. Practitioners should always validate
 their findings through appropriate statistical testing and sensitivity analysis.

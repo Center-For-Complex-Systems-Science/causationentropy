@@ -3,3 +3,4 @@ Plotting Utilities
 
 .. autofunction:: causationentropy.core.plotting.roc_curve
 .. autofunction:: causationentropy.core.plotting.plot_causal_network
+.. autofunction:: causationentropy.core.plotting.plot_delay_analysis

@@ -348,7 +348,7 @@ Permutation Tests
 Test :math:`H_0: I(X;Y|Z) = 0` using permutation of :math:`X`:
 
 1. Compute observed :math:`I_{\text{obs}}(X;Y|Z)`
-2. Generate :math:`B$ permutations of :math:`X`: :math:`X^{(b)}`
+2. Generate :math:`B` permutations of :math:`X`: :math:`X^{(b)}`
 3. Compute null statistics: :math:`I^{(b)} = I(X^{(b)};Y|Z)`
 4. P-value: :math:`p = \frac{1 + \sum_{b=1}^B \mathbb{I}(I^{(b)} \geq I_{\text{obs}})}{B + 1}`
 
@@ -361,7 +361,7 @@ Construct confidence intervals for information measures:
 
    \text{CI}_{1-\alpha}(I) = [Q_{\alpha/2}(\{I^{(b)}\}), Q_{1-\alpha/2}(\{I^{(b)}\})]
 
-where :math:`Q_p$ is the :math:`p$-quantile of bootstrap samples.
+where :math:`Q_p` is the :math:`p`-quantile of bootstrap samples.
 
 Multiple Testing Correction
 ---------------------------
@@ -393,9 +393,9 @@ This balances information gain with model complexity.
 Conditional Independence Testing
 ------------------------------
 
-Test conditional independence: :math:`X \perp Y | Z$
+Test conditional independence: :math:`X \perp Y | Z`
 
-Equivalent to testing: :math:`I(X;Y|Z) = 0$
+Equivalent to testing: :math:`I(X;Y|Z) = 0`
 
 **Advantages over linear methods:**
 - Detects nonlinear dependencies

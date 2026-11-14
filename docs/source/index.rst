@@ -62,6 +62,7 @@ Here is an example:
    :hidden:
 
    api/network_discovery
+   api/equation_discovery
    api/information
    api/datasets
    api/linalg

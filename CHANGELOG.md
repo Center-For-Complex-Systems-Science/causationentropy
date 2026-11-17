@@ -23,6 +23,7 @@
 - `linear_gaussian_from_graph` for generating synthetic data from a chosen `networkx` graph (#39).
 - Block-bootstrap confidence intervals: `moving_block_bootstrap_indices`, `stationary_bootstrap_indices`, `bootstrap_confidence_interval` and `bootstrap_cmi_confidence_interval` (#40).
 - Optional futility early stopping in `shuffle_test` (`early_stop=True`). It is only available when calling `shuffle_test` directly (#41).
+- Symbolic (partition-based) estimators following Cafaro, Lord, Sun and Bollt (Chaos, 2015): `symbolize`, `symbolic_entropy`, `symbolic_mutual_information` and `symbolic_conditional_mutual_information`, available as `method='symbolic'` in `conditional_mutual_information` and `information='symbolic'` in `discover_network` (#59).
 - Multiple-testing corrections `bonferroni_correction`, `benjamini_hochberg_correction`, `benjamini_yekutieli_correction`, `adaptive_bh_correction` and `estimate_null_proportion`, plus `apply_test_correction` to correct the p-values of a discovered network after discovery (adds a `P_Adjusted` column to `network_to_dataframe`). Discovery itself does not apply a correction (#37).
 - Tutorials and expanded theory documentation (#30, #49, #50).
 

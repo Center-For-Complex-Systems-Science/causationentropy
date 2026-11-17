@@ -344,3 +344,169 @@ def poisson_joint_entropy(Cov):
     Ent1 = np.sum(poisson_entropy(U))
     Ent2 = np.sum(T)
     return Ent1 + Ent2
+
+
+def symbolize(
+    X: np.ndarray,
+    n_symbols: int = 2,
+    partition: str = "quantile",
+) -> np.ndarray:
+    r"""
+    Convert continuous data into symbols by partitioning each variable's range.
+
+    Following Cafaro et al. [1]_, a partition :math:`\mathcal{A} = \{A_0, \dots, A_m\}`
+    of the state space assigns to each observation :math:`x_t` the symbol
+
+    .. math::
+
+        s_t = \sum_{i=0}^{m} \chi_{A_i}(x_t) \cdot i,
+
+    where :math:`\chi_{A}` is the indicator function of the cell :math:`A`. Here the
+    partition is applied to each column (variable) separately, with ``n_symbols`` cells.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples,) or (n_samples, n_features)
+        Input data. A 1-D array is treated as a single column.
+    n_symbols : int, default=2
+        Number of cells (symbols) per variable. Must be at least 2. Ignored when
+        ``partition='precomputed'``.
+    partition : {'quantile', 'uniform', 'precomputed'}, default='quantile'
+        How the cells are chosen for each column:
+
+        - ``'quantile'``: approximately equal-frequency cells. Edges are placed at
+          midpoints between neighbouring distinct values, as close as possible to the
+          empirical quantiles, so tied values always share a cell (with
+          ``n_symbols=2`` this is a split near the median). Data with few distinct
+          values may therefore use fewer than ``n_symbols`` symbols.
+        - ``'uniform'``: equal-width cells between the column minimum and maximum.
+        - ``'precomputed'``: the data are already symbols (integer labels) and are
+          returned unchanged as integers.
+
+        For ``'uniform'``, a value equal to a cell edge is assigned to the upper cell.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, n_features)
+        Integer symbols in ``{0, ..., n_symbols - 1}`` (or the given labels for
+        ``'precomputed'``).
+
+    Raises
+    ------
+    ValueError
+        If ``n_symbols < 2``, the partition type is unknown, the data contain NaN or
+        infinite values, or precomputed data are not integer-valued.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> symbolize(np.array([0.1, 0.9, 0.4, 0.6]), n_symbols=2).ravel()
+    array([0, 1, 0, 1])
+
+    References
+    ----------
+    .. [1] C. Cafaro, W. M. Lord, J. Sun, and E. M. Bollt, "Causation entropy from
+           symbolic representations of dynamical systems," Chaos 25, 043106 (2015).
+           arXiv:1507.07262.
+    """
+    X = np.asarray(X)
+    if X.ndim == 1:
+        X = X.reshape(-1, 1)
+    X = X.astype(float)
+    if not np.all(np.isfinite(X)):
+        raise ValueError("symbolize requires finite values (no NaN or inf).")
+
+    if partition == "precomputed":
+        if not np.all(np.equal(np.mod(X, 1), 0)):
+            raise ValueError("partition='precomputed' requires integer-valued symbols.")
+        return X.astype(np.int64)
+
+    if n_symbols < 2:
+        raise ValueError(f"n_symbols must be at least 2, got {n_symbols}.")
+
+    symbols = np.empty(X.shape, dtype=np.int64)
+    for j in range(X.shape[1]):
+        col = X[:, j]
+        if partition == "quantile":
+            inner_edges = _quantile_edges(col, n_symbols)
+        elif partition == "uniform":
+            inner_edges = np.linspace(col.min(), col.max(), n_symbols + 1)[1:-1]
+        else:
+            raise ValueError(
+                f"Unknown partition '{partition}'. "
+                "Use 'quantile', 'uniform' or 'precomputed'."
+            )
+        symbols[:, j] = np.searchsorted(inner_edges, col, side="right")
+    return symbols
+
+
+def _quantile_edges(col: np.ndarray, n_symbols: int) -> np.ndarray:
+    """Equal-frequency cell edges placed between distinct values of ``col``."""
+    values, counts = np.unique(col, return_counts=True)
+    if values.size < 2:
+        return np.empty(0)
+    midpoints = (values[:-1] + values[1:]) / 2.0
+    share_below = np.cumsum(counts)[:-1] / col.size
+    targets = np.arange(1, n_symbols) / n_symbols
+    nearest = np.abs(share_below[None, :] - targets[:, None]).argmin(axis=1)
+    return np.unique(midpoints[nearest])
+
+
+def _joint_labels(S: np.ndarray) -> np.ndarray:
+    """Map each row of a 2-D symbol array to one integer label for its joint symbol."""
+    _, labels = np.unique(S, axis=0, return_inverse=True)
+    return labels.ravel()
+
+
+def symbolic_entropy(
+    X: np.ndarray,
+    n_symbols: int = 2,
+    partition: str = "quantile",
+) -> float:
+    r"""
+    Plug-in (maximum-likelihood) Shannon entropy of symbolized data, in nats.
+
+    The data are symbolized with :func:`symbolize`, and the joint symbol of each row is
+    counted. With empirical frequencies :math:`\hat P(s)`,
+
+    .. math::
+
+        \hat H(X) = -\sum_{s} \hat P(s) \log \hat P(s).
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples,) or (n_samples, n_features)
+        Input data; several columns are treated as one joint variable.
+    n_symbols : int, default=2
+        Number of symbols per variable (see :func:`symbolize`).
+    partition : {'quantile', 'uniform', 'precomputed'}, default='quantile'
+        Partition type (see :func:`symbolize`).
+
+    Returns
+    -------
+    float
+        Entropy estimate in nats.
+
+    Notes
+    -----
+    The plug-in estimator is biased downward for small samples relative to the number
+    of occupied joint symbols [2]_. Time complexity is :math:`O(n \log n)`.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> x = np.array([0, 1, 2, 3])
+    >>> round(symbolic_entropy(x, partition="precomputed"), 6)  # log(4)
+    1.386294
+
+    References
+    ----------
+    .. [1] C. Cafaro, W. M. Lord, J. Sun, and E. M. Bollt, "Causation entropy from
+           symbolic representations of dynamical systems," Chaos 25, 043106 (2015).
+    .. [2] L. Paninski, "Estimation of entropy and mutual information," Neural
+           Computation 15(6), 1191-1253 (2003).
+    """
+    labels = _joint_labels(symbolize(X, n_symbols=n_symbols, partition=partition))
+    counts = np.bincount(labels)
+    p = counts[counts > 0] / labels.size
+    return float(-np.sum(p * np.log(p))) + 0.0  # + 0.0 turns -0.0 into 0.0

@@ -4,7 +4,12 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from scipy.special import digamma
 
-from causationentropy.core.information.entropy import geometric_knn_entropy, kde_entropy
+from causationentropy.core.information.entropy import (
+    geometric_knn_entropy,
+    kde_entropy,
+    symbolic_entropy,
+    symbolize,
+)
 from causationentropy.core.linalg import correlation_log_determinant
 
 
@@ -240,3 +245,65 @@ def geometric_knn_mutual_information(X, Y, metric="euclidean", k=1):
 
     # Ensure non-negativity
     return max(0.0, mi)
+
+
+def symbolic_mutual_information(
+    X: np.ndarray,
+    Y: np.ndarray,
+    n_symbols: int = 2,
+    partition: str = "quantile",
+) -> float:
+    r"""
+    Plug-in mutual information of symbolized data, in nats.
+
+    Each variable is symbolized with
+    :func:`~causationentropy.core.information.entropy.symbolize`, and
+
+    .. math::
+
+        \hat I(X; Y) = \hat H(X) + \hat H(Y) - \hat H(X, Y),
+
+    which equals Eq. (14) of Cafaro et al. [1]_ with empirical probabilities.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n_samples,) or (n_samples, n_features_x)
+        First variable.
+    Y : np.ndarray, shape (n_samples,) or (n_samples, n_features_y)
+        Second variable.
+    n_symbols : int, default=2
+        Number of symbols per variable.
+    partition : {'quantile', 'uniform', 'precomputed'}, default='quantile'
+        Partition type.
+
+    Returns
+    -------
+    float
+        Mutual information estimate in nats (non-negative up to rounding).
+
+    Notes
+    -----
+    The plug-in estimate is biased upward when the number of occupied joint symbols
+    is not small compared with the sample size [2]_.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> x = np.array([0, 1, 0, 1])
+    >>> round(symbolic_mutual_information(x, x, partition="precomputed"), 6)
+    0.693147
+
+    References
+    ----------
+    .. [1] C. Cafaro, W. M. Lord, J. Sun, and E. M. Bollt, "Causation entropy from
+           symbolic representations of dynamical systems," Chaos 25, 043106 (2015).
+    .. [2] L. Paninski, "Estimation of entropy and mutual information," Neural
+           Computation 15(6), 1191-1253 (2003).
+    """
+    SX = symbolize(X, n_symbols=n_symbols, partition=partition)
+    SY = symbolize(Y, n_symbols=n_symbols, partition=partition)
+    return (
+        symbolic_entropy(SX, partition="precomputed")
+        + symbolic_entropy(SY, partition="precomputed")
+        - symbolic_entropy(np.hstack([SX, SY]), partition="precomputed")
+    )

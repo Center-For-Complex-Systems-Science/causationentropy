@@ -10,6 +10,35 @@ python -m benchmarks.run --profile quick --output benchmark-results
 python -m benchmarks.run --profile full --output benchmark-results
 ```
 
+## kNN sensitivity (#55)
+
+The kNN discovery sweep varies sample length and neighbor count while reusing
+the same seeded graph generator, exact edge scoring, and result-file
+conventions:
+
+```bash
+python -m benchmarks.run_knn_sensitivity --profile quick
+python -m benchmarks.run_knn_sensitivity --profile full
+```
+
+The full profile tests `T=300, 500, 1000`, `k=2, 5, 10`, and five fixed seeds
+on a five-variable network. It can be expensive; override the sweep to run a
+smaller experiment, for example:
+
+```bash
+python -m benchmarks.run_knn_sensitivity \
+  --n 5 --lengths 300 500 --ks 2 5 --seeds 0 1 2 --n-shuffles 50
+```
+
+The estimator uses Chebyshev distance explicitly. Runtime is summarized by
+the median across seeds, while precision, recall, and F1 are micro-averaged.
+Raw per-seed CSV, aggregate JSON, and a Markdown table are written to
+`benchmark-results/knn-sensitivity/` by default. Full sweeps are local-only;
+CI tests the sweep helpers on tiny, mocked cases.
+The preliminary three-seed result table is in
+[`RESULTS_issue55.md`](RESULTS_issue55.md); it must be rerun after PR #53 is
+merged before being treated as final.
+
 ## Conventions (answers to the open questions on #18)
 
 * **Generator:** `linear_stochastic_gaussian_process(rho=0.7, p=0.2)`,

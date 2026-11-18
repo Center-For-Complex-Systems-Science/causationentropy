@@ -8,6 +8,9 @@ pytest.importorskip("benchmarks")
 from benchmarks.adapters import generate_case, run_causation_entropy
 from benchmarks.metrics import normalize_ce_edges, score_edges
 from benchmarks.run import aggregate, markdown_table, run_profile
+from benchmarks.run_knn_sensitivity import aggregate as aggregate_knn
+from benchmarks.run_knn_sensitivity import markdown_table as knn_markdown_table
+from benchmarks.run_knn_sensitivity import run_sweep
 
 
 def test_generate_case_truth_matches_graph():
@@ -62,6 +65,37 @@ def test_tiny_end_to_end_ce_only():
     assert all(isinstance(e[0], int) and e[2] >= 1 for e in predicted)
     out = score_edges(truth, predicted)
     assert out["TP"] + out["FN"] == len(truth)
+
+
+def test_knn_sweep_threads_k_and_scores_results(monkeypatch):
+    import benchmarks.adapters as adapters
+
+    calls = []
+
+    def fake_run(data, **kwargs):
+        calls.append(kwargs)
+        return nx.MultiDiGraph(), 0.25
+
+    monkeypatch.setattr(adapters, "run_causation_entropy", fake_run)
+    rows = run_sweep(
+        n=3,
+        lengths=[80],
+        ks=[2, 4],
+        seeds=[0],
+        max_lag=1,
+        n_shuffles=5,
+        verbose=False,
+    )
+
+    assert [row["k"] for row in rows] == [2, 4]
+    assert [call["k"] for call in calls] == [2, 4]
+    assert all(call["information"] == "knn" for call in calls)
+    summary = aggregate_knn(rows)
+    assert len(summary) == 2
+    assert summary[0]["runtime_median_s"] == pytest.approx(0.25)
+    assert "| n | T | k | seeds | median runtime s |" in knn_markdown_table(
+        summary, max_lag=1, n_shuffles=5
+    )
 
 
 def test_pcmci_adapter_smoke():

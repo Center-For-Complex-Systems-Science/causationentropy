@@ -39,19 +39,27 @@ def run_causation_entropy(
     n_shuffles: int,
     alpha_forward: float = 0.05,
     alpha_backward: float = 0.05,
+    information: str = "gaussian",
+    k: int = 5,
 ):
-    """Run Gaussian oCSE serially; return ``(graph, runtime_s)``."""
+    """Run oCSE serially; return ``(graph, runtime_s)``.
+
+    ``information`` selects the information estimator, and ``k`` is passed
+    through as the estimator's neighbor count for kNN discovery.
+    """
     from causationentropy.core.discovery import discover_network
 
     start = time.perf_counter()
     graph = discover_network(
         data,
         method="standard",
-        information="gaussian",
+        information=information,
         max_lag=max_lag,
         alpha_forward=alpha_forward,
         alpha_backward=alpha_backward,
         n_shuffles=n_shuffles,
+        metric="chebyshev" if information == "knn" else None,
+        k_means=k,
         n_jobs=1,
         random_state=seed,
     )

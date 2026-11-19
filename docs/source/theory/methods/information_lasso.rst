@@ -44,18 +44,30 @@ where:
 Information-Theoretic Weights
 =============================
 
-The weights :math:`w_j` are derived from conditional mutual information measures:
+The broader info-LASSO family can derive :math:`w_j` from conditional
+mutual information. The standalone Path A implementation in this package is
+the empty-conditioning specialization of that family.
 
-Base Weights
------------
+General Conditional Form
+------------------------
 
-For each potential predictor :math:`X_j^{(t-\tau)}`:
+For each potential predictor :math:`X_j^{(t-\tau)}`, a general conditioned
+weight can be written as:
 
 .. math::
 
    w_{j,\tau} = \frac{I(X_j^{(t-\tau)}; X_i^{(t)} | \mathbf{Z}_i)}{\sum_{k,\tau'} I(X_k^{(t-\tau')}; X_i^{(t)} | \mathbf{Z}_i)}
 
-This normalizes the conditional mutual information values to create relative importance weights.
+For the current standalone ``method="information_lasso"`` pathway,
+:math:`\mathbf{Z}_i = \varnothing`. Therefore
+
+.. math::
+
+   I(X_j; Y | \varnothing) = I(X_j; Y),
+
+and the implemented base weights are marginal-information weights. Conditioned
+screening with a non-empty target-history set is handled separately by the
+screened-oCSE pathway rather than by Path A.
 
 Adaptive Weighting
 ------------------
@@ -174,6 +186,40 @@ Two-Stage Implementation
        # Select non-zero coefficients
        selected = np.where(np.abs(beta_original) > 1e-6)[0]
        return selected, beta_original
+
+Current Standalone Implementation
+---------------------------------
+
+The public method="information_lasso" pathway implements the two-stage
+weighted-LASSO approach above.
+
+For each lagged candidate, the standalone pathway computes
+
+.. math::
+
+   w_j = \frac{I(X_j;Y | \varnothing)}{\sum_k I(X_k;Y | \varnothing)}
+       = \frac{I(X_j;Y)}{\sum_k I(X_k;Y)}.
+
+In code, the empty conditioning set is represented by ``Z=None``. This is an
+intentional scope choice for standalone Path A, not an implicit use of the
+target-history conditioning set. The normalized information weights are then
+used as predictor-specific penalty weights. Equivalently, scaling column
+j of the design matrix by w_j lets the existing LASSO solvers optimize
+
+.. math::
+
+   \frac{1}{2n}\|\mathbf{y}-\mathbf{X}\boldsymbol{\beta}\|_2^2
+   + \lambda \sum_j \frac{1}{w_j}|\beta_j|.
+
+Candidates with zero information receive an infinite effective penalty and are
+not selected. When there are enough samples relative to predictors,
+LassoLarsIC selects the regularization strength using AIC or BIC. In the
+high-dimensional regime, LassoCV uses the existing cross_val parameter.
+
+The information estimator selected through discover_network (for example
+Gaussian, KDE, or k-NN) is also used to construct these weights. Iterative
+reweighting and the separate Information-LASSO screening plus exact oCSE
+refinement pathway are not part of this standalone implementation.
 
 Adaptive Implementation
 ----------------------

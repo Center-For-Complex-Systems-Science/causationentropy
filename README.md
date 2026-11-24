@@ -174,12 +174,15 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 If you use this library in your research, please cite:
 
 ```bibtex
-   @misc{slote2025causationentropy,
-     author  = {Slote, Kevin and Fish, Jeremie and Bollt, Erik},
-     title   = {CausationEntropy: A Python Library for Causal Discovery},
-     url     = {https://github.com/Center-For-Complex-Systems-Science/causationentropy},
-     doi     = {10.5281/zenodo.17047565}
-   }
+@misc{slote2026causationentropypythonicoptimalcausation,
+      title={CausationEntropy: Pythonic Optimal Causation Entropy}, 
+      author={Kevin Slote and Jeremie Fish and Erik Bollt},
+      year={2026},
+      eprint={2601.13365},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2601.13365}, 
+}
 ```
 
 ## License

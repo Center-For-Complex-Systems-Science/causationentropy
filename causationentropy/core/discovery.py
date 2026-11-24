@@ -5,12 +5,13 @@ version = 1.1.0
 """
 
 import copy
+import math
 from typing import Dict, Tuple, Union
 
 import networkx as nx
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Lasso, LassoLarsIC
+from sklearn.linear_model import Lasso, LassoCV, LassoLarsIC
 
 from causationentropy.core.information.conditional_mutual_information import (
     conditional_mutual_information,
@@ -31,6 +32,7 @@ def discover_network(
     n_jobs=-1,
     random_state: Union[int, np.random.Generator, None] = 42,
     only_return_significant: bool = True,
+    screen_retention: float = 0.40,
 ) -> nx.MultiDiGraph:
     r"""
     Infer a causal graph via Optimal Causation Entropy (oCSE).
@@ -75,6 +77,8 @@ def discover_network(
         - 'standard': Uses initial conditioning set of lagged target variables
         - 'alternative': No initial conditioning set
         - 'information_lasso': Information-theoretic variant with LASSO regularization
+        - 'information_screened': Information-LASSO proposal plus conditional rescue
+          followed by restricted standard oCSE refinement
         - 'lasso': Pure LASSO-based selection
     information : str, default='gaussian'
         Information measure estimator type. Options:
@@ -115,6 +119,10 @@ def discover_network(
         ``significant=False`` edge attribute. This is intended for small
         networks only (e.g. delay-analysis plots), since it runs a CMI +
         shuffle test for all ``n * max_lag`` candidates per target.
+    screen_retention : float, default=0.40
+        Soft target fraction of external lagged candidates retained by the
+        information_screened method before restricted oCSE refinement.
+        Ignored by other methods. Appended to preserve existing positional calls.
 
     Returns
     -------
@@ -174,7 +182,13 @@ def discover_network(
     """
     rng = np.random.default_rng(random_state)
 
-    if method not in ["standard", "alternative", "information_lasso", "lasso"]:
+    if method not in [
+        "standard",
+        "alternative",
+        "information_lasso",
+        "information_screened",
+        "lasso",
+    ]:
         raise NotImplementedError(f"discover_network: method={method} not supported.")
     supported_information_types = ["gaussian", "knn", "kde", "geometric_knn", "poisson"]
     if information not in supported_information_types:
@@ -218,13 +232,21 @@ def discover_network(
         print(f"Estimating edges for node {i} ({var_names[i]})")
 
         Y = Y_all[:, [i]]  # shape: (T - max_lag, 1)
+        candidate_ids = list(range(len(feature_names)))
+        output_base = None
+        report_candidate_ids = None
         if method == "standard":
             Z_init = []
             for tau in range(1, max_lag + 1):
                 Z_init.append(series[max_lag - tau : T - tau, i])  # lagged Y_i
             Z_init = np.column_stack(Z_init)  # shape: (T - max_lag, max_lag)
-            S = standard_optimal_causation_entropy(
-                X_lagged,
+            # Target-history lags are already in Z_init; do not retest them.
+            candidate_ids = [
+                idx for idx, (source, _lag) in enumerate(feature_names) if source != i
+            ]
+            X_candidates = X_lagged[:, candidate_ids]
+            S_local = standard_optimal_causation_entropy(
+                X_candidates,
                 Y,
                 Z_init,
                 rng,
@@ -236,6 +258,9 @@ def discover_network(
                 k_means,
                 bandwidth,
             )
+            S = [candidate_ids[idx] for idx in S_local]
+            output_base = Z_init
+            report_candidate_ids = candidate_ids
         if method == "alternative":
             S = alternative_optimal_causation_entropy(
                 X_lagged,
@@ -250,7 +275,39 @@ def discover_network(
                 bandwidth,
             )
         if method == "information_lasso":
-            S = information_lasso_optimal_causation_entropy(X_lagged, Y, rng)
+            S = information_lasso_optimal_causation_entropy(
+                X_lagged,
+                Y,
+                rng,
+                information=information,
+                metric=metric,
+                k_means=k_means,
+                bandwidth=bandwidth,
+            )
+        if method == "information_screened":
+            Z_init = np.column_stack(
+                [series[max_lag - tau : T - tau, i] for tau in range(1, max_lag + 1)]
+            )
+            candidate_ids = [
+                idx for idx, (source, _lag) in enumerate(feature_names) if source != i
+            ]
+            screened_local = information_screened_optimal_causation_entropy(
+                X_lagged[:, candidate_ids],
+                Y,
+                Z_init,
+                rng,
+                retention=screen_retention,
+                alpha_forward=alpha_forward,
+                alpha_backward=alpha_backward,
+                n_shuffles=n_shuffles,
+                information=information,
+                metric=metric,
+                k_means=k_means,
+                bandwidth=bandwidth,
+            )
+            S = [candidate_ids[int(local_idx)] for local_idx in screened_local]
+            output_base = Z_init
+            report_candidate_ids = candidate_ids
         if method == "lasso":
             S = lasso_optimal_causation_entropy(X_lagged, Y, rng)
         for s in S:
@@ -260,9 +317,17 @@ def discover_network(
             X_predictor = X_lagged[:, [s]]  # predictor at this lag
             Y_target = Y  # target variable
 
-            # Conditioning set: all other selected predictors for this target
+            # Conditioning set: all other selected predictors for this target.
+            # Standard and screened oCSE keep the target-history baseline used
+            # throughout forward/backward refinement.
             other_selected = [idx for idx in S if idx != s]
-            Z_cond = X_lagged[:, other_selected] if other_selected else None
+            Z_selected = X_lagged[:, other_selected] if other_selected else None
+            if output_base is None:
+                Z_cond = Z_selected
+            elif Z_selected is None:
+                Z_cond = output_base
+            else:
+                Z_cond = np.hstack((output_base, Z_selected))
 
             # Compute conditional mutual information
             cmi = conditional_mutual_information(
@@ -308,25 +373,36 @@ def discover_network(
                     significant=True,
                 )
 
-        selected_sets.append((i, Y, list(S)))
+        selected_sets.append((i, Y, list(S), output_base, report_candidate_ids))
 
     # Report the remaining candidates only after every target is done, so the
     # extra shuffle tests below don't change the random stream used by the
     # forward/backward selection of later targets.
     if not only_return_significant:
-        for i, Y, S in selected_sets:
+        for i, Y, S, output_base, report_candidate_ids in selected_sets:
             # Report every tested candidate, including insignificant links,
             # so delay-analysis plots can show CMI versus lag. Conditioning
             # matches the significant edges above (selected set, minus the
             # candidate itself when it is selected).
             selected = set(S)
             n_features = len(feature_names)
-            for cand in range(n_features):
+            candidates_to_report = (
+                report_candidate_ids
+                if report_candidate_ids is not None
+                else range(n_features)
+            )
+            for cand in candidates_to_report:
                 if cand in selected:
                     continue
                 src_var, src_lag = feature_names[cand]
                 X_predictor = X_lagged[:, [cand]]
-                Z_cond = X_lagged[:, S] if S else None
+                Z_selected = X_lagged[:, S] if S else None
+                if output_base is None:
+                    Z_cond = Z_selected
+                elif Z_selected is None:
+                    Z_cond = output_base
+                else:
+                    Z_cond = np.hstack((output_base, Z_selected))
 
                 cmi = conditional_mutual_information(
                     X_predictor,
@@ -431,6 +507,7 @@ def standard_optimal_causation_entropy(
         metric,
         k_means,
         bandwidth,
+        Z_init=Z_init,
     )
 
     return S
@@ -499,14 +576,40 @@ def alternative_optimal_causation_entropy(
 
 
 def information_lasso_optimal_causation_entropy(
-    X, Y, rng, criterion="bic", max_lambda=100, cross_val=10, information="gaussian"
+    X,
+    Y,
+    rng,
+    criterion="bic",
+    max_lambda=100,
+    cross_val=10,
+    information="gaussian",
+    metric="euclidean",
+    k_means=5,
+    bandwidth="silverman",
 ):
-    """
-    Execute information-theoretic variant of oCSE with LASSO regularization.
+    r"""
+    Select predictors with information-weighted LASSO.
 
-    This method combines information-theoretic causal discovery with LASSO regularization
-    to handle high-dimensional predictor spaces. The approach balances causal relationship
-    strength with model complexity.
+    Each candidate first receives a non-negative information weight from its
+    conditional mutual information with the target (with no additional
+    conditioning set in this standalone pathway):
+
+    .. math::
+
+        w_j = \frac{I(X_j; Y)}{\sum_k I(X_k; Y)}.
+
+    The weighted-LASSO objective is
+
+    .. math::
+
+        \min_{\boldsymbol{\beta}}
+        \frac{1}{2n}\|\mathbf{y}-\mathbf{X}\boldsymbol{\beta}\|_2^2
+        + \lambda \sum_j \frac{1}{w_j}|\beta_j|.
+
+    It is solved with the standard scikit-learn LASSO solvers by scaling
+    feature j by w_j. This is the usual reparameterization of a weighted
+    l1 penalty. Candidates with zero information weight receive an infinite
+    effective penalty and cannot enter the model.
 
     Parameters
     ----------
@@ -515,29 +618,166 @@ def information_lasso_optimal_causation_entropy(
     Y : array-like of shape (T, 1)
         Target variable column.
     rng : numpy.random.Generator
-        Random number generator.
+        Random number generator retained for API consistency. The current
+        weighted-LASSO solvers are deterministic.
     criterion : str, default='bic'
-        Information criterion for model selection ('bic' or 'aic').
+        Information criterion used by LassoLarsIC when there are enough
+        samples relative to predictors.
     max_lambda : int, default=100
-        Maximum number of LASSO iterations.
+        Maximum solver iterations for LassoLarsIC. LassoCV uses at least 1000
+        iterations to avoid premature convergence in high dimensions.
     cross_val : int, default=10
-        Cross-validation folds (currently unused).
+        Number of cross-validation folds used by LassoCV in the
+        high-dimensional regime.
     information : str, default='gaussian'
-        Information measure estimator type.
+        Information estimator passed to conditional_mutual_information.
+    metric : str, default='euclidean'
+        Distance metric used by k-NN information estimators.
+    k_means : int, default=5
+        Number of neighbors used by k-NN information estimators.
+    bandwidth : str or float, default='silverman'
+        Bandwidth used by KDE information estimators.
 
     Returns
     -------
     S : list of int
-        Indices of selected predictor variables.
+        Indices of predictors with non-zero weighted-LASSO coefficients.
 
     Notes
     -----
-    This is a simplified implementation that delegates to LASSO. Future versions
-    will incorporate information-theoretic weighting into the regularization.
+    LassoLarsIC is used when the information criterion is identifiable from
+    the sample size. When predictors are at least as numerous as the available
+    samples, LassoCV uses the existing cross_val parameter to choose the
+    regularization strength instead of falling back to a fixed default penalty.
     """
+    del rng  # Retained in the public signature for consistency with other methods.
 
-    # This is a simplified implementation - needs proper information-theoretic weighting
-    return lasso_optimal_causation_entropy(X, Y, rng, criterion, max_lambda, cross_val)
+    n_features = X.shape[1]
+    information_values = np.empty(n_features, dtype=float)
+
+    for j in range(n_features):
+        value = conditional_mutual_information(
+            X[:, [j]],
+            Y,
+            None,
+            method=information,
+            metric=metric,
+            k=k_means,
+            bandwidth=bandwidth,
+        )
+        if not np.isfinite(value):
+            raise ValueError(
+                "Information-LASSO received a non-finite information weight "
+                f"for predictor {j}."
+            )
+        information_values[j] = max(0.0, value)
+
+    total_information = information_values.sum()
+    if total_information <= 0:
+        return []
+
+    weights = information_values / total_information
+    X_weighted = X * weights.reshape(1, -1)
+
+    if X.shape[0] > n_features + 1:
+        model = LassoLarsIC(criterion=criterion, max_iter=max_lambda).fit(
+            X_weighted, Y.flatten()
+        )
+    else:
+        cv_folds = min(cross_val, X.shape[0])
+        if cv_folds < 2:
+            raise ValueError(
+                "Information-LASSO requires at least two samples for "
+                "high-dimensional cross-validation."
+            )
+        model = LassoCV(cv=cv_folds, max_iter=max(1000, max_lambda)).fit(
+            X_weighted, Y.flatten()
+        )
+
+    return np.flatnonzero(model.coef_ != 0).tolist()
+
+
+def information_screened_optimal_causation_entropy(
+    X,
+    Y,
+    Z_init,
+    rng,
+    retention=0.40,
+    alpha_forward=0.05,
+    alpha_backward=0.05,
+    n_shuffles=200,
+    information="gaussian",
+    metric="euclidean",
+    k_means=5,
+    bandwidth="silverman",
+):
+    r"""Screen with Information-LASSO plus conditional rescue, then refine.
+
+    X contains only external candidate predictors for one target. Target
+    history is supplied separately through Z_init and is preserved in both the
+    conditional-rescue and restricted-oCSE conditioning sets.
+    """
+    if not 0 < retention <= 1:
+        raise ValueError("retention must be in (0, 1].")
+
+    n_features = X.shape[1]
+    if n_features == 0:
+        return []
+
+    endpoint = information_lasso_optimal_causation_entropy(
+        X,
+        Y,
+        rng,
+        information=information,
+        metric=metric,
+        k_means=k_means,
+        bandwidth=bandwidth,
+    )
+    endpoint = [int(j) for j in endpoint]
+    selected = set(endpoint)
+
+    target_size = int(math.ceil(retention * n_features))
+    if len(selected) < n_features:
+        target_size = max(target_size, len(selected) + 1)
+    target_size = min(n_features, target_size)
+
+    if len(selected) < target_size:
+        Z_rescue = np.hstack((Z_init, X[:, endpoint])) if endpoint else Z_init
+        scored = []
+        for j in range(n_features):
+            if j in selected:
+                continue
+            score = conditional_mutual_information(
+                X[:, [j]],
+                Y,
+                Z_rescue,
+                method=information,
+                metric=metric,
+                k=k_means,
+                bandwidth=bandwidth,
+            )
+            if not np.isfinite(score):
+                score = -np.inf
+            scored.append((float(score), int(j)))
+
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        selected.update(j for _score, j in scored[: target_size - len(selected)])
+
+    screened = sorted(selected)
+    refined_local = standard_optimal_causation_entropy(
+        X[:, screened],
+        Y,
+        Z_init,
+        rng,
+        alpha1=alpha_forward,
+        alpha2=alpha_backward,
+        n_shuffles=n_shuffles,
+        information=information,
+        metric=metric,
+        k_means=k_means,
+        bandwidth=bandwidth,
+    )
+    return [screened[int(local_idx)] for local_idx in refined_local]
 
 
 def lasso_optimal_causation_entropy(
@@ -819,6 +1059,7 @@ def backward(
     metric="euclidean",
     k_means=5,
     bandwidth="silverman",
+    Z_init=None,
 ):
     r"""
     Backward elimination phase of optimal Causation Entropy.
@@ -826,13 +1067,13 @@ def backward(
     This function performs backward elimination to remove spurious causal relationships
     identified during forward selection. For each predictor selected in the forward phase,
     it tests whether the predictor maintains statistical significance when conditioned on
-    all other selected predictors.
+    all other selected predictors and any fixed initial conditioning set.
 
     For each predictor :math:`X_j` in the selected set, the test evaluates:
 
     .. math::
 
-        I(X_j^{(t)}; Y^{(t+\tau)} | \mathbf{S}_{-j}^{(t)}) > \text{threshold}
+        I(X_j^{(t)}; Y^{(t+\tau)} | \mathbf{Z}_{init}, \mathbf{S}_{-j}^{(t)}) > \text{threshold}
 
     where :math:`\mathbf{S}_{-j}^{(t)}` represents all selected predictors except :math:`X_j`.
 
@@ -853,6 +1094,10 @@ def backward(
     information : str, default='gaussian'
         Information measure estimator type.
 
+    Z_init : array-like of shape (T, p), optional
+        Fixed conditioning baseline retained during every backward test.
+        The default None preserves unconditioned alternative-oCSE behavior.
+
     Returns
     -------
     S_final : list of int
@@ -872,8 +1117,14 @@ def backward(
     S = copy.deepcopy(S_init)  # working copy
 
     for j in rng.permutation(S_init):
-        # conditioning set Z = S \ {j}
-        Z = X_full[:, [k for k in S if k != j]] if len(S) > 1 else None
+        other_ids = [k for k in S if k != j]
+        Z_selected = X_full[:, other_ids] if other_ids else None
+        if Z_init is None:
+            Z = Z_selected
+        elif Z_selected is None:
+            Z = Z_init
+        else:
+            Z = np.hstack((Z_init, Z_selected))
 
         Xj = X_full[:, [j]]
         cmij = conditional_mutual_information(

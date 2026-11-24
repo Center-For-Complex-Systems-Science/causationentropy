@@ -7,6 +7,32 @@ of the causation entropy framework. This method begins with an initial condition
 typically consisting of lagged values of the target variable, and systematically builds 
 the causal predictor set through forward selection and backward elimination phases.
 
+Conditioning Consistency Correction
+==================================
+
+The standard-path changes accompanying information-screened oCSE are a separate
+correctness correction, not a screening operation. Both the full and restricted
+standard-oCSE searches use the following contract:
+
+* Target-history lags are fixed background variables, not selectable candidates.
+* Forward selection, backward elimination, and reported edge CMI/p-values all
+  preserve that same target-history baseline.
+* With ``only_return_significant=False``, all external candidates are reported;
+  target self-lags remain excluded. Background arrays and candidate indices are
+  saved separately for each target before deferred edge reporting.
+
+Previously, standard discovery could retest a lag already present in its
+conditioning set, then drop the initial history during backward elimination
+and edge reporting. Correcting this can change selected edges, CMI values,
+p-values, self-lag output, and seeded results. It is an intentional observable
+correction to the default method, not a claim of numerical backward compatibility.
+The alternative method still starts without a history baseline.
+
+``screen_retention`` is appended after the existing ``discover_network``
+parameters, preserving their positional binding. Comparisons of full versus
+screened oCSE must use the same corrected standard-path implementation; otherwise
+conditioning corrections could be mistaken for screening improvements.
+
 Mathematical Foundation
 =======================
 

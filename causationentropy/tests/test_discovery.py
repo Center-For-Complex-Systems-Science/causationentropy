@@ -88,7 +88,13 @@ class TestDiscoverNetwork:
         """Test that all valid methods are accepted."""
         data = np.random.normal(0, 1, (30, 2))
 
-        valid_methods = ["standard", "alternative", "information_lasso", "lasso"]
+        valid_methods = [
+            "standard",
+            "alternative",
+            "information_lasso",
+            "information_screened",
+            "lasso",
+        ]
         for method in valid_methods:
             G = discover_network(data, method=method, max_lag=1, n_shuffles=10)
             assert isinstance(G, nx.MultiDiGraph)

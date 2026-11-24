@@ -193,7 +193,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE.txt) 
 
 - **Issues**: [GitHub Issues](https://github.com/Center-For-Complex-Systems-Science/causationentropy/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/Center-For-Complex-Systems-Science/causationentropy/discussions)
-- **Email**: kslote1@gmail.com
+- **Discord**: [<img src="https://cdn.simpleicons.org/discord/5865F2" alt="Join our Discord" width="32">](https://discord.gg/JG673qbatV)
 
 ## Acknowledgments
 

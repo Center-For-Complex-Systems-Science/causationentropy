@@ -61,6 +61,25 @@ def hyperellipsoid_check(svd_Yi, Z_i):
     return (transformed**2).sum() <= 1
 
 
+def _robust_feature_scales(X):
+    """Return one robust scale estimate per feature, using 1 for constants.
+
+    The scale is the smaller of the sample standard deviation and the
+    normal-consistent IQR estimate. If the IQR is zero (for example, a
+    discrete feature with many ties), use the standard deviation instead.
+    """
+    X = np.asarray(X, dtype=float)
+    std = np.std(X, axis=0, ddof=1 if X.shape[0] > 1 else 0)
+    q25, q75 = np.percentile(X, [25, 75], axis=0)
+    iqr_scale = (q75 - q25) / 1.349
+
+    scales = np.where(iqr_scale > 0, np.minimum(std, iqr_scale), std)
+    # A constant column has no meaningful scale. Leaving it unscaled avoids
+    # division by zero; KernelDensity will still handle the constant values.
+    scales = np.where(scales > 0, scales, 1.0)
+    return scales
+
+
 def kde_entropy(X, bandwidth="silverman", kernel="gaussian"):
     r"""
     Estimate entropy using Kernel Density Estimation (KDE).
@@ -86,7 +105,9 @@ def kde_entropy(X, bandwidth="silverman", kernel="gaussian"):
         Input data for entropy estimation.
     bandwidth : str or float, default='silverman'
         Bandwidth selection method or explicit bandwidth value.
-        If 'silverman', uses Silverman's rule of thumb.
+        The 'silverman' and 'scott' rules are applied after scaling each
+        feature by a robust estimate of its spread. An explicit numeric
+        bandwidth is used in the original data units.
     kernel : str, default='gaussian'
         Kernel function type. Options include 'gaussian', 'tophat', 'epanechnikov',
         'exponential', 'linear', 'cosine'.
@@ -104,12 +125,29 @@ def kde_entropy(X, bandwidth="silverman", kernel="gaussian"):
     - Too small: Undersmoothed, entropy overestimated
     - Too large: Oversmoothed, entropy underestimated
 
-    Silverman's rule provides a reasonable default bandwidth for Gaussian-like data.
+    Rule-based bandwidths are invariant to changes of measurement units.
+    Entropy is corrected for the feature scaling. Numeric bandwidths are not
+    rescaled and therefore remain expressed in the original data units.
     """
-    kde = KernelDensity(bandwidth=bandwidth, kernel=kernel).fit(X)
-    log_density = kde.score_samples(X)  # returns log p(x) directly
+    rule_bandwidth = isinstance(bandwidth, str) and bandwidth in {
+        "silverman",
+        "scott",
+    }
+    if rule_bandwidth:
+        X = np.asarray(X, dtype=float)
+        scales = _robust_feature_scales(X)
+        fit_X = X / scales
+        log_jacobian = np.sum(np.log(scales))
+    else:
+        # Explicit numeric bandwidths retain their historical interpretation
+        # in the input data's units.
+        fit_X = X
+        log_jacobian = 0.0
+
+    kde = KernelDensity(bandwidth=bandwidth, kernel=kernel).fit(fit_X)
+    log_density = kde.score_samples(fit_X)  # returns log p(x) directly
     Hx = -np.mean(log_density)
-    return Hx
+    return float(Hx + log_jacobian)
 
 
 def geometric_knn_entropy(X, Xdist, k=1):

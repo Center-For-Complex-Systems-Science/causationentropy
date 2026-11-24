@@ -6,7 +6,7 @@
 [![codecov](https://codecov.io/gh/Center-For-Complex-Systems-Science/causationentropy/branch/main/graph/badge.svg)](https://app.codecov.io/gh/Center-For-Complex-Systems-Science/causationentropy)
 [![Tests](https://github.com/Center-For-Complex-Systems-Science/causationentropy/workflows/Tests/badge.svg)](https://github.com/Center-For-Complex-Systems-Science/causationentropy/actions)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17047565.svg)](https://doi.org/10.5281/zenodo.17047565)
-
+[<img src="https://cdn.simpleicons.org/discord/5865F2" alt="Join our Discord" width="32">](https://discord.gg/JG673qbatV)
 
 A Python library for discovering causal networks from time series data using **Optimal Causation Entropy (oCSE)**.
 

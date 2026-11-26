@@ -196,6 +196,83 @@ class TestSymbolicDiscovery:
         edges = {(u, v, a.get("lag")) for u, v, a in G.edges(data=True)}
         assert edges == {("X0", "X1", 1)}
 
+    def test_lags_share_one_partition(self, monkeypatch):
+        # Each variable is symbolized once over its full series, so the CMI calls
+        # inside discover_network get the same values as symbolizing up front and
+        # using partition='precomputed' (Cafaro et al. 2015, Eq. 3).
+        import causationentropy.core.discovery as discovery
+
+        rng = np.random.default_rng(55)
+        data = rng.standard_normal((40, 2))
+        S = symbolize(data)
+        seen = []
+        original = discovery.conditional_mutual_information
+
+        def spy(X, Y, Z=None, **kwargs):
+            seen.append((X.copy(), Y.copy(), None if Z is None else Z.copy()))
+            return original(X, Y, Z, **kwargs)
+
+        monkeypatch.setattr(discovery, "conditional_mutual_information", spy)
+        discover_network(
+            data, information="symbolic", max_lag=2, n_shuffles=20, n_jobs=1
+        )
+        # Allowed columns: lag 1 and lag 2 slices and the target slice of the
+        # once-symbolized series (max_lag=2, T=40).
+        allowed = {
+            tuple(S[start : start + 38, j].astype(float))
+            for j in range(2)
+            for start in (0, 1, 2)
+        }
+        assert seen
+        n_checked = 0
+        for _, Y, Z in seen:
+            for arr in (Y,) + (() if Z is None else (Z,)):
+                arr = np.asarray(arr).reshape(38, -1)
+                for col in arr.T:
+                    assert tuple(col.astype(float)) in allowed
+                    n_checked += 1
+        assert n_checked > 0
+
+    def test_lasso_selection_uses_raw_values(self, monkeypatch):
+        # LASSO selection is a regression and must see the raw values, not the
+        # 0/1 symbols; only the edge CMI uses the symbols.
+        import causationentropy.core.discovery as discovery
+
+        rng = np.random.default_rng(0)
+        data = rng.standard_normal((60, 2))
+        seen = []
+        original = discovery.lasso_optimal_causation_entropy
+
+        def spy(X, Y, rng, *args, **kwargs):
+            seen.append((X.copy(), Y.copy()))
+            return original(X, Y, rng, *args, **kwargs)
+
+        monkeypatch.setattr(discovery, "lasso_optimal_causation_entropy", spy)
+        discover_network(
+            data,
+            method="lasso",
+            information="symbolic",
+            max_lag=2,
+            n_shuffles=20,
+            n_jobs=1,
+        )
+        assert len(seen) == 2
+        for i, (X, Y) in enumerate(seen):
+            assert np.array_equal(X[:, 0], data[1:59, 0])  # X0 at lag 1
+            assert np.array_equal(Y.ravel(), data[2:, i])
+
+    def test_reviewer_example_matches_precomputed(self):
+        # Separate partitions of lagged copies differ from one shared partition
+        # (seed 55, T=40): 0.074928 vs 0.027400.
+        x = np.random.default_rng(55).standard_normal(40)
+        s = symbolize(x).ravel()
+        separate = symbolic_conditional_mutual_information(x[2:], x[1:-1], x[:-2])
+        shared = symbolic_conditional_mutual_information(
+            s[2:], s[1:-1], s[:-2], partition="precomputed"
+        )
+        assert round(separate, 6) == 0.074928
+        assert round(shared, 6) == 0.0274
+
 
 class TestSymbolizeTies:
     def test_heavily_tied_binary_data_keeps_both_symbols(self):

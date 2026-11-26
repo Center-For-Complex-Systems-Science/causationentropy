@@ -417,6 +417,11 @@ def symbolic_conditional_mutual_information(
     -----
     Cafaro et al. [1]_ show that the inferred causal structure can depend sensitively
     on the partition, so ``n_symbols`` and ``partition`` should be chosen with care.
+    ``X``, ``Y`` and ``Z`` (and each of their columns) are partitioned separately. If
+    some columns are lagged copies of the same variable, symbolize that variable's
+    full series once with :func:`symbolize` and pass ``partition='precomputed'``, so
+    one observation gets the same symbol at every lag; :func:`discover_network` does
+    this.
     The plug-in estimate is biased upward when the number of occupied joint symbols is
     not small compared with the sample size [2]_; in :func:`discover_network` the
     permutation test uses the same estimator for its null distribution.

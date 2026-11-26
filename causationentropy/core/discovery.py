@@ -15,6 +15,7 @@ from sklearn.linear_model import Lasso, LassoLarsIC
 from causationentropy.core.information.conditional_mutual_information import (
     conditional_mutual_information,
 )
+from causationentropy.core.information.entropy import symbolize
 
 
 def discover_network(
@@ -85,7 +86,8 @@ def discover_network(
         - 'geometric_knn': Geometric mean k-NN estimator
         - 'poisson': Poisson distribution assumption
         - 'symbolic': Plug-in estimate on symbolized data (Cafaro et al., 2015);
-          each variable is split near its median (two symbols)
+          each variable's full series is split once near its median (two
+          symbols), and all its lags use these same symbols
     max_lag : int, default=5
         Maximum time lag to consider in causal relationships. The algorithm examines
         lags from 1 to max_lag (inclusive).
@@ -204,6 +206,20 @@ def discover_network(
     if T <= max_lag + 2:
         raise ValueError("Time series too short for chosen max_lag.")
 
+    if information == "symbolic":
+        # Cafaro et al. (2015), Eq. (3): one partition per variable gives one symbol
+        # sequence, and the lagged symbols s_{t-1}, s_{t-2}, ... come from it. So
+        # symbolize each full series once, before the lagged copies are built;
+        # otherwise each lagged slice would get its own median and the same
+        # observation could get different symbols at different lags. The CMI
+        # estimator symbolizes its 0/1 inputs again, which only relabels each
+        # column one-to-one and leaves the estimate unchanged. The LASSO selection
+        # steps below still use the raw values (raw_series).
+        raw_series = series
+        series = symbolize(series).astype(float)
+    else:
+        raw_series = series
+
     indices = np.arange(max_lag, T - 1)
     # Step 1: Create lagged predictors and corresponding labels
     X_lagged = []
@@ -258,10 +274,16 @@ def discover_network(
                 k_means,
                 bandwidth,
             )
+        if method in ("information_lasso", "lasso"):
+            # LASSO is a regression on the raw values, whatever `information` is.
+            X_raw = np.column_stack(
+                [raw_series[max_lag - tau : T - tau, j] for j, tau in feature_names]
+            )
+            Y_raw = raw_series[max_lag:, [i]]
         if method == "information_lasso":
-            S = information_lasso_optimal_causation_entropy(X_lagged, Y, rng)
+            S = information_lasso_optimal_causation_entropy(X_raw, Y_raw, rng)
         if method == "lasso":
-            S = lasso_optimal_causation_entropy(X_lagged, Y, rng)
+            S = lasso_optimal_causation_entropy(X_raw, Y_raw, rng)
         for s in S:
             src_var, src_lag = feature_names[s]
 

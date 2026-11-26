@@ -284,7 +284,11 @@ def symbolic_mutual_information(
     Notes
     -----
     The plug-in estimate is biased upward when the number of occupied joint symbols
-    is not small compared with the sample size [2]_.
+    is not small compared with the sample size [2]_. ``X`` and ``Y`` (and each of
+    their columns) are partitioned separately. If they are lagged copies of the same
+    variable, symbolize that variable's full series once with :func:`symbolize` and
+    pass ``partition='precomputed'``, so one observation gets the same symbol at
+    every lag.
 
     Examples
     --------

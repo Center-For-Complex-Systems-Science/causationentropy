@@ -106,34 +106,43 @@ Sequential Testing in oCSE
 Forward Selection Testing
 -------------------------
 
-At each forward selection step :math:`s`:
-1. Test all remaining candidates: :math:`\{H_{0,k}\}_{k \in \mathcal{R}_s}`
-2. Apply multiple testing correction within the step
-3. Select the most significant candidate (if any pass the threshold)
+At each forward-selection iteration, the remaining candidate predictors
+are scored by conditional mutual information (CMI) given the current
+conditioning set. The candidate with the largest CMI estimate is then
+tested using ``shuffle_test`` at the configured ``alpha_forward``.
 
-**Step-wise FDR Control:**
+In the ``standard`` method, a candidate that fails the test is removed
+from consideration, and the search continues with the remaining candidates.
+In the ``alternative`` method, a failed test ends forward selection.
+A candidate that passes is added to the selected set, and the conditioning
+set is updated.
 
-.. math::
+The implementation does not apply a Bonferroni or false-discovery-rate
+(FDR) correction across candidates at each step. The permutation-test
+p-value for the selected candidate is not adjusted for the fact that
+the candidate was chosen using the same data.
 
-   \alpha_s = \alpha \cdot \frac{|\mathcal{R}_s|}{|\mathcal{R}_1|}
-This allocates the error budget proportionally across steps.
 Backward Elimination Testing
 ----------------------------
 
-Test each selected predictor for continued significance:
+The backward stage visits selected predictors in a randomized order.
+Each predictor is tested conditional on the other predictors still in
+the selected set. Predictors that fail the permutation test at
+``alpha_backward`` are removed.
 
-.. math::
+No step-wise FDR correction is applied during backward elimination.
 
-   H_0: I(X_j^{(t-\tau)}; X_i^{(t)} | \mathbf{S}_i \setminus \{j\}) = 0
+Multiple Testing After Discovery
+--------------------------------
 
-**Challenges:**
-- Dependencies between tests (same target, overlapping conditioning sets)
-- Multiple testing across different removal orders
+The library provides post-discovery p-value adjustments through
+:func:`causationentropy.graph.utils.apply_test_correction`.
 
-**Solutions:**
-- Use more conservative :math:`\alpha` for backward phase
-- Apply FDR control across all backward tests
-- Use stability-based selection criteria
+These adjustments apply to retained edges only. They do not account
+for every candidate considered during selection and do not provide
+selection-adjusted inference. See the section
+`Multiple-Testing Corrections in the Library`_ for details.
+
 Bootstrap Methods
 =================
 

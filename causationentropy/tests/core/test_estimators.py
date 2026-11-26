@@ -147,6 +147,67 @@ class TestEntropicRegressionFunction:
             entropic_regression(np.zeros(10), np.zeros((9, 2)))
 
 
+class TestSelectionAware:
+    def test_default_is_paper_test(self):
+        rng = np.random.default_rng(10)
+        Phi = rng.normal(size=(150, 4))
+        f = Phi[:, 1] + rng.normal(size=150)
+        a = entropic_regression(f, Phi, n_shuffles=30, rng=11)
+        b = entropic_regression(f, Phi, n_shuffles=30, rng=11, selection_aware=False)
+        assert a[0] == b[0]
+        assert np.array_equal(a[1], b[1])
+
+    def test_recovers_sparse_linear_model(self):
+        rng = np.random.default_rng(0)
+        Phi = rng.normal(size=(400, 6))
+        f = 2.0 * Phi[:, 0] - 3.0 * Phi[:, 3] + 0.1 * rng.normal(size=400)
+        S, coef, _ = entropic_regression(
+            f, Phi, n_shuffles=50, rng=1, selection_aware=True
+        )
+        assert S == [0, 3]
+        assert coef[[0, 3]] == pytest.approx([2.0, -3.0], abs=0.03)
+
+    def test_null_refits_on_permuted_target(self, monkeypatch):
+        # The selection-aware null refits the least-squares models on each
+        # permuted f: one fit per candidate per shuffle in the first step.
+        import causationentropy.core.estimators as est
+
+        targets = []
+        original = est._least_squares
+
+        def recording(Phi, f, S, intercept):
+            targets.append(f)
+            return original(Phi, f, S, intercept)
+
+        monkeypatch.setattr(est, "_least_squares", recording)
+        rng = np.random.default_rng(12)
+        Phi = rng.normal(size=(100, 3))
+        f = 0.5 * Phi[:, 0] + rng.normal(size=100)  # first score > 0, so shuffles run
+        entropic_regression(f, Phi, n_shuffles=10, rng=13, selection_aware=True)
+        permuted = [t for t in targets if not np.array_equal(t, f)]
+        assert len(permuted) >= 10 * 3
+        assert all(np.array_equal(np.sort(t), np.sort(f)) for t in permuted)
+
+    def test_model_passes_option(self, monkeypatch):
+        import causationentropy.core.estimators as est
+
+        seen = []
+        original = est.entropic_regression
+
+        def recording(*args, **kwargs):
+            seen.append(kwargs["selection_aware"])
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(est, "entropic_regression", recording)
+        rng = np.random.default_rng(14)
+        X = rng.normal(size=(120, 2))
+        X_dot = -X + 0.1 * rng.normal(size=(120, 2))
+        EntropicRegression(
+            degree=1, n_shuffles=10, random_state=0, selection_aware=True
+        ).fit(X, X_dot=X_dot)
+        assert seen == [True, True]
+
+
 class TestEntropicRegressionModel:
     def test_lorenz_exact_derivatives(self):
         X, X_dot = _lorenz(400, 0.01)

@@ -15,6 +15,9 @@ from sklearn.linear_model import Lasso, LassoLarsIC
 from causationentropy.core.information.conditional_mutual_information import (
     conditional_mutual_information,
 )
+from causationentropy.core.information.gaussian_shuffle_cache import (
+    GaussianShuffleCache,
+)
 
 
 def discover_network(
@@ -1030,6 +1033,9 @@ def shuffle_test(
     """
     rng = np.random.default_rng(rng)
     null_cmi = np.empty(n_shuffles)
+    gaussian_cache = (
+        GaussianShuffleCache.build(X, Y, Z) if information == "gaussian" else None
+    )
 
     # Futility stopping: once strictly more null values reach or exceed the
     # observed CMI than alpha * n_shuffles, the final p-value must end above
@@ -1039,16 +1045,22 @@ def shuffle_test(
     exceedances = 0
     n_completed = n_shuffles
     for i in range(n_shuffles):
-        X_perm = X[rng.permutation(len(X)), :]  # shuffle rows
-        null_cmi[i] = conditional_mutual_information(
-            X_perm,
-            Y,
-            Z,
-            method=information,
-            metric=metric,
-            k=k_means,
-            bandwidth=bandwidth,
-        )
+        permutation = rng.permutation(len(X))
+        if gaussian_cache is None:
+            X_perm = X[permutation, :]
+            null_cmi[i] = conditional_mutual_information(
+                X_perm,
+                Y,
+                Z,
+                method=information,
+                metric=metric,
+                k=k_means,
+                bandwidth=bandwidth,
+            )
+        else:
+            null_cmi[i] = gaussian_cache.evaluate(
+                permutation, is_permutation=True, observed_cmi=observed_cmi
+            )
         if early_stop and null_cmi[i] >= observed_cmi:
             exceedances += 1
             if exceedances > stop_limit:

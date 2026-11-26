@@ -2,11 +2,11 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Documentation Status](https://readthedocs.org/projects/causationentropy/badge/?version=stable)](https://causationentropy.readthedocs.io/en/stable/?badge=stable)
+[![Documentation Status](https://app.readthedocs.org/projects/causationentropy/badge/?version=stable)](https://causationentropy.readthedocs.io/en/stable/)
 [![codecov](https://codecov.io/gh/Center-For-Complex-Systems-Science/causationentropy/branch/main/graph/badge.svg)](https://app.codecov.io/gh/Center-For-Complex-Systems-Science/causationentropy)
 [![Tests](https://github.com/Center-For-Complex-Systems-Science/causationentropy/workflows/Tests/badge.svg)](https://github.com/Center-For-Complex-Systems-Science/causationentropy/actions)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17047565.svg)](https://doi.org/10.5281/zenodo.17047565)
-
+[<img src="https://cdn.simpleicons.org/discord/5865F2" alt="Join our Discord" width="32">](https://discord.gg/JG673qbatV)
 
 A Python library for discovering causal networks from time series data using **Optimal Causation Entropy (oCSE)**.
 
@@ -174,12 +174,15 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 If you use this library in your research, please cite:
 
 ```bibtex
-   @misc{slote2025causationentropy,
-     author  = {Slote, Kevin and Fish, Jeremie and Bollt, Erik},
-     title   = {CausationEntropy: A Python Library for Causal Discovery},
-     url     = {https://github.com/Center-For-Complex-Systems-Science/causationentropy},
-     doi     = {10.5281/zenodo.17047565}
-   }
+@misc{slote2026causationentropypythonicoptimalcausation,
+      title={CausationEntropy: Pythonic Optimal Causation Entropy}, 
+      author={Kevin Slote and Jeremie Fish and Erik Bollt},
+      year={2026},
+      eprint={2601.13365},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2601.13365}, 
+}
 ```
 
 ## License
@@ -190,7 +193,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE.txt) 
 
 - **Issues**: [GitHub Issues](https://github.com/Center-For-Complex-Systems-Science/causationentropy/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/Center-For-Complex-Systems-Science/causationentropy/discussions)
-- **Email**: kslote1@gmail.com
+- **Discord**: [<img src="https://cdn.simpleicons.org/discord/5865F2" alt="Join our Discord" width="32">](https://discord.gg/JG673qbatV)
 
 ## Acknowledgments
 

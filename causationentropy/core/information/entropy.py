@@ -2,7 +2,7 @@ import warnings
 
 import numpy as np
 import scipy
-from scipy.special import gamma, i0, i1
+from scipy.special import entr, gamma, i0, i1
 from scipy.stats import nbinom
 from sklearn.neighbors import KernelDensity
 
@@ -316,7 +316,7 @@ def poisson_entropy(lambdas):
     lambdas = np.abs(lambdas)
     First = np.exp(-lambdas)
     Psum = First
-    P = [np.atleast_2d(First)]
+    P = [np.asarray(First)]
     counter = 0
     small = 1
     i = 1
@@ -324,14 +324,14 @@ def poisson_entropy(lambdas):
         counter = counter + 1
         prob = scipy.stats.poisson.pmf(i, lambdas)
         Psum = Psum + prob
-        P.append(np.atleast_2d(prob))
+        P.append(np.asarray(prob))
         if i >= np.max(lambdas):
-            small = np.min(prob)
+            small = np.max(prob)
 
         i = i + 1
 
-    P = np.array(P).squeeze()
-    est_a = P * np.log(P)
+    P = np.stack(P, axis=0)
+    est_a = -entr(P)
     try:
         est = -np.sum(est_a, axis=0)
     except:
